@@ -1,0 +1,363 @@
+/* ── SCI-FI SIDEBAR OVERHAUL ──────────────────────────── */
+/* A completely out-of-the-box, futuristic, HUD-style navigation */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Orbitron:wght@400;700;900&display=swap');
+
+.scifi-sidebar {
+    background: linear-gradient(180deg, rgba(6, 11, 25, 0.6) 0%, rgba(3, 5, 15, 0.7) 100%) !important;
+    border-right: 1px solid rgba(0, 255, 213, 0.15) !important;
+    box-shadow: 5px 0 30px rgba(0, 255, 213, 0.05), inset -1px 0 0 rgba(0, 255, 213, 0.3) !important;
+    position: relative;
+    overflow: hidden;
+    font-family: 'Inter', sans-serif;
+}
+
+/* Sci-fi Scanning Line Effect */
+.scifi-sidebar::before {
+    content: '';
+    position: absolute;
+    top: -100%;
+    left: 0;
+    width: 100%;
+    height: 15px;
+    background: linear-gradient(to bottom, transparent, rgba(0, 255, 213, 0.4), transparent);
+    animation: scifi-scan 12s linear infinite;
+    pointer-events: none;
+    z-index: 10;
+}
+
+@keyframes scifi-scan {
+    0% { top: -10%; opacity: 0; }
+    10% { opacity: 0.5; }
+    90% { opacity: 0.5; }
+    100% { top: 110%; opacity: 0; }
+}
+
+/* Sci-fi Grid Background */
+.scifi-sidebar::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: linear-gradient(rgba(0, 255, 213, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 213, 0.03) 1px, transparent 1px);
+    background-size: 20px 20px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.sidebar-internal-dither {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.25;
+}
+
+.scifi-sidebar > * {
+    position: relative;
+    z-index: 1;
+}
+.scifi-sidebar .sidebar-logo {
+    padding: 1.5rem 1rem !important;
+    border-bottom: 1px solid rgba(0, 255, 213, 0.15);
+    background: rgba(0, 255, 213, 0.02);
+    position: relative;
+    z-index: 2;
+}
+
+.scifi-sidebar .logo-text h1 {
+    font-family: 'Orbitron', sans-serif !important;
+    font-size: 1.1rem !important;
+    color: #00ffd5 !important;
+    letter-spacing: 2px;
+    text-shadow: 0 0 10px rgba(0, 255, 213, 0.5);
+}
+
+.scifi-sidebar .logo-text p {
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.6rem !important;
+    color: rgba(255, 255, 255, 0.5) !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.scifi-sidebar .app-logo-img {
+    border-radius: 4px !important;
+    border: 1px solid #00ffd5;
+    filter: drop-shadow(0 0 5px rgba(0, 255, 213, 0.5));
+    clip-path: polygon(10% 0, 100% 0, 100% 90%, 90% 100%, 0 100%, 0 10%);
+}
+
+/* Navigation Items HUD Style */
+.scifi-sidebar .sidebar-nav {
+    padding: 1rem 0.75rem !important;
+    z-index: 2;
+    position: relative;
+}
+
+.scifi-sidebar .nav-item {
+    margin-bottom: 4px !important;
+    border-radius: 2px !important;
+    padding: 0.6rem 0.8rem !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    position: relative;
+    background: transparent !important;
+    border-left: 2px solid transparent;
+}
+
+.scifi-sidebar .nav-item:hover {
+    background: rgba(0, 255, 213, 0.05) !important;
+    border-left: 2px solid rgba(0, 255, 213, 0.5);
+    padding-left: 1.2rem !important;
+}
+
+.scifi-sidebar .nav-item.active {
+    background: linear-gradient(90deg, rgba(0, 255, 213, 0.15) 0%, transparent 100%) !important;
+    border-left: 3px solid #00ffd5 !important;
+    box-shadow: inset 5px 0 15px rgba(0, 255, 213, 0.1);
+}
+
+.scifi-sidebar .nav-item.active::after {
+    content: '';
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    background: #00ffd5;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #00ffd5;
+    animation: scifi-pulse 2s infinite;
+}
+
+@keyframes scifi-pulse {
+    0% { opacity: 0.3; transform: translateY(-50%) scale(0.8); }
+    50% { opacity: 1; transform: translateY(-50%) scale(1.2); }
+    100% { opacity: 0.3; transform: translateY(-50%) scale(0.8); }
+}
+
+.scifi-sidebar .nav-label {
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.75rem !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.scifi-sidebar .nav-item:hover .nav-label,
+.scifi-sidebar .nav-item.active .nav-label {
+    color: #ffffff !important;
+    text-shadow: 0 0 8px rgba(0, 255, 213, 0.6);
+}
+
+.scifi-sidebar .nav-label.text-red {
+    color: #ef4444 !important;
+    text-shadow: 0 0 8px rgba(239, 68, 68, 0.6) !important;
+    font-weight: 700 !important;
+}
+
+.scifi-sidebar .nav-item:hover .nav-label.text-red,
+.scifi-sidebar .nav-item.active .nav-label.text-red {
+    color: #ff6b6b !important;
+    text-shadow: 0 0 12px rgba(239, 68, 68, 0.8) !important;
+}
+
+.scifi-sidebar .nav-icon {
+    filter: sepia(1) hue-rotate(130deg) saturate(300%) brightness(1.2);
+    font-size: 0.9rem !important;
+    margin-right: 12px !important;
+}
+
+/* Footer / User Profile Area */
+.scifi-sidebar .sidebar-footer {
+    background: rgba(0, 0, 0, 0.3) !important;
+    border-top: 1px solid rgba(0, 255, 213, 0.15) !important;
+    z-index: 2;
+    position: relative;
+    padding: 1.25rem 1rem !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+}
+
+.scifi-sidebar .user-name {
+    font-family: 'Orbitron', sans-serif !important;
+    font-size: 0.75rem !important;
+    color: #00ffd5 !important;
+    letter-spacing: 1px;
+}
+
+.scifi-sidebar .profile-avatar-xs {
+    border-radius: 2px !important;
+    border: 1px solid rgba(0, 255, 213, 0.5);
+}
+
+.scifi-sidebar .sidebar-music-btn {
+    width: 48px !important;
+    height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #ff9d00 !important;
+    background: rgba(255, 157, 0, 0.1) !important;
+    border: 1px solid rgba(255, 157, 0, 0.3) !important;
+    border-radius: 50% !important;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    position: relative;
+    cursor: pointer;
+    overflow: visible !important;
+}
+
+.scifi-sidebar .sidebar-music-btn .spinning {
+    animation: spin 3s linear infinite;
+}
+
+.scifi-sidebar .sidebar-music-btn:hover {
+    color: #fff !important;
+    background: rgba(255, 157, 0, 0.25) !important;
+    border-color: #ff9d00 !important;
+    transform: scale(1.1) rotate(5deg);
+    box-shadow: 0 0 20px rgba(255, 157, 0, 0.4);
+}
+
+.scifi-sidebar .sidebar-music-btn.is-playing {
+    background: rgba(255, 157, 0, 0.2) !important;
+    border-color: #ff9d00 !important;
+    color: #fff !important;
+    box-shadow: 0 0 30px rgba(255, 157, 0, 0.5), inset 0 0 10px rgba(255, 157, 0, 0.3) !important;
+}
+
+.scifi-sidebar .music-btn-glow {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 157, 0, 0.2) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none !important;
+}
+
+.scifi-sidebar .sidebar-music-btn.is-playing .music-btn-glow {
+    opacity: 1;
+    animation: pulse 2s infinite ease-in-out;
+}
+
+/* Mini Player HUD */
+.scifi-sidebar .sidebar-mini-player {
+    background: rgba(0, 255, 213, 0.05) !important;
+    border: 1px solid rgba(0, 255, 213, 0.2) !important;
+    border-left: 3px solid #ff007f !important;
+    border-radius: 0 !important;
+    margin: 0 0.5rem 1rem 0.5rem !important;
+    z-index: 2;
+    position: relative;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+.scifi-sidebar .mini-title {
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.65rem !important;
+    color: #ff007f !important;
+    text-transform: uppercase;
+}
+
+.scifi-sidebar .mini-artist {
+    font-family: 'Space Mono', monospace !important;
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.scifi-sidebar .mini-controls button {
+    color: rgba(0, 255, 213, 0.8) !important;
+}
+.scifi-sidebar .mini-controls button:hover {
+    color: #00ffd5 !important;
+    filter: drop-shadow(0 0 5px #00ffd5);
+}
+
+/* Custom Scrollbar for Sci-Fi Navbar */
+.scifi-sidebar .sidebar-nav::-webkit-scrollbar {
+    width: 4px;
+}
+.scifi-sidebar .sidebar-nav::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+.scifi-sidebar .sidebar-nav::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 213, 0.3);
+    border-radius: 0;
+}
+.scifi-sidebar .sidebar-nav::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 255, 213, 0.6);
+}
+
+/* ── MINI SIDEBAR ADJUSTMENTS (When Collapsed) ────────── */
+@media (min-width: 769px) {
+    .scifi-sidebar:not(:hover) {
+        width: 72px !important;
+    }
+
+    .scifi-sidebar:not(:hover) .sidebar-logo {
+        padding: 1.5rem 0 !important;
+        display: flex !important;
+        justify-content: center !important;
+    }
+
+    .scifi-sidebar:not(:hover) .logo-flex {
+        justify-content: center !important;
+        width: 100% !important;
+    }
+
+    .scifi-sidebar:not(:hover) .sidebar-nav {
+        padding: 1rem 0 !important;
+    }
+
+    .scifi-sidebar:not(:hover) .nav-item {
+        justify-content: center !important;
+        padding: 0.6rem 0 !important;
+        margin: 0 4px !important;
+        border-left-width: 0 !important;
+    }
+
+    .scifi-sidebar:not(:hover) .nav-icon {
+        margin-right: 0 !important;
+        font-size: 1.1rem !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        width: 100% !important;
+    }
+
+    .scifi-sidebar:not(.is-expanded) .nav-label,
+    .scifi-sidebar:not(.is-expanded) .logo-text,
+    .scifi-sidebar:not(.is-expanded) .user-name,
+    .scifi-sidebar:not(.is-expanded) .mini-details,
+    .scifi-sidebar:not(.is-expanded) .sidebar-mini-player {
+        display: none !important;
+    }
+
+    .scifi-sidebar:not(.is-expanded) .sidebar-footer {
+        padding: 1.5rem 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 1.25rem !important;
+    }
+
+    .scifi-sidebar:not(.is-expanded) .sidebar-footer-actions {
+        flex-direction: column !important;
+        gap: 0.75rem !important;
+        margin: 0 !important;
+    }
+
+    .scifi-sidebar:not(.is-expanded) .user-profile-stack {
+        justify-content: center !important;
+        width: 100% !important;
+    }
+    
+    .scifi-sidebar:not(.is-expanded) .nav-item.active::after {
+        right: 4px !important;
+        width: 4px !important;
+        height: 4px !important;
+    }
+}
+

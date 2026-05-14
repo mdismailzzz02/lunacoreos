@@ -1,0 +1,18 @@
+{
+  "short_name": "LunaCoreOS",
+  "name": "LunaCoreOS — Your Private Sanctuary",
+  "description": "Your private journaling and productivity sanctuary.",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0a0a1a",
+  "background_color": "#0a0a1a",
+  "orientation": "portrait"
+}

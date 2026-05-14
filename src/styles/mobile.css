@@ -1,0 +1,997 @@
+/* -- Mobile Navigation & Header Upgrade ------------------- */
+@media (max-width: 768px) {
+
+  /* Top Header */
+  .mobile-header {
+    display: flex !important;
+    height: 60px;
+    padding: 0 1.25rem;
+    background: rgba(15, 52, 96, 0.88);
+    /* Deep native blue */
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(167, 139, 250, 0.1);
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+  }
+
+  .mobile-header-branding {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .mobile-logo-img {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1.5px solid var(--accent);
+  }
+
+  .mobile-header-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .mobile-header-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .status-badge.offline {
+    font-size: 0.6rem;
+    background: #e94560;
+    color: white;
+    padding: 2px 10px;
+    border-radius: 100px;
+    font-weight: 700;
+  }
+
+  .mobile-user-avatar-img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1.5px solid var(--accent);
+    box-shadow: 0 0 15px rgba(232, 160, 69, 0.3);
+  }
+
+  /* Bottom Navigation - Glassmorphism */
+  .mobile-nav {
+    display: grid !important;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(65px + env(safe-area-inset-bottom));
+    background: rgba(22, 33, 62, 0.92);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border-top: 1px solid rgba(167, 139, 250, 0.15);
+    grid-template-columns: repeat(5, 1fr);
+    padding: 0 5px;
+    padding-bottom: env(safe-area-inset-bottom);
+    z-index: 2000;
+    box-shadow: 0 -15px 40px rgba(0, 0, 0, 0.7);
+  }
+
+  .mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    color: rgba(255, 255, 255, 0.5);
+    background: none;
+    border: none;
+    padding: 10px 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .mobile-nav-item.active {
+    color: var(--accent);
+    transform: translateY(-2px);
+  }
+
+  .mobile-nav-icon {
+    font-size: 1.5rem;
+    transition: transform 0.3s ease;
+  }
+
+  .mobile-nav-item.active .mobile-nav-icon {
+    transform: scale(1.1);
+  }
+
+  .mobile-nav-label {
+    font-size: 0.6rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* Mobile Sidebar (Drawer Overwrite) */
+  .sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px !important;
+    min-width: 280px !important;
+    z-index: 3000;
+    background: #111e3b !important;
+    transform: translateX(-101%);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 25px 0 60px rgba(0, 0, 0, 0.7);
+    display: flex !important;
+    padding-top: 2rem !important;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(5px);
+    z-index: 2900;
+    animation: fade-in 0.3s ease;
+  }
+
+  /* Hide Desktop Elements */
+  .sidebar-logo {
+    display: none !important;
+  }
+
+  /* Layout Adjustments */
+  .app-shell {
+    padding-top: 60px !important;
+    padding-bottom: 0 !important;
+    height: 100dvh !important;
+    overflow-x: hidden;
+  }
+
+  .content-area {
+    padding: 1.5rem 1rem !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    /* Extra padding at bottom so content doesn't hide behind mobile nav + music player */
+    padding-bottom: calc(115px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* Hidden by default on desktop */
+.mobile-header {
+  display: none;
+}
+
+.mobile-nav {
+  display: none;
+}
+
+.sidebar-overlay {
+  display: none;
+}
+
+/* ── Lightbox Full-Screen Upgrade ───────────────────────────── */
+.lightbox-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  background: #000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 9000 !important;
+  overflow: hidden !important;
+  touch-action: none !important;
+}
+
+.lightbox-topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
+  z-index: 10;
+}
+
+.lightbox-title {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.85rem;
+  font-weight: 600;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lightbox-close {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.lightbox-img-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  will-change: transform;
+}
+
+.lightbox-img {
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  border-radius: 0 !important;
+  user-select: none;
+  -webkit-user-drag: none;
+  display: block;
+}
+
+video.lightbox-img {
+  max-height: 80vh !important;
+}
+
+.lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 2rem;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: background 0.15s;
+  padding: 0;
+}
+
+.lightbox-nav:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.lightbox-prev {
+  left: 1rem;
+}
+
+.lightbox-next {
+  right: 1rem;
+}
+
+.lightbox-strip {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  overflow-x: auto;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
+  z-index: 10;
+  scrollbar-width: none;
+}
+
+.lightbox-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.lightbox-strip-thumb {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  opacity: 0.5;
+  border: 2px solid transparent;
+  transition: opacity 0.2s, border-color 0.2s, transform 0.2s;
+  cursor: pointer;
+}
+
+.lightbox-strip-thumb.active {
+  opacity: 1;
+  border-color: var(--accent);
+  transform: scale(1.1);
+}
+
+.lightbox-strip-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lightbox-reset-zoom {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 100px;
+  padding: 8px 20px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  z-index: 10;
+}
+
+/* ── Common Layout Stacking ────────────────────────── */
+@media (max-width: 768px) {
+
+  .two-col,
+  .media-row,
+  .videos-layout,
+  .journal-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1.25rem !important;
+  }
+
+  .journal-layout {
+    height: 100% !important;
+  }
+
+  .stats-row {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 1rem !important;
+  }
+
+  .masonry-grid {
+    columns: 1 !important;
+    display: block !important;
+  }
+
+  /* ── Dashboard Stacking ───────────────────────────── */
+  .greeting-h1 {
+    font-size: 1.5rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .greeting-date {
+    font-size: 0.8rem !important;
+  }
+
+  .daily-prompt {
+    font-size: 0.85rem !important;
+    margin-top: 0.5rem !important;
+    padding: 0.75rem !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+    border-radius: 8px !important;
+  }
+
+  .dashboard-footer-layout {
+    grid-template-columns: 1fr !important;
+    gap: 1.5rem !important;
+  }
+
+  .dashboard-activity-side {
+    width: 100% !important;
+  }
+
+  .stat-card {
+    padding: 1rem !important;
+  }
+
+  .stat-value {
+    font-size: 1.25rem !important;
+  }
+
+  .stat-label {
+    font-size: 0.65rem !important;
+  }
+
+  /* ── Videos & Twitch ──────────────────────────────── */
+  .videos-sidebar {
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(167, 139, 250, 0.1);
+    padding-bottom: 1.25rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  .yt-add-row {
+    flex-direction: row !important;
+    /* Keep input and button on one line */
+    gap: 8px !important;
+  }
+
+  /* Horizontal Pill pattern for Video Channels */
+  .yt-channel-list {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    padding: 0.25rem 0 0.75rem !important;
+    gap: 10px !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .yt-channel-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .yt-channel-card {
+    min-width: 140px !important;
+    flex: 0 0 auto !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    padding: 12px 10px !important;
+    border-radius: 12px !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+  }
+
+  .yt-ch-avatar {
+    width: 48px !important;
+    height: 48px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .yt-ch-info {
+    width: 100% !important;
+  }
+
+  .yt-ch-name {
+    font-size: 0.75rem !important;
+    margin-bottom: 2px !important;
+  }
+
+  .yt-video-grid,
+  .yt-pending-grid {
+    grid-template-columns: 1fr !important;
+    /* Large beautiful thumbnails */
+    gap: 1.5rem !important;
+  }
+
+  .yt-video-card,
+  .yt-pending-card {
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+  }
+
+  /* ── Journal List ─────────────────────────────────── */
+  .journal-list {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: none !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border);
+    overflow-y: auto !important;
+  }
+
+  .journal-editor {
+    width: 100% !important;
+    padding: 1.25rem 0.75rem !important;
+  }
+
+  .editor-topbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 1rem !important;
+  }
+
+  .editor-topbar>div {
+    width: 100% !important;
+  }
+
+  .journal-textarea {
+    font-size: 1.05rem !important;
+    /* Better for readability/touch */
+    min-height: 300px !important;
+  }
+}
+
+/* ── Vault Responsive Overhaul ────────────────────────────── */
+.mobile-only {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none !important;
+  }
+  
+  .mobile-only {
+    display: flex !important;
+  }
+
+  .mobile-folders-grid-view.mobile-only,
+  .vault-content.mobile-only {
+    display: block !important;
+  }
+
+  .vault-layout {
+    flex-direction: column !important;
+    display: flex !important;
+    gap: 0 !important;
+  }
+  
+  .vault-sidebar {
+    padding: 0 !important;
+    width: 100% !important;
+    border: none !important;
+    display: none !important;
+  }
+
+  .vault-content {
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  /* Mobile Nav (Segmented Control) */
+  .vault-mobile-nav {
+    display: flex !important;
+    background: rgba(22, 33, 62, 0.7);
+    padding: 0.4rem;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  
+  .vault-mobile-nav.hidden {
+    display: none !important;
+  }
+
+  .vault-segments {
+    display: flex;
+    width: 100%;
+    gap: 0.4rem;
+  }
+
+  .vault-segments button {
+    flex: 1;
+    padding: 0.6rem 0;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: rgba(255,255,255,0.5);
+    background: transparent;
+    transition: all 0.2s;
+  }
+
+  .vault-segments button.active {
+    background: var(--accent);
+    color: #1a1a2e;
+    box-shadow: 0 4px 12px rgba(232, 160, 69, 0.3);
+  }
+
+  /* Folder Header */
+  .vault-mobile-folder-header {
+    display: flex !important;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 0 1rem;
+    border-bottom: 1px solid rgba(167, 139, 250, 0.1);
+    margin-bottom: 1rem;
+  }
+  
+  .vault-mobile-folder-header .back-btn {
+    color: var(--accent);
+    font-size: 0.85rem;
+    font-weight: 700;
+    background: rgba(232, 160, 69, 0.1);
+    padding: 6px 12px;
+    border-radius: 8px;
+  }
+
+  .vault-mobile-folder-header .folder-title {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: white;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Folders Grid View */
+  .mobile-folders-title {
+    font-size: 1.3rem;
+    font-weight: 800;
+    margin-bottom: 1.25rem;
+  }
+
+  .mobile-folders-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .folder-card, .add-folder-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(167, 139, 250, 0.1);
+    border-radius: 16px;
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+  }
+
+  .folder-card .folder-icon-wrapper {
+    font-size: 2.8rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .folder-card .folder-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.9);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .folder-card .folder-remove {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.5);
+  }
+
+  .add-folder-card {
+    border: 2px dashed rgba(167, 139, 250, 0.2);
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+    box-shadow: none;
+  }
+
+  .add-folder-card .add-icon {
+    font-size: 2rem;
+    line-height: 1;
+    margin-bottom: 0.5rem;
+    font-weight: 300;
+  }
+  
+  .add-folder-card span {
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+
+  .vault-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+  }
+
+  .vault-grid > div {
+    aspect-ratio: 1/1 !important;
+    border-radius: 12px !important;
+  }
+}
+
+/* ── Music Player Mobile ──────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Hide the bottom music bar — header disc button opens the popup modal instead */
+  .music-player {
+    display: none !important;
+  }
+
+  /* Content area only needs to clear the bottom nav */
+  .content-area {
+    padding-bottom: calc(65px + env(safe-area-inset-bottom) + 20px) !important;
+  }
+
+  /* ── Videos & Twitch Mobile Overwrites ────────────────────── */
+  .videos-sidebar {
+    display: none !important;
+  }
+
+  .videos-feed {
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Mobile Channel Horizontal Strip */
+  .mobile-channel-strip {
+    display: flex;
+    overflow-x: auto;
+    gap: 12px;
+    padding: 2px 0 1.25rem;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-channel-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .strip-item {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+    width: 60px;
+    opacity: 0.6;
+    transition: all 0.2s;
+  }
+
+  .strip-item.active {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+
+  .strip-avatar, .strip-avatar-all {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+  }
+
+  .strip-item.active .strip-avatar {
+    border-color: var(--accent);
+    box-shadow: 0 0 15px rgba(232, 160, 69, 0.3);
+  }
+
+  .strip-item span {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: white;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Mobile Channel Management Grid */
+  .mobile-channel-list-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .mobile-channel-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 1.5rem 0.75rem;
+    border-radius: 16px;
+    position: relative;
+    text-align: center;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .mobile-channel-card.active {
+    background: rgba(232, 160, 69, 0.1);
+    border-color: var(--accent);
+    box-shadow: 0 8px 24px rgba(232, 160, 69, 0.15);
+  }
+
+  /* Add Channel Card */
+  .mobile-channel-card.add-card {
+    background: rgba(232, 160, 69, 0.05);
+    border: 2px dashed rgba(232, 160, 69, 0.3);
+    cursor: pointer;
+  }
+
+  .mobile-channel-card.add-card:active {
+    transform: scale(0.95);
+    background: rgba(232, 160, 69, 0.1);
+  }
+
+  .add-icon {
+    font-size: 2rem;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  .card-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .card-name {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: white;
+    max-width: 100%;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.2;
+  }
+
+  .card-remove {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    border: none;
+    cursor: pointer;
+  }
+
+  .yt-video-grid, .yt-pending-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1.5rem !important;
+  }
+}
+/* -- Journal Mobile Overhaul -------------------------------- */
+@media (max-width: 768px) {
+  .journal-layout.editor-view {
+    padding-bottom: 0 !important;
+  }
+
+  .journal-sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+  }
+
+  .entry-card {
+    background: rgba(255, 255, 255, 0.02) !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    padding: 1rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .entry-card.active {
+    border-color: var(--accent) !important;
+    background: rgba(232, 160, 69, 0.05) !important;
+  }
+
+  .mobile-fab {
+    position: fixed;
+    bottom: calc(130px + env(safe-area-inset-bottom));
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #1a1a2e;
+    border: none;
+    font-size: 2rem;
+    box-shadow: 0 8px 25px rgba(232, 160, 69, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2500;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .mobile-fab:active {
+    transform: scale(0.9) rotate(90deg);
+  }
+
+  .journal-editor {
+    padding: 0 !important;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .journal-editor-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.25rem 1rem 100px;
+  }
+
+  .editor-header-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1.25rem;
+  }
+
+  .editor-title-input {
+    font-size: 1.4rem !important;
+    font-weight: 800 !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    color: white !important;
+  }
+
+  .editor-meta-row, .editor-mood-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .mood-row {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+
+  .tag-input {
+    width: 100px !important;
+    background: rgba(255,255,255,0.03) !important;
+    border-radius: 20px !important;
+    font-size: 0.75rem !important;
+  }
+
+  .textarea-container {
+    position: relative;
+    margin-top: 1rem;
+    background: rgba(255,255,255,0.01);
+    border-radius: 16px;
+    padding: 0.5rem;
+  }
+
+  .journal-textarea {
+    min-height: 40vh !important;
+    font-size: 1.15rem !important;
+    line-height: 1.7 !important;
+  }
+}

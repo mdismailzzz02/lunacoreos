@@ -1,0 +1,47 @@
+# ── Dependencies ─────────────────────────────────────────────
+node_modules
+package-lock.json
+
+# ── Build Output ──────────────────────────────────────────────
+dist
+dist-ssr
+
+# ── Environment & Secrets (NEVER COMMIT) ─────────────────────
+.env
+.env.*
+!.env.example
+*.local
+
+# ── Supabase secrets ──────────────────────────────────────────
+supabase/.temp
+supabase/functions/.env
+
+# ── Personal / Private Data Files ────────────────────────────
+*.xlsx
+*.xls
+*.zip
+*.tar.gz
+brain/
+Original_Vault/
+
+# ── Temp & Build Error Logs ───────────────────────────────────
+build_err.txt
+build_error.txt
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Editor & OS Files ─────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+Thumbs.db

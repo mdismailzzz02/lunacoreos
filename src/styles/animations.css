@@ -1,0 +1,299 @@
+/* ============================================================
+   MyJournal — Animation Classes
+   ============================================================ */
+
+/* ── Fade in ──────────────────────────────────────────────── */
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fade-in 0.25s ease forwards;
+}
+
+/* ── Tab transitions (fade only) ─────────────────────────── */
+.tab-enter {
+    animation: fade-in 0.2s ease forwards;
+}
+
+/* ── Toast ────────────────────────────────────────────────── */
+@keyframes toast-in {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes toast-out {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+}
+
+/* ── Shimmer skeleton ─────────────────────────────────────── */
+@keyframes shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* ── Amber pulse (journal streak reminder) ────────────────── */
+@keyframes amber-pulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(232, 160, 69, 0);
+    }
+
+    50% {
+        box-shadow: 0 0 0 6px rgba(232, 160, 69, 0.15);
+    }
+}
+
+/* ── Green pulse (live dot) ───────────────────────────────── */
+@keyframes pulse-green {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.5;
+        transform: scale(0.8);
+    }
+}
+
+/* ── Equalizer bounce ─────────────────────────────────────── */
+@keyframes eq-bounce {
+
+    0%,
+    100% {
+        height: 4px;
+    }
+
+    50% {
+        height: 14px;
+    }
+}
+
+/* ── Checkbox green fill ──────────────────────────────────── */
+@keyframes check-fill {
+    0% {
+        background: transparent;
+        transform: scale(0.8);
+    }
+
+    60% {
+        background: var(--success);
+        transform: scale(1.2);
+    }
+
+    100% {
+        background: var(--success);
+        transform: scale(1);
+    }
+}
+
+.check-fill-anim {
+    animation: check-fill 0.3s ease forwards;
+}
+
+/* ── Habit row green flash ────────────────────────────────── */
+@keyframes habit-complete {
+    0% {
+        background: transparent;
+    }
+
+    30% {
+        background: rgba(76, 175, 125, 0.18);
+    }
+
+    100% {
+        background: transparent;
+    }
+}
+
+.habit-complete-anim {
+    animation: habit-complete 0.8s ease forwards;
+}
+
+/* ── Count up (streaks on dashboard load) ─────────────────── */
+.count-up {
+    display: inline-block;
+    animation: fade-in 0.4s ease;
+}
+
+/* ── Recording pulse ──────────────────────────────────────── */
+@keyframes rec-pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.3;
+    }
+}
+
+/* ── Card hover lift (applied via .card class) ────────────── */
+/* handled in global.css */
+
+/* ── Slide down for collapsible sections ─────────────────── */
+@keyframes slide-down {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+        max-height: 0;
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 600px;
+    }
+}
+
+@keyframes fade-in-up {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes spin-mini {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pill-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+.spinner-mini {
+    width: 10px;
+    height: 10px;
+    border: 2px solid rgba(167, 139, 250, 0.3);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin-mini 0.8s linear infinite;
+}
+@keyframes slide-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+
+
+/* Pro Gallery Transitions */
+.zoom-container img {
+    transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    will-change: transform;
+}
+
+/* ── Progress Bar ─────────────────────────────────────────── */
+.progress-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    margin-bottom: 1.25rem;
+    box-shadow: var(--shadow-sm);
+    animation: fade-in-up 0.3s ease-out;
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.65rem;
+}
+
+.progress-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.progress-value {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(167, 139, 250, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.progress-track {
+    height: 8px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #c084fc);
+    border-radius: 10px;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+.progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.3) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    animation: progress-shimmer 1.5s infinite;
+}
+
+@keyframes progress-shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
