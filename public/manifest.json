@@ -4,14 +4,14 @@
   "description": "Your private journaling and productivity sanctuary.",
   "icons": [
     {
-      "src": "/moon-icon.png",
-      "type": "image/png",
+      "src": "/moon-icon.webp",
+      "type": "image/webp",
       "sizes": "192x192",
       "purpose": "any"
     },
     {
-      "src": "/moon-icon.png",
-      "type": "image/png",
+      "src": "/moon-icon.webp",
+      "type": "image/webp",
       "sizes": "512x512",
       "purpose": "any"
     },
