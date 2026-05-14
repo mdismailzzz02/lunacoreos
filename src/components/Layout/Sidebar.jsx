@@ -71,7 +71,7 @@ export default function Sidebar({ active, onNavigate, userName, isOffline, onPre
 
             <div className="sidebar-logo">
                 <div className="logo-flex" onClick={() => onNavigate('dashboard')} style={{ cursor: 'pointer' }}>
-                    <img src="/profile.jpg" alt="Logo" className="app-logo-img" />
+                    <img src="/moon-icon.png" alt="Logo" className="app-logo-img" />
                     <div className="logo-text">
                         <h1>LunaCoreOS</h1>
                         <p>Your private sanctuary</p>
