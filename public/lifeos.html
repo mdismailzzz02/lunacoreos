@@ -1,0 +1,4223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LIFE OS — Scientific Achievement System</title>
+<meta name="description" content="Your personal quantified-self dashboard. Daily logs, OKRs, decision engine, habit heatmap — all backed by Supabase.">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<!-- Supabase JS SDK v2 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    /* ── Backgrounds: deep charcoal, not pitch black ── */
+    --bg:      #0d0d0f;
+    --surface: #141416;
+    --surface2:#1c1c20;
+    --surface3:#232328;
+    --surface4:#2a2a32;
+    --border:  #2a2a32;
+    --border2: #38383f;
+    --border3: #4a4a54;
+
+    /* ── Warm neon primary: amber/gold ── */
+    --accent:      #ffb830;
+    --accent-dim:  rgba(255,184,48,0.10);
+
+    /* ── Secondary: electric cyan ── */
+    --accent2:     #00e5ff;
+    --accent2-dim: rgba(0,229,255,0.08);
+
+    /* ── Tertiary: vivid coral/orange ── */
+    --accent3:     #ff6b35;
+    --accent3-dim: rgba(255,107,53,0.10);
+
+    /* ── Danger: hot pink/magenta ── */
+    --accent4:     #ff3d7f;
+    --accent4-dim: rgba(255,61,127,0.10);
+
+    /* ── Text: warm white, not cold blue-white ── */
+    --text:    #f5f0e8;
+    --text2:   #9a9488;
+    --text3:   #555050;
+
+    /* ── Utility ── */
+    --green:     #39ff7e;
+    --green-dim: rgba(57,255,126,0.10);
+    --red:       #ff4444;
+    --yellow:    #ffe033;
+    --blue:      #4da6ff;
+    --blue-dim:  rgba(77,166,255,0.08);
+
+    --font-display: 'Syne', sans-serif;
+    --font-mono:    'Space Mono', monospace;
+    --font-body:    'DM Sans', sans-serif;
+    --radius:  12px;
+    --radius-sm: 7px;
+    --shadow:    0 2px 20px rgba(0,0,0,0.5);
+    --shadow-lg: 0 8px 48px rgba(0,0,0,0.7);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow-x: hidden;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 10px; }
+
+  /* ── AUTH SCREEN ── */
+  #auth-screen {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Animated background grid */
+  #auth-screen::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,184,48,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,184,48,0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    animation: gridDrift 20s linear infinite;
+  }
+  #auth-screen::after {
+    content: '';
+    position: absolute;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(255,184,48,0.06) 0%, transparent 70%);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    animation: breathe 4s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes gridDrift {
+    0%   { background-position: 0 0; }
+    100% { background-position: 48px 48px; }
+  }
+  @keyframes breathe {
+    0%,100% { transform: translate(-50%,-50%) scale(1); opacity: 0.6; }
+    50%      { transform: translate(-50%,-50%) scale(1.15); opacity: 1; }
+  }
+
+  .auth-card {
+    background: rgba(20,20,22,0.85);
+    border: 1px solid rgba(255,184,48,0.15);
+    border-radius: 24px;
+    padding: 48px 44px 40px;
+    width: 420px;
+    max-width: 95vw;
+    text-align: center;
+    box-shadow:
+      0 0 0 1px rgba(255,184,48,0.08),
+      0 32px 80px rgba(0,0,0,0.8),
+      0 0 60px rgba(255,184,48,0.06);
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(20px);
+    animation: cardIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+  }
+  @keyframes cardIn {
+    from { opacity:0; transform: translateY(24px) scale(0.97); }
+    to   { opacity:1; transform: translateY(0) scale(1); }
+  }
+
+  /* Top shimmer bar */
+  .auth-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      var(--accent) 30%,
+      var(--accent2) 70%,
+      transparent 100%);
+    animation: shimmer 3s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    0%,100% { opacity: 0.6; }
+    50%      { opacity: 1; }
+  }
+
+  /* Lock icon area */
+  .auth-lock-icon {
+    width: 64px; height: 64px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(255,184,48,0.2);
+    border-radius: 20px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.6rem;
+    margin: 0 auto 24px;
+    animation: lockPulse 2s ease-in-out infinite;
+  }
+  @keyframes lockPulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(255,184,48,0.15); }
+    50%      { box-shadow: 0 0 0 10px rgba(255,184,48,0); }
+  }
+
+  .auth-logo {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 2rem;
+    color: var(--text);
+    margin-bottom: 4px;
+    letter-spacing: 0.06em;
+  }
+  .auth-logo span { color: var(--accent); }
+
+  .auth-version {
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-bottom: 8px;
+  }
+
+  .auth-tagline {
+    font-size: 0.78rem;
+    color: var(--text3);
+    margin-bottom: 36px;
+    line-height: 1.6;
+  }
+
+  .auth-input-wrap {
+    position: relative;
+    margin-bottom: 16px;
+  }
+  .auth-input-wrap input {
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    padding: 14px 52px 14px 18px;
+    font-size: 1rem;
+    color: var(--text);
+    font-family: var(--font-mono);
+    letter-spacing: 0.2em;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+  }
+  .auth-input-wrap input:focus {
+    border-color: rgba(255,184,48,0.5);
+    box-shadow: 0 0 0 3px rgba(255,184,48,0.08);
+  }
+  .auth-eye-btn {
+    position: absolute; right: 12px; top: 50%;
+    transform: translateY(-50%);
+    background: none; border: none;
+    color: var(--text3); cursor: pointer;
+    font-size: 1.1rem; padding: 6px;
+    z-index: 10;
+    line-height: 1;
+    transition: color 0.2s;
+    pointer-events: all;
+  }
+  .auth-eye-btn:hover { color: var(--accent); }
+
+  .auth-label {
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    display: block;
+    text-align: left;
+    margin-bottom: 8px;
+  }
+
+  #auth-unlock-btn {
+    width: 100%;
+    padding: 14px;
+    font-size: 0.85rem;
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  #auth-unlock-btn::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 60%);
+  }
+
+  #auth-msg {
+    margin-top: 14px;
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    color: var(--accent4);
+    min-height: 20px;
+    line-height: 1.5;
+    letter-spacing: 0.04em;
+  }
+  #auth-msg.success { color: var(--green); }
+
+  .auth-footer {
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 0.62rem;
+    color: var(--text3);
+    line-height: 1.8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    height: 52px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(8,8,16,0.92);
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  .logo {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1rem;
+    letter-spacing: 0.12em;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .logo span { color: var(--accent); }
+  .logo-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin: 0 6px;
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; box-shadow: 0 0 6px var(--accent); }
+    50%      { opacity:0.5; box-shadow: 0 0 14px var(--accent); }
+  }
+  .header-right { display:flex; gap:10px; align-items:center; }
+  .date-badge {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text2);
+    background: var(--surface2);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    letter-spacing: 0.02em;
+  }
+  #user-chip {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface3);
+    border: 1px solid var(--border2);
+    border-radius: 20px;
+    padding: 4px 4px 4px 12px;
+  }
+  #user-email-display {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    color: var(--text2);
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #sign-out-btn {
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    font-weight: 700;
+    background: var(--surface4);
+    border: 1px solid var(--border2);
+    color: var(--text3);
+    border-radius: 20px;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  #sign-out-btn:hover { border-color: var(--accent4); color: var(--accent4); }
+
+  /* ── SYNC INDICATOR ── */
+  #sync-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text3);
+    transition: background 0.3s, box-shadow 0.3s;
+    flex-shrink: 0;
+  }
+  #sync-dot.syncing { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); animation: pulse 1s infinite; }
+  #sync-dot.synced  { background: var(--green);   box-shadow: 0 0 6px var(--green); }
+  #sync-dot.error   { background: var(--red);     box-shadow: 0 0 6px var(--red); }
+
+  /* ── TAB BAR ── */
+  .tabs-bar {
+    display: flex;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    padding: 0 24px;
+    scrollbar-width: none;
+    gap: 2px;
+  }
+  .tabs-bar::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 11px 16px 9px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.18s, border-color 0.18s;
+    position: relative;
+  }
+  .tab-btn:hover { color: var(--text2); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── PANELS ── */
+  .panel { display: none; padding: 24px 28px 48px; max-width: 1220px; margin: 0 auto; animation: fadeUp 0.2s ease; }
+  .panel.active { display: block; }
+  @keyframes fadeUp { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: none; } }
+
+  /* ── GRID ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 1024px) { .grid-4 { grid-template-columns: repeat(2,1fr); } }
+  @media (max-width: 720px)  { .grid-2,.grid-3,.grid-4 { grid-template-columns: 1fr; } }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--border2); }
+  .card-title {
+    font-family: var(--font-display);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title .dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  /* ── PAGE HEAD ── */
+  .page-head { margin-bottom: 22px; }
+  .page-head h1 {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+  .page-head p {
+    font-size: 0.78rem;
+    color: var(--text3);
+    margin-top: 4px;
+    line-height: 1.6;
+  }
+  .tag {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    padding: 2px 7px;
+    border-radius: 20px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(0,212,170,0.2);
+    color: var(--accent);
+    margin-right: 5px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── METRIC CARDS ── */
+  .metric-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--mc-color, var(--accent));
+    opacity: 0.6;
+  }
+  .metric-card::after {
+    content: '';
+    position: absolute;
+    top: -40px; right: -20px;
+    width: 100px; height: 100px;
+    border-radius: 50%;
+    background: var(--mc-color, var(--accent));
+    opacity: 0.04;
+    pointer-events: none;
+  }
+  .metric-card:hover { border-color: var(--border2); transform: translateY(-1px); }
+  .metric-label {
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+  .metric-value {
+    font-family: var(--font-display);
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  .metric-sub {
+    font-size: 0.7rem;
+    color: var(--text3);
+    margin-top: 5px;
+  }
+  .metric-trend {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .up   { color: var(--green); }
+  .down { color: var(--red); }
+  .flat { color: var(--text3); }
+
+  /* ── PROGRESS BARS ── */
+  .prog-wrap { margin: 10px 0; }
+  .prog-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text2);
+    margin-bottom: 5px;
+    font-weight: 500;
+  }
+  .prog-bar {
+    height: 5px;
+    background: var(--surface4);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .prog-fill {
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.9s cubic-bezier(0.4,0,0.2,1);
+    position: relative;
+    min-width: 0;
+  }
+  .prog-fill:not([style*="width:0"]):not([style*="width: 0"])::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0;
+    width: 6px; height: 100%;
+    background: rgba(255,255,255,0.35);
+    border-radius: 10px;
+  }
+
+  /* ── FORMS ── */
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--accent);
+    cursor: pointer;
+    height: 4px;
+  }
+  input[type=text], input[type=number], input[type=email], textarea, select {
+    background: var(--surface3);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    padding: 9px 13px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  input[type=text]:focus, input[type=number]:focus, input[type=email]:focus, textarea:focus, select:focus {
+    border-color: var(--accent);
+    background: var(--surface4);
+    box-shadow: 0 0 0 3px rgba(0,212,170,0.07);
+  }
+  input::placeholder, textarea::placeholder { color: var(--text3); }
+  textarea { resize: vertical; min-height: 80px; }
+  .form-row { margin-bottom: 14px; }
+  .form-label {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  /* ── BUTTONS ── */
+  .btn {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.68rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 9px 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    box-shadow: 0 0 0 0 rgba(0,212,170,0);
+  }
+  .btn-primary:hover {
+    background: #00eabc;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(0,212,170,0.3);
+  }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-ghost {
+    background: var(--surface3);
+    color: var(--text2);
+    border: 1px solid var(--border2);
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+  .btn-warn {
+    background: var(--accent4);
+    color: #fff;
+    box-shadow: 0 0 0 0 rgba(224,92,92,0);
+  }
+  .btn-warn:hover { background: #f06060; box-shadow: 0 4px 14px rgba(224,92,92,0.35); transform: translateY(-1px); }
+  .btn-sm { padding: 5px 12px; font-size: 0.6rem; }
+
+  /* ── DATA TABLE ── */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  .data-table th {
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text3);
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface3);
+  }
+  .data-table td {
+    padding: 9px 12px;
+    color: var(--text2);
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    line-height: 1.4;
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: var(--surface3); }
+
+  /* ── TIMELINE ── */
+  .timeline { position: relative; padding-left: 18px; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 5px; top: 6px; bottom: 6px;
+    width: 1px;
+    background: linear-gradient(to bottom, var(--accent), var(--accent2), transparent);
+    opacity: 0.3;
+  }
+  .tl-item {
+    position: relative;
+    padding: 0 0 20px 22px;
+  }
+  .tl-item::before {
+    content: '';
+    position: absolute;
+    left: -3px; top: 5px;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+    border: 2px solid var(--bg);
+  }
+  .tl-time {
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    color: var(--accent);
+    margin-bottom: 3px;
+    letter-spacing: 0.04em;
+  }
+  .tl-title {
+    font-weight: 600;
+    color: var(--text);
+    font-size: 0.85rem;
+    margin-bottom: 3px;
+  }
+  .tl-text { font-size: 0.78rem; color: var(--text2); line-height: 1.55; }
+
+  /* ── SECTION HEAD ── */
+  .sec-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .sec-head h2 {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  /* ── BADGE ── */
+  .badge {
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .badge-green  { background: var(--green-dim);   color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+  .badge-red    { background: var(--accent4-dim);  color: var(--red);   border: 1px solid rgba(239,68,68,0.2); }
+  .badge-yellow { background: var(--accent3-dim);  color: var(--yellow);border: 1px solid rgba(234,179,8,0.2); }
+  .badge-blue   { background: var(--blue-dim);     color: var(--blue);  border: 1px solid rgba(59,130,246,0.2); }
+  .badge-accent { background: var(--accent-dim);   color: var(--accent);border: 1px solid rgba(0,212,170,0.2); }
+
+  /* ── SLIDER ROW ── */
+  .slider-row { margin-bottom: 16px; }
+  .slider-row-head {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    margin-bottom: 6px;
+    align-items: center;
+  }
+  .slider-row-head span:first-child { color: var(--text3); font-size: 0.7rem; }
+  .slider-val {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--accent);
+    font-weight: 700;
+    min-width: 20px;
+    text-align: right;
+    transition: color 0.2s;
+  }
+
+  /* ── CHECKLIST ── */
+  .checklist { list-style: none; }
+  .checklist li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--text2);
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+    border-radius: 4px;
+    padding-inline: 4px;
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li:hover { color: var(--text); background: var(--surface3); padding-inline: 8px; }
+  .checklist li.done { text-decoration: line-through; color: var(--text3); }
+  .check-box {
+    width: 18px; height: 18px;
+    border-radius: 5px;
+    border: 1.5px solid var(--border3);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    font-size: 10px;
+  }
+  .check-box.checked {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+    box-shadow: 0 0 8px rgba(0,212,170,0.3);
+  }
+
+  /* ── HEATMAP ── */
+  .heatmap-grid {
+    display: grid;
+    gap: 3px;
+    margin-top: 10px;
+  }
+  .heat-cell {
+    aspect-ratio: 1;
+    border-radius: 3px;
+    background: var(--surface3);
+    cursor: default;
+    transition: transform 0.1s, opacity 0.1s;
+    position: relative;
+  }
+  .heat-cell:hover { transform: scale(1.4); z-index: 5; }
+  .heat-0 { background: var(--surface3); }
+  .heat-1 { background: rgba(0,212,170,0.18); }
+  .heat-2 { background: rgba(0,212,170,0.38); }
+  .heat-3 { background: rgba(0,212,170,0.62); }
+  .heat-4 { background: var(--accent); box-shadow: 0 0 6px rgba(0,212,170,0.4); }
+
+  /* ── DIVIDER ── */
+  .divider { height: 1px; background: var(--border); margin: 18px 0; }
+
+  /* ── LOG LIST ── */
+  .log-list { max-height: 320px; overflow-y: auto; }
+  .log-entry {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 70px 1fr auto;
+    gap: 10px;
+    align-items: start;
+    transition: background 0.1s;
+  }
+  .log-entry:hover { background: var(--surface3); }
+  .log-time {
+    font-family: var(--font-mono);
+    font-size: 0.57rem;
+    color: var(--text3);
+    white-space: nowrap;
+    padding-top: 2px;
+    line-height: 1.6;
+  }
+  .log-content { font-size: 0.78rem; color: var(--text2); line-height: 1.45; }
+  .log-tag {
+    font-family: var(--font-mono);
+    font-size: 0.52rem;
+    padding: 2px 7px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+
+  /* ── BAR CHART ── */
+  .bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 120px;
+    padding-top: 10px;
+  }
+  .bar-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    height: 100%;
+  }
+  .bar-fill {
+    width: 100%;
+    border-radius: 4px 4px 0 0;
+    min-height: 3px;
+    transition: height 0.6s cubic-bezier(0.4,0,0.2,1);
+  }
+  .bar-label {
+    font-family: var(--font-mono);
+    font-size: 0.52rem;
+    color: var(--text3);
+    text-align: center;
+  }
+  .bar-val {
+    font-family: var(--font-mono);
+    font-size: 0.56rem;
+    color: var(--text3);
+  }
+
+  /* ── INNER TABS ── */
+  .inner-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+    padding: 4px;
+    background: var(--surface3);
+    border-radius: 10px;
+    width: fit-content;
+  }
+  .inner-tab {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 7px;
+    border: none;
+    background: none;
+    color: var(--text3);
+    cursor: pointer;
+    font-family: var(--font-display);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    transition: all 0.15s;
+  }
+  .inner-tab.active {
+    background: var(--surface);
+    color: var(--accent);
+    box-shadow: var(--shadow);
+  }
+  .inner-tab:hover:not(.active) { color: var(--text2); }
+
+  /* ── NOTIFICATIONS ── */
+  .notif {
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    line-height: 1.55;
+    margin-bottom: 10px;
+    border-left: 2px solid;
+  }
+  .notif-info  { background: var(--blue-dim);   border-color: var(--blue);   color: #93c5fd; }
+  .notif-warn  { background: var(--accent3-dim); border-color: var(--yellow); color: #fde047; }
+  .notif-good  { background: var(--green-dim);   border-color: var(--green);  color: #86efac; }
+
+  /* ── JOURNAL TOOLBAR ── */
+  .jtb-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 5px;
+    color: var(--text2);
+    font-family: var(--font-body);
+    font-size: 0.72rem;
+    padding: 4px 9px;
+    cursor: pointer;
+    transition: all 0.12s;
+    line-height: 1.2;
+  }
+  .jtb-btn:hover { background: var(--accent-dim); color: var(--accent); border-color: rgba(0,212,170,0.3); }
+  #journal-entry:empty:before { content: attr(placeholder); color: var(--text3); pointer-events: none; display: block; }
+  #journal-entry h3 { font-size: 0.95rem; color: var(--text); margin: 6px 0 3px; }
+  #journal-entry blockquote { border-left: 2px solid var(--accent2); padding-left: 10px; color: var(--text2); margin: 6px 0; font-style: italic; }
+  #journal-entry ul { padding-left: 18px; }
+  #journal-entry hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+  .j-img-preview { max-width: 80px; max-height: 60px; border-radius: 5px; object-fit: cover; border: 1px solid var(--border2); }
+  .j-file-chip { display:flex;align-items:center;gap:6px;background:var(--surface3);border:1px solid var(--border2);border-radius:5px;padding:4px 9px;font-size:0.72rem;color:var(--text2); }
+  .j-file-chip button { background:none;border:none;color:var(--text3);cursor:pointer; }
+  .j-audio-chip { display:flex;align-items:center;gap:6px;background:var(--surface3);border:1px solid var(--border2);border-radius:5px;padding:4px 9px; }
+
+  /* ── TOAST ── */
+  #toast {
+    position: fixed;
+    bottom: 88px; right: 24px;
+    background: var(--surface2);
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(0,212,170,0.25);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 0.22s;
+    pointer-events: none;
+    z-index: 999;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    letter-spacing: 0.04em;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ── TOOL GRID ── */
+  .tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+  .tool-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    transition: border-color 0.2s, transform 0.15s;
+    cursor: default;
+  }
+  .tool-card:hover { border-color: rgba(255,184,48,0.25); transform: translateY(-2px); box-shadow: var(--shadow); }
+  .tool-icon { font-size: 1.5rem; margin-bottom: 10px; display: block; }
+  .tool-name { font-family: var(--font-display); font-size: 0.82rem; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .tool-desc { font-size: 0.7rem; color: var(--text2); line-height: 1.45; }
+  .tool-science { margin-top: 10px; font-family: var(--font-mono); font-size: 0.58rem; color: var(--accent); opacity: 0.7; }
+
+  /* ── OKR ── */
+  .okr-item {
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 10px;
+    transition: border-color 0.2s;
+  }
+  .okr-item:hover { border-color: var(--border2); }
+  .okr-obj { font-family: var(--font-display); font-size: 0.9rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+  .okr-kr {
+    font-size: 0.76rem;
+    color: var(--text2);
+    padding: 4px 0 4px 14px;
+    border-left: 2px solid var(--border2);
+    margin-left: 4px;
+    margin-bottom: 4px;
+    line-height: 1.4;
+  }
+
+  /* ── DECISION MATRIX ── */
+  .matrix-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  .matrix-table th, .matrix-table td {
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    text-align: center;
+  }
+  .matrix-table th { background: var(--surface3); color: var(--text3); font-family: var(--font-mono); font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  .matrix-table td { color: var(--text2); }
+  .matrix-table .best  { color: var(--green); font-weight: 700; }
+  .matrix-table .worst { color: var(--red); }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    text-align: center;
+    padding: 32px 20px;
+    color: var(--text3);
+    font-size: 0.8rem;
+    line-height: 1.6;
+  }
+  .empty-state .empty-icon { font-size: 2rem; display: block; margin-bottom: 10px; opacity: 0.4; }
+
+  /* ── SECTION DIVIDER ── */
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin: 20px 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-label::after { content:''; flex:1; height:1px; background: var(--border); }
+</style>
+</head>
+<body>
+
+<!-- ===================== AUTH SCREEN ===================== -->
+<div id="auth-screen">
+  <div class="auth-card">
+
+    <div class="auth-lock-icon">🔐</div>
+
+    <div class="auth-logo">LIFE<span>OS</span></div>
+    <div class="auth-version">v3.0 · Personal Command Center</div>
+    <div class="auth-tagline">Your quantified self, fully owned.<br>Enter your master password to continue.</div>
+
+    <label class="auth-label" for="auth-password">Master Password</label>
+    <div class="auth-input-wrap">
+      <input type="password" id="auth-password" placeholder="Enter password…"
+        onkeydown="if(event.key==='Enter')checkMasterPassword()">
+      <button class="auth-eye-btn" type="button" onclick="toggleAuthEye(this)" tabindex="-1">👁</button>
+    </div>
+
+    <button id="auth-unlock-btn" class="btn btn-primary" onclick="checkMasterPassword()">Unlock ↗</button>
+
+    <div id="auth-msg"></div>
+
+    <div class="auth-footer">
+      <span>🔒</span>
+      <span>Encrypted · No account needed · Data stays yours</span>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast">Logged ✓</div>
+
+<!-- ===================== HEADER ===================== -->
+<header class="header">
+  <div class="logo">LIFE<span>OS</span><span class="logo-dot"></span></div>
+  <div class="header-right">
+    <div class="date-badge" id="live-date">--</div>
+    <div class="badge badge-accent">v3.0 Cloud</div>
+    <button id="theme-toggle-btn" onclick="cycleTheme()" title="Switch theme" style="background:var(--surface3);border:1px solid var(--border2);border-radius:20px;padding:4px 12px;font-size:0.7rem;font-family:var(--font-mono);color:var(--text2);cursor:pointer;transition:all 0.2s;">🎨 Theme</button>
+    <div id="sync-dot" title="Sync status"></div>
+    <div id="user-chip">
+      <span id="user-email-display"></span>
+      <button id="sign-out-btn" onclick="signOut()">Sign Out</button>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs-bar">
+  <button class="tab-btn active" onclick="switchTab('dashboard',this)">📊 Dashboard</button>
+  <button class="tab-btn" onclick="switchTab('daily',this)">☀️ Daily Log</button>
+  <button class="tab-btn" onclick="switchTab('weekly',this)">📅 Weekly Review</button>
+  <button class="tab-btn" onclick="switchTab('monthly',this)">🗓️ Monthly Strategy</button>
+  <button class="tab-btn" onclick="switchTab('goals',this)">🎯 Goals / OKRs</button>
+  <button class="tab-btn" onclick="switchTab('decisions',this)">🧠 Decision Engine</button>
+  <button class="tab-btn" onclick="switchTab('tools',this)">🔧 Tools Arsenal</button>
+  <button class="tab-btn" onclick="switchTab('data',this)">🗃️ Data Log</button>
+</nav>
+
+<!-- ===================== DASHBOARD ===================== -->
+<div id="tab-dashboard" class="panel active">
+  <div class="page-head">
+    <h1>Life Command Center</h1>
+    <p>Your quantified self dashboard. <span class="tag">Quantified Self</span><span class="tag">Evidence-Based</span></p>
+  </div>
+
+  <div class="grid-4" style="margin-bottom:14px;">
+    <div class="metric-card" style="--mc-color:var(--accent);">
+      <div class="metric-label">Life Score</div>
+      <div class="metric-value" id="m-lifescore" style="color:var(--accent);">--</div>
+      <div class="metric-sub">Composite of 6 domains</div>
+      <div class="metric-trend flat" id="m-lifescore-trend">Update domain sliders →</div>
+    </div>
+    <div class="metric-card" style="--mc-color:var(--green);">
+      <div class="metric-label">Energy Index</div>
+      <div class="metric-value" id="m-energy" style="color:var(--green);">--</div>
+      <div class="metric-sub">7-day avg · morning log</div>
+      <div class="metric-trend flat">Log morning check-in →</div>
+    </div>
+    <div class="metric-card" style="--mc-color:var(--accent2);">
+      <div class="metric-label">Focus Hours</div>
+      <div class="metric-value" id="m-focus" style="color:var(--accent2);">--</div>
+      <div class="metric-sub">Timer-logged today</div>
+      <div class="metric-trend flat" id="m-focus-trend">Use ⏱ timer →</div>
+    </div>
+    <div class="metric-card" style="--mc-color:var(--accent3);">
+      <div class="metric-label">Habit Streak</div>
+      <div class="metric-value" id="m-streak" style="color:var(--accent3);">--</div>
+      <div class="metric-sub">days consecutive</div>
+      <div class="metric-trend flat">Log daily to build streak</div>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-bottom:16px;">
+    <div class="card">
+      <div class="card-title"><span class="dot"></span> 6-Domain Life Balance</div>
+      <div id="domain-bars"></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--accent2)"></span> 7-Day Activity Chart</div>
+      <div class="bar-chart" id="weekly-bar-chart"></div>
+      <div style="font-size:0.7rem;color:var(--text3);margin-top:4px;">Focus hours per day (log via Daily tab)</div>
+    </div>
+  </div>
+
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--accent3)"></span> Today's Priorities</div>
+      <ul class="checklist" id="today-checklist">
+        <li onclick="toggleCheck(this)" data-title="Morning review (5 min)">
+          <span class="check-box">✓</span>
+          <span>Morning review (5 min)</span>
+        </li>
+        <li onclick="toggleCheck(this)" data-title="Deep work block #1 (90 min)">
+          <span class="check-box"></span>
+          <span>Deep work block #1 (90 min)</span>
+        </li>
+        <li onclick="toggleCheck(this)" data-title="Log daily metrics">
+          <span class="check-box"></span>
+          <span>Log daily metrics</span>
+        </li>
+        <li onclick="toggleCheck(this)" data-title="Read / learn (30 min)">
+          <span class="check-box"></span>
+          <span>Read / learn (30 min)</span>
+        </li>
+        <li onclick="toggleCheck(this)" data-title="Evening shutdown ritual">
+          <span class="check-box"></span>
+          <span>Evening shutdown ritual</span>
+        </li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--accent4)"></span> Alerts &amp; Backups</div>
+      <div id="alerts-area">
+        <div class="notif notif-info">💾 <strong>Backup reminder:</strong> Export data weekly. Go to Data Log → Export.</div>
+        <div class="notif notif-warn" id="alert-nolog" style="display:none;">⚠️ You haven't logged today. Decision quality drops without data.</div>
+        <div class="notif notif-good" id="alert-streak" style="display:none;"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--green);box-shadow:0 0 6px var(--green);"></span> 30-Day Habit Heatmap</div>
+      <div class="heatmap-grid" id="heatmap" style="grid-template-columns:repeat(6,1fr);"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+        <div style="display:flex;gap:4px;align-items:center;">
+          <span style="font-size:0.58rem;color:var(--text3);">Less</span>
+          <span class="heat-cell heat-0" style="width:10px;height:10px;border-radius:2px;display:inline-block;flex-shrink:0;"></span>
+          <span class="heat-cell heat-1" style="width:10px;height:10px;border-radius:2px;display:inline-block;flex-shrink:0;"></span>
+          <span class="heat-cell heat-2" style="width:10px;height:10px;border-radius:2px;display:inline-block;flex-shrink:0;"></span>
+          <span class="heat-cell heat-3" style="width:10px;height:10px;border-radius:2px;display:inline-block;flex-shrink:0;"></span>
+          <span class="heat-cell heat-4" style="width:10px;height:10px;border-radius:2px;display:inline-block;flex-shrink:0;"></span>
+          <span style="font-size:0.58rem;color:var(--text3);">More</span>
+        </div>
+        <span style="font-family:var(--font-mono);font-size:0.55rem;color:var(--text3);">logs + timer = heat</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== DAILY LOG ===================== -->
+<div id="tab-daily" class="panel">
+  <div class="page-head">
+    <h1>Daily Log</h1>
+    <p>Science basis: <em>Ultradian rhythms (90-min cycles), chronobiology, affect labeling reduces amygdala activation (Lieberman 2007)</em>. Log twice: morning + evening.</p>
+  </div>
+
+  <div class="grid-2">
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title"><span class="dot"></span> Morning Check-in <span id="morning-done-badge" style="display:none;background:var(--green);color:#000;font-size:0.6rem;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:6px;font-family:var(--font-mono);">✓ LOGGED</span></div>
+        <div class="notif notif-info" style="margin-bottom:14px;">⏰ Best time: First 30 min after wake. Takes ~3 min.</div>
+
+        <div class="form-row">
+          <label class="form-label">Sleep Quality (1–10)</label>
+          <div class="slider-row">
+            <div class="slider-row-head">
+              <span>Poor</span>
+              <span class="slider-val" id="sleep-val">5</span>
+              <span>Excellent</span>
+            </div>
+            <input type="range" min="1" max="10" value="5" oninput="updateSlider('sleep-val',this.value)">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Energy Level (1–10)</label>
+          <div class="slider-row">
+            <div class="slider-row-head">
+              <span>Drained</span>
+              <span class="slider-val" id="energy-val">5</span>
+              <span>Peak</span>
+            </div>
+            <input type="range" min="1" max="10" value="5" oninput="updateSlider('energy-val',this.value)">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Mood (1–10)</label>
+          <div class="slider-row">
+            <div class="slider-row-head">
+              <span>Low</span>
+              <span class="slider-val" id="mood-val">5</span>
+              <span>High</span>
+            </div>
+            <input type="range" min="1" max="10" value="5" oninput="updateSlider('mood-val',this.value)">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Top 3 MIT (Most Important Tasks)</label>
+          <input type="text" id="mit1" placeholder="MIT #1 (highest leverage)">
+          <div style="height:6px;"></div>
+          <input type="text" id="mit2" placeholder="MIT #2">
+          <div style="height:6px;"></div>
+          <input type="text" id="mit3" placeholder="MIT #3">
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Intention / Focus Word</label>
+          <input type="text" id="intention" placeholder="e.g. Deep, Calm, Bold">
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-primary" onclick="saveDaily('morning')">Log Morning ↗</button>
+          <button class="btn btn-ghost" onclick="openHistoryModal('daily')">📜 View Past Logs</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="dot" style="background:var(--accent3)"></span> Science: Daily Protocols</div>
+        <div class="timeline">
+          <div class="tl-item">
+            <div class="tl-time">06:00 – 07:00</div>
+            <div class="tl-title">Cortisol Peak Window</div>
+            <div class="tl-text">Highest alertness. Do hardest cognitive work. No caffeine yet (delays crash). Source: Huberman Lab / circadian research.</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">90-min blocks</div>
+            <div class="tl-title">Ultradian Rhythm</div>
+            <div class="tl-text">Kleitman's Basic Rest-Activity Cycle. Work 90 min, rest 20 min. Elite performers use this (Ericsson 1993).</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">Post-lunch dip</div>
+            <div class="tl-title">Trough Period</div>
+            <div class="tl-text">Daniel Pink's "When" research: schedule low-stakes tasks (email, admin). Nap 10–20 min if possible — restores alertness.</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">Evening</div>
+            <div class="tl-title">Shutdown Ritual</div>
+            <div class="tl-text">Newport (Deep Work): write "Shutdown complete." Signals brain to stop planning, reduces rumination, improves sleep.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title"><span class="dot" style="background:var(--accent2)"></span> Evening Debrief <span id="evening-done-badge" style="display:none;background:var(--accent2);color:#fff;font-size:0.6rem;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:6px;font-family:var(--font-mono);">✓ LOGGED</span></div>
+        <div class="notif notif-info" style="margin-bottom:14px;">⏰ Best time: 1–2 hours before sleep.</div>
+
+        <div class="form-row">
+          <label class="form-label">Deep Focus Hours (actual)</label>
+          <input type="number" id="focus-hours" min="0" max="16" step="0.5" value="0" placeholder="e.g. 3.5">
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Exercise Done?</label>
+          <select id="exercise-done">
+            <option value="0">No</option>
+            <option value="1">Light (walk/stretch)</option>
+            <option value="2">Moderate (30+ min)</option>
+            <option value="3">Intense (60+ min)</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Big Win of the Day</label>
+          <input type="text" id="big-win" placeholder="Something that moved the needle">
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Biggest Friction / What Blocked You</label>
+          <input type="text" id="friction" placeholder="Be specific — data you can act on">
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Stress Level (1–10)</label>
+          <div class="slider-row">
+            <div class="slider-row-head">
+              <span>None</span>
+              <span class="slider-val" id="stress-val">3</span>
+              <span>Max</span>
+            </div>
+            <input type="range" min="1" max="10" value="3" oninput="updateSlider('stress-val',this.value)">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Journal Entry (Rich Editor)</label>
+          <div id="journal-toolbar" style="display:flex;gap:4px;flex-wrap:wrap;background:var(--surface3);border:1px solid var(--border2);border-bottom:none;border-radius:6px 6px 0 0;padding:6px 8px;">
+            <button type="button" class="jtb-btn" onclick="jExec('bold')" title="Bold"><b>B</b></button>
+            <button type="button" class="jtb-btn" onclick="jExec('italic')" title="Italic"><i>I</i></button>
+            <button type="button" class="jtb-btn" onclick="jExec('underline')" title="Underline"><u>U</u></button>
+            <span style="width:1px;background:var(--border);margin:0 3px;"></span>
+            <button type="button" class="jtb-btn" onclick="jExec('insertUnorderedList')" title="Bullet list">• List</button>
+            <button type="button" class="jtb-btn" onclick="jExec('formatBlock','H3')" title="Heading">H3</button>
+            <button type="button" class="jtb-btn" onclick="jExec('formatBlock','blockquote')" title="Quote">" "</button>
+            <span style="width:1px;background:var(--border);margin:0 3px;"></span>
+            <button type="button" class="jtb-btn" onclick="jInsertHR()" title="Divider">—</button>
+            <button type="button" class="jtb-btn" onclick="jExec('removeFormat')" title="Clear format">✕</button>
+            <span style="flex:1"></span>
+            <label class="jtb-btn" title="Attach image" style="cursor:pointer;">🖼 <input type="file" accept="image/*" style="display:none" onchange="jAttachImage(this)"></label>
+            <label class="jtb-btn" title="Record / attach audio" style="cursor:pointer;" onclick="jToggleAudio()">🎙</label>
+            <label class="jtb-btn" title="Attach file" style="cursor:pointer;">📎 <input type="file" style="display:none" onchange="jAttachFile(this)"></label>
+          </div>
+          <div id="journal-entry" contenteditable="true"
+            style="background:var(--surface3);border:1px solid var(--border2);border-radius:0 0 6px 6px;min-height:120px;padding:10px 12px;font-size:0.85rem;color:var(--text);outline:none;line-height:1.6;"
+            oninput="saveJournalDraft()"
+            placeholder="How did today feel? Label it precisely — this reduces amygdala activation (Lieberman 2007).">
+          </div>
+          <div id="journal-attachments" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;"></div>
+          <div id="audio-recorder" style="display:none;margin-top:8px;background:var(--surface3);border:1px solid var(--border2);border-radius:6px;padding:10px;align-items:center;gap:10px;">
+            <button class="btn btn-warn" id="rec-btn" onclick="toggleRecording()" style="padding:6px 14px;">⏺ Record</button>
+            <span id="rec-status" style="font-family:var(--font-mono);font-size:0.7rem;color:var(--text3);">Idle</span>
+            <audio id="rec-playback" controls style="height:30px;display:none;flex:1;"></audio>
+            <button class="btn btn-ghost" id="rec-attach-btn" style="padding:6px 12px;display:none;" onclick="attachRecording()">Attach ↗</button>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" onclick="saveDaily('evening')">Log Evening ↗</button>
+          <button class="btn btn-ghost" onclick="clearDailyForm()">Clear</button>
+          <button class="btn btn-ghost" onclick="openHistoryModal('daily')">📜 View Past Logs</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="dot" style="background:var(--green)"></span> Today's Log Summary</div>
+        <div id="daily-summary" style="font-size:0.82rem;color:var(--text2);line-height:1.7;">
+          <em>No log yet. Fill morning or evening check-in →</em>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== WEEKLY REVIEW ===================== -->
+<div id="tab-weekly" class="panel">
+  <div class="page-head">
+    <h1>Weekly Review</h1>
+    <p>Science basis: <em>"Fresh Start Effect" — Dai, Milkman &amp; Riis (2014). Weekly reviews are the master feedback loop. GTD's David Allen: "the single most critical habit." Do on Sunday, 30–60 min.</em></p>
+  </div>
+
+  <div class="notif notif-warn">⚡ Schedule this as a non-negotiable calendar block. Weekly review users outperform those who don't review by <strong>23% on goal attainment</strong> (research: Week Plan 2024).</div>
+
+  <div class="grid-2" style="margin-top:16px;">
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title"><span class="dot"></span> Week Scorecard</div>
+
+        <div class="prog-wrap">
+          <div class="prog-label"><span>MITs Completed</span><span id="w-mit-pct">0%</span></div>
+          <div class="prog-bar"><div class="prog-fill" id="w-mit-bar" style="width:0%;background:var(--accent);"></div></div>
+        </div>
+        <div class="prog-wrap">
+          <div class="prog-label"><span>Deep Work Goal (15h)</span><span id="w-focus-pct">0%</span></div>
+          <div class="prog-bar"><div class="prog-fill" id="w-focus-bar" style="width:0%;background:var(--accent2);"></div></div>
+        </div>
+        <div class="prog-wrap">
+          <div class="prog-label"><span>Exercise Days</span><span id="w-ex-pct">0/7</span></div>
+          <div class="prog-bar"><div class="prog-fill" id="w-ex-bar" style="width:0%;background:var(--accent3);"></div></div>
+        </div>
+        <div class="prog-wrap">
+          <div class="prog-label"><span>Avg Sleep Quality</span><span id="w-sleep-avg">—</span></div>
+          <div class="prog-bar"><div class="prog-fill" id="w-sleep-bar" style="width:0%;background:var(--blue);"></div></div>
+        </div>
+        <div class="prog-wrap">
+          <div class="prog-label"><span>Avg Mood</span><span id="w-mood-avg">—</span></div>
+          <div class="prog-bar"><div class="prog-fill" id="w-mood-bar" style="width:0%;background:var(--green);"></div></div>
+        </div>
+
+        <div class="divider"></div>
+        <button class="btn btn-primary" onclick="computeWeekly()">Compute From Logs ↗</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="dot" style="background:var(--accent2)"></span> Weekly Review Questions</div>
+        <div class="form-row">
+          <label class="form-label">What went well this week?</label>
+          <textarea id="wk-win" placeholder="Wins, breakthroughs, good decisions..."></textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">What friction patterns appeared?</label>
+          <textarea id="wk-friction" placeholder="Repeating blocks, energy drains, wasted time..."></textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">What will you DO differently next week?</label>
+          <textarea id="wk-change" placeholder="Be specific with one actionable change."></textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Next week's #1 priority (North Star)</label>
+          <input type="text" id="wk-priority" placeholder="One thing that would make the week a success">
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-primary" onclick="saveWeekly()">Save Weekly Review ↗</button>
+          <button class="btn btn-ghost" onclick="openHistoryModal('weekly')">📜 View Past Reviews</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title"><span class="dot" style="background:var(--accent3)"></span> The 5-Step Weekly Review Protocol</div>
+        <div class="timeline">
+          <div class="tl-item">
+            <div class="tl-time">Step 1 — 5 min</div>
+            <div class="tl-title">Clear Inboxes</div>
+            <div class="tl-text">Email, notes, messages to zero. Every capture point emptied. GTD principle: mind like water.</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">Step 2 — 10 min</div>
+            <div class="tl-title">Review Metrics</div>
+            <div class="tl-text">Check this scorecard. Look for trends, not single data points. One week is noise; patterns are signal.</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">Step 3 — 15 min</div>
+            <div class="tl-title">Review Goals / OKRs</div>
+            <div class="tl-text">Are you on track? What slipped? Adjust next week's priorities to compensate. Check Goals tab.</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">Step 4 — 10 min</div>
+            <div class="tl-title">Plan Next Week</div>
+            <div class="tl-text">Time-block deep work sessions first. Research: scheduling with specific time + place doubles follow-through (Gollwitzer 1999, implementation intentions).</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">Step 5 — 5 min</div>
+            <div class="tl-title">Gratitude + Shutdown</div>
+            <div class="tl-text">3 things that went well. Research: gratitude journaling raises wellbeing scores 10–15% at 8 weeks (Emmons &amp; McCullough 2003).</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="dot" style="background:var(--green)"></span> Backup Checklist</div>
+        <ul class="checklist" id="backup-checklist">
+          <li onclick="toggleCheck(this)"><span class="check-box"></span><span>Export Life OS data (Data Log → Export)</span></li>
+          <li onclick="toggleCheck(this)"><span class="check-box"></span><span>Sync notes to cloud (Obsidian / Notion)</span></li>
+          <li onclick="toggleCheck(this)"><span class="check-box"></span><span>Back up project files (local + cloud)</span></li>
+          <li onclick="toggleCheck(this)"><span class="check-box"></span><span>Commit code to GitHub</span></li>
+          <li onclick="toggleCheck(this)"><span class="check-box"></span><span>Review password manager</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MONTHLY ===================== -->
+<div id="tab-monthly" class="panel">
+  <div class="page-head">
+    <h1>Monthly Strategy</h1>
+    <p>Science basis: <em>Locke &amp; Latham (1990, 2002): specific + difficult goals outperform easy ones (effect sizes 0.42–0.80). Monthly = calibration cycle. Adjust inputs, not just outputs.</em></p>
+  </div>
+
+  <div class="grid-3" style="margin-bottom:16px;">
+    <div class="metric-card">
+      <div class="metric-label">Month Score</div>
+      <div class="metric-value" id="m-month-score">—</div>
+      <div class="metric-sub">Auto-computed from dailies</div>
+      <div class="metric-trend flat">Click Compute</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Avg Daily Energy</div>
+      <div class="metric-value" id="m-avg-energy">—</div>
+      <div class="metric-sub">This month</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Total Focus Hours</div>
+      <div class="metric-value" id="m-total-focus">—</div>
+      <div class="metric-sub">Deep work logged</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title"><span class="dot"></span> Monthly Reflection</div>
+        <div class="form-row">
+          <label class="form-label">Month</label>
+          <input type="text" id="mon-month" placeholder="e.g. June 2026">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Top 3 Achievements</label>
+          <textarea id="mon-wins" placeholder="What did you actually accomplish?"></textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Biggest Failure / Lesson</label>
+          <textarea id="mon-fail" placeholder="Data-driven: what patterns caused failure?"></textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">One System to Change</label>
+          <textarea id="mon-system" placeholder="Change the system, not just the outcome. e.g. 'Move deep work to 7AM instead of 10AM'"></textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Next Month's Theme</label>
+          <input type="text" id="mon-theme" placeholder="One word or phrase e.g. 'Focus', 'Launch', 'Recovery'">
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-primary" onclick="saveMonthly()">Save Review ↗</button>
+          <button class="btn btn-ghost" onclick="openHistoryModal('monthly')">📜 View Past Reviews</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="dot" style="background:var(--accent2)"></span> Domain Scoring (Self-Rate This Month)</div>
+        <div id="monthly-domain-sliders"></div>
+        <button class="btn btn-ghost" style="margin-top:10px;" onclick="computeMonthlyScore()">Compute Month Score ↗</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title"><span class="dot" style="background:var(--accent3)"></span> Monthly Review Framework</div>
+        <div class="timeline">
+          <div class="tl-item">
+            <div class="tl-time">Data Analysis</div>
+            <div class="tl-title">Look at Trends, Not Days</div>
+            <div class="tl-text">Monthly averages filter noise. If avg sleep &lt; 6, that's a system problem. If avg mood &lt; 5 for 3 weeks, investigate inputs (diet, workload, social).</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">OKR Check-in</div>
+            <div class="tl-title">Confidence Levels</div>
+            <div class="tl-text">Google's OKR standard: 60–70% completion = calibrated. 100% = too easy. Use confidence scoring (0–1.0) not just done/not done.</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">System Design</div>
+            <div class="tl-title">Change Inputs Not Willpower</div>
+            <div class="tl-text">BJ Fogg (Tiny Habits): redesign your environment. Willpower is finite (ego depletion, Baumeister 1998). Reduce friction for good habits; increase friction for bad ones.</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">Strategy</div>
+            <div class="tl-title">Next Month's Bets</div>
+            <div class="tl-text">Pick max 3 focus areas. Research: multitasking reduces cognitive performance by 40% (American Psychological Association). Say no by default.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="dot" style="background:var(--red)"></span> Anti-Patterns to Watch</div>
+        <table class="data-table">
+          <thead><tr><th>Pattern</th><th>Signal</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td>Busy but not productive</td><td>High stress, low focus hours</td><td>Time audit + eliminate low-value tasks</td></tr>
+            <tr><td>Burnout approaching</td><td>Energy &lt; 4 for 2 weeks</td><td>Force rest, cut output targets 50%</td></tr>
+            <tr><td>Goal drift</td><td>Weekly review skipped 2x</td><td>Shrink goal list, pick 1 north star</td></tr>
+            <tr><td>Optimization trap</td><td>More time planning than doing</td><td>70% action, 30% planning rule</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== GOALS / OKRs ===================== -->
+<div id="tab-goals" class="panel">
+  <div class="page-head">
+    <h1>Goals &amp; OKRs</h1>
+    <p>Science basis: <em>Locke &amp; Latham 35-year research: specific + difficult goals = effect size 0.42–0.80 vs vague goals. OKRs (Intel/Google): 60–70% hit rate is ideal. WOOP (Oettingen) for personal goals.</em></p>
+  </div>
+
+  <div class="inner-tabs">
+    <button class="inner-tab active" onclick="switchGoalTab('okr')">OKR Goals</button>
+    <button class="inner-tab" onclick="switchGoalTab('woop')">WOOP Analysis</button>
+    <button class="inner-tab" onclick="switchGoalTab('add')">+ Add Goal</button>
+  </div>
+
+  <div id="goal-okr">
+    <div class="sec-head">
+      <h2>Active OKRs</h2>
+      <span class="badge badge-accent">Q2 2026</span>
+    </div>
+    <div id="okr-list"></div>
+  </div>
+
+  <div id="goal-woop" style="display:none;">
+    <div class="notif notif-info">WOOP = Wish → Outcome → Obstacle → Plan. Developed by Gabriele Oettingen. Outperforms pure positive visualization by pairing hope with realistic obstacle planning.</div>
+    <div class="grid-2" style="margin-top:14px;">
+      <div class="card">
+        <div class="card-title"><span class="dot"></span> WOOP Worksheet</div>
+        <div class="form-row">
+          <label class="form-label">🌟 Wish (Goal)</label>
+          <input type="text" id="woop-wish" placeholder="Specific, challenging but achievable">
+        </div>
+        <div class="form-row">
+          <label class="form-label">🏆 Outcome (Best result if achieved)</label>
+          <textarea id="woop-outcome" placeholder="Visualize vividly. What does success feel like?"></textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">⛰️ Obstacle (Inner: your biggest barrier)</label>
+          <textarea id="woop-obstacle" placeholder="Be honest. What inside you will stop this? Laziness? Fear? Old habit?"></textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">📋 Plan (If-Then Implementation Intention)</label>
+          <input type="text" id="woop-plan" placeholder="IF [obstacle happens], THEN I will [specific action]">
+        </div>
+        <button class="btn btn-primary" onclick="saveWoop()">Save WOOP ↗</button>
+        <button class="btn btn-ghost" onclick="openHistoryModal('woop')">📜 View Past WOOPs</button>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="dot" style="background:var(--accent2)"></span> Saved WOOPs</div>
+        <div id="woop-list" style="font-size:0.8rem;color:var(--text2);"><em>No WOOPs saved yet.</em></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="goal-add" style="display:none;">
+    <div class="card" style="max-width:600px;">
+      <div class="card-title"><span class="dot"></span> Add New OKR</div>
+      <div class="form-row">
+        <label class="form-label">Objective (What you want to achieve)</label>
+        <input type="text" id="new-obj" placeholder="Inspiring, directional, qualitative">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Key Result 1 (Measurable)</label>
+        <input type="text" id="new-kr1" placeholder="Specific number or milestone">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Key Result 2</label>
+        <input type="text" id="new-kr2" placeholder="">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Key Result 3</label>
+        <input type="text" id="new-kr3" placeholder="">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Category</label>
+        <select id="new-cat">
+          <option>Academic</option>
+          <option>Project</option>
+          <option>Health</option>
+          <option>Finance</option>
+          <option>Relationships</option>
+          <option>Skills</option>
+          <option>General</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Initial Confidence (0–100%)</label>
+        <input type="range" min="0" max="100" value="50" oninput="updateSlider('new-conf-val',this.value)">
+        <span id="new-conf-val" style="font-family:var(--font-mono);font-size:0.8rem;color:var(--accent);">50%</span>
+      </div>
+      <button class="btn btn-primary" onclick="addOKR()">Add OKR ↗</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== DECISIONS ===================== -->
+<div id="tab-decisions" class="panel">
+  <div class="page-head">
+    <h1>Decision Engine</h1>
+    <p>Science basis: <em>Kahneman (Thinking, Fast and Slow): System 1 bias, overconfidence, availability heuristic. Decision journals reduce hindsight bias. Pre-mortem analysis (Klein 2007) catches failure modes before they happen.</em></p>
+  </div>
+
+  <div class="inner-tabs">
+    <button class="inner-tab active" onclick="switchDecTab('matrix')">Decision Matrix</button>
+    <button class="inner-tab" onclick="switchDecTab('journal')">Decision Journal</button>
+    <button class="inner-tab" onclick="switchDecTab('premortem')">Pre-Mortem</button>
+    <button class="inner-tab" onclick="switchDecTab('biases')">Bias Checklist</button>
+  </div>
+
+  <div id="dec-matrix">
+    <div class="notif notif-info">Weighted decision matrix: score each option on criteria, multiply by weight (importance). Highest total = data-supported choice.</div>
+    <div class="grid-2" style="margin-top:14px;">
+      <div class="card">
+        <div class="card-title"><span class="dot"></span> Build a Decision Matrix</div>
+        <div class="form-row">
+          <label class="form-label">Decision Question</label>
+          <input type="text" id="dm-question" placeholder="e.g. Which framework to use for NeverBored?">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Option A</label>
+          <input type="text" id="dm-a" value="Option A">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Option B</label>
+          <input type="text" id="dm-b" value="Option B">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Option C</label>
+          <input type="text" id="dm-c" value="Option C">
+        </div>
+        <div class="divider"></div>
+        <p style="font-size:0.75rem;color:var(--text3);margin-bottom:10px;">Score each option 1–10 on each criterion:</p>
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th>Criterion (Weight)</th>
+              <th id="th-a">A</th>
+              <th id="th-b">B</th>
+              <th id="th-c">C</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Impact (×3)</td>
+              <td><input type="number" class="dm-score" data-row="0" data-col="0" min="1" max="10" value="5" style="width:50px;padding:4px;text-align:center;"></td>
+              <td><input type="number" class="dm-score" data-row="0" data-col="1" min="1" max="10" value="5" style="width:50px;padding:4px;text-align:center;"></td>
+              <td><input type="number" class="dm-score" data-row="0" data-col="2" min="1" max="10" value="5" style="width:50px;padding:4px;text-align:center;"></td>
+            </tr>
+            <tr>
+              <td>Effort/Cost (×2)</td>
+              <td><input type="number" class="dm-score" data-row="1" data-col="0" min="1" max="10" value="5" style="width:50px;padding:4px;text-align:center;"></td>
+              <td><input type="number" class="dm-score" data-row="1" data-col="1" min="1" max="10" value="5" style="width:50px;padding:4px;text-align:center;"></td>
+              <td><input type="number" class="dm-score" data-row="1" data-col="2" min="1" max="10" value="5" style="width:50px;padding:4px;text-align:center;"></td>
+            </tr>
+            <tr>
+              <td>Risk (×2)</td>
+              <td><input type="number" class="dm-score" data-row="2" data-col="0" min="1" max="10" value="5" style="width:50px;padding:4px;text-align:center;"></td>
+              <td><input type="number" class="dm-score" data-row="2" data-col="1" min="1" max="10" value="5" style="width:50px;padding:4px;text-align:center;"></td>
+              <td><input type="number" class="dm-score" data-row="2" data-col="2" min="1" max="10" value="5" style="width:50px;padding:4px;text-align:center;"></td>
+            </tr>
+            <tr>
+              <td>Alignment w/ Goals (×3)</td>
+              <td><input type="number" class="dm-score" data-row="3" data-col="0" min="1" max="10" value="5" style="width:50px;padding:4px;text-align:center;"></td>
+              <td><input type="number" class="dm-score" data-row="3" data-col="1" min="1" max="10" value="5" style="width:50px;padding:4px;text-align:center;"></td>
+              <td><input type="number" class="dm-score" data-row="3" data-col="2" min="1" max="10" value="5" style="width:50px;padding:4px;text-align:center;"></td>
+            </tr>
+            <tr style="font-weight:700;">
+              <td>TOTAL</td>
+              <td id="dm-total-a" style="color:var(--accent);">—</td>
+              <td id="dm-total-b" style="color:var(--accent);">—</td>
+              <td id="dm-total-c" style="color:var(--accent);">—</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:12px;display:flex;gap:8px;">
+          <button class="btn btn-primary" onclick="computeMatrix()">Compute ↗</button>
+          <button class="btn btn-ghost" onclick="saveMatrixDecision()">Save to Journal</button>
+        </div>
+        <div id="matrix-result" style="margin-top:12px;font-size:0.85rem;color:var(--text2);"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="dot" style="background:var(--accent3)"></span> Mental Models for Decisions</div>
+        <div class="timeline">
+          <div class="tl-item">
+            <div class="tl-title">Second-Order Thinking</div>
+            <div class="tl-text">Ask "and then what?" twice. Most people stop at first-order consequences. (Howard Marks)</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-title">Inversion</div>
+            <div class="tl-text">Instead of "how do I succeed?", ask "what would guarantee failure?" Avoid that. (Charlie Munger)</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-title">Regret Minimization</div>
+            <div class="tl-text">Project to age 80. Which decision will you regret not taking? (Jeff Bezos)</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-title">10/10/10 Rule</div>
+            <div class="tl-text">How will I feel in 10 min, 10 months, 10 years? Counters short-term emotional bias. (Suzy Welch)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="dec-journal" style="display:none;">
+    <div class="notif notif-warn">Decision journal reduces hindsight bias by forcing you to record reasoning <em>before</em> you know the outcome. Review quarterly.</div>
+    <div class="grid-2" style="margin-top:14px;">
+      <div class="card">
+        <div class="card-title"><span class="dot"></span> Log a Decision</div>
+        <div class="form-row">
+          <label class="form-label">Decision</label>
+          <input type="text" id="dj-decision" placeholder="What exactly are you deciding?">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Options Considered</label>
+          <textarea id="dj-options" placeholder="What alternatives did you consider?"></textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Reasoning (Why this choice?)</label>
+          <textarea id="dj-reason" placeholder="Your actual reasoning, not post-hoc rationalization."></textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Confidence Level (1–10)</label>
+          <input type="range" min="1" max="10" value="7" oninput="updateSlider('dj-conf-val',this.value)">
+          <span id="dj-conf-val" style="font-family:var(--font-mono);font-size:0.8rem;color:var(--accent);">7</span>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Expected Outcome</label>
+          <input type="text" id="dj-expected" placeholder="What do you expect to happen?">
+        </div>
+        <button class="btn btn-primary" onclick="saveDecision()">Log Decision ↗</button>
+        <button class="btn btn-ghost" onclick="openHistoryModal('decision')">📜 View Past Decisions</button>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="dot" style="background:var(--accent2)"></span> Decision Log <span class="badge badge-accent" style="margin-left:6px;">Auto-sorted by Priority</span></div>
+        <div class="log-list" id="decision-log">
+          <div style="padding:16px;font-size:0.8rem;color:var(--text3);">No decisions logged yet.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="dec-premortem" style="display:none;">
+    <div class="notif notif-info">Pre-mortem (Gary Klein, 1989): Imagine it's 1 year from now and the project <strong>failed</strong>. Write why. This surfaces hidden risks that optimism blocks. Teams using pre-mortem increase identification of reasons for failure by 30%.</div>
+    <div class="card" style="max-width:700px;margin-top:14px;">
+      <div class="card-title"><span class="dot"></span> Pre-Mortem Worksheet</div>
+      <div class="form-row">
+        <label class="form-label">Project / Plan</label>
+        <input type="text" id="pm-project" placeholder="What plan are you stress-testing?">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Assume it's 12 months later and the project FAILED. Why?</label>
+        <textarea id="pm-why" style="min-height:120px;" placeholder="List every possible failure cause. Go wild. Include low-probability risks."></textarea>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Top 3 Most Likely Failure Modes</label>
+        <input type="text" id="pm-f1" placeholder="Failure mode #1">
+        <div style="height:6px;"></div>
+        <input type="text" id="pm-f2" placeholder="Failure mode #2">
+        <div style="height:6px;"></div>
+        <input type="text" id="pm-f3" placeholder="Failure mode #3">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Mitigation Plan for Each</label>
+        <textarea id="pm-mit" placeholder="For each failure mode above, what will you do to prevent it?"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="savePremortem()">Save Pre-Mortem ↗</button>
+    </div>
+  </div>
+
+  <div id="dec-biases" style="display:none;">
+    <div class="sec-head"><h2>Cognitive Bias Checklist</h2></div>
+    <p style="font-size:0.8rem;color:var(--text2);margin-bottom:16px;">Before making any important decision, check which biases may be at play. (Kahneman, 2011; Ariely, 2008)</p>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title"><span class="dot" style="background:var(--red)"></span> High-Risk Biases</div>
+        <table class="data-table">
+          <thead><tr><th>Bias</th><th>How It Distorts</th><th>Counter</th></tr></thead>
+          <tbody>
+            <tr><td>Confirmation Bias</td><td>Seek only confirming evidence</td><td>Actively seek disconfirming data</td></tr>
+            <tr><td>Sunk Cost Fallacy</td><td>Keep going because you've invested</td><td>"What would I choose if I started fresh?"</td></tr>
+            <tr><td>Availability Heuristic</td><td>Recent/vivid = likely</td><td>Use base rates, not anecdotes</td></tr>
+            <tr><td>Planning Fallacy</td><td>Underestimate time + cost</td><td>Reference class forecasting (outsider view)</td></tr>
+            <tr><td>Optimism Bias</td><td>Assume things go well</td><td>Pre-mortem + scenario analysis</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="dot" style="background:var(--yellow)"></span> Social / Emotional Biases</div>
+        <table class="data-table">
+          <thead><tr><th>Bias</th><th>How It Distorts</th><th>Counter</th></tr></thead>
+          <tbody>
+            <tr><td>Authority Bias</td><td>Defer to experts uncritically</td><td>Ask: what's the evidence, not who said it</td></tr>
+            <tr><td>Loss Aversion</td><td>Losses hurt 2x more than equal gains</td><td>Reframe as opportunity cost, not loss</td></tr>
+            <tr><td>IKEA Effect</td><td>Overvalue what you built yourself</td><td>Get outside review of your work</td></tr>
+            <tr><td>Groupthink</td><td>Consensus over accuracy</td><td>Assign devil's advocate explicitly</td></tr>
+            <tr><td>Affect Heuristic</td><td>Emotion masks risk analysis</td><td>Delay decisions when emotionally activated</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== TOOLS ARSENAL ===================== -->
+<div id="tab-tools" class="panel">
+  <div class="page-head">
+    <h1>Tools Arsenal</h1>
+    <p>Curated, evidence-backed tools stack. Organized by function. All privacy-respecting where possible.</p>
+  </div>
+
+  <div class="inner-tabs">
+    <button class="inner-tab active" onclick="switchToolTab('focus')">Focus</button>
+    <button class="inner-tab" onclick="switchToolTab('capture')">Capture</button>
+    <button class="inner-tab" onclick="switchToolTab('planning')">Planning</button>
+    <button class="inner-tab" onclick="switchToolTab('health')">Health</button>
+    <button class="inner-tab" onclick="switchToolTab('learning')">Learning</button>
+    <button class="inner-tab" onclick="switchToolTab('backup')">Backup</button>
+  </div>
+
+  <div id="tools-focus" class="tool-grid">
+    <div class="tool-card"><div class="tool-icon">🍅</div><div class="tool-name">Pomofocus</div><div class="tool-desc">Pomodoro timer web app. Free, no account. Science: focused work intervals improve output quality.</div><div class="tool-science">↳ Cirill (1992) — 25/5 min cycles</div></div>
+    <div class="tool-card"><div class="tool-icon">🔇</div><div class="tool-name">Brain.fm / Focusmate</div><div class="tool-desc">Neural phase locking audio for focus. Focusmate: virtual coworking accountability.</div><div class="tool-science">↳ Auditory entrainment research</div></div>
+    <div class="tool-card"><div class="tool-icon">📵</div><div class="tool-name">Cold Turkey Blocker</div><div class="tool-desc">Hard block distracting sites during deep work. Cannot be bypassed easily. Windows/Mac.</div><div class="tool-science">↳ Newport: distraction = 23 min recovery</div></div>
+    <div class="tool-card"><div class="tool-icon">⏱️</div><div class="tool-name">Toggl Track</div><div class="tool-desc">Time tracking. Free tier. Reveals actual time use vs perceived. Critical for data.</div><div class="tool-science">↳ You can't improve what you don't measure</div></div>
+    <div class="tool-card"><div class="tool-icon">🎵</div><div class="tool-name">Lofi / Rain Sounds</div><div class="tool-desc">lofi.cafe, rainymood.com — ambient audio masks distracting sounds. Free, ad-light.</div><div class="tool-science">↳ Moderate noise ~70dB boosts creativity</div></div>
+    <div class="tool-card"><div class="tool-icon">📋</div><div class="tool-name">Workflowy / Logseq</div><div class="tool-desc">Outliner for task capture during focus. Never lose a thought. Local-first (Logseq = private).</div><div class="tool-science">↳ GTD: capture everything, trust the system</div></div>
+  </div>
+
+  <div id="tools-capture" class="tool-grid" style="display:none;">
+    <div class="tool-card"><div class="tool-icon">🧠</div><div class="tool-name">Obsidian</div><div class="tool-desc">Local-first, Markdown notes with backlinks. Privacy respecting. Free forever. PKM gold standard.</div><div class="tool-science">↳ Zettelkasten method (Luhmann: 70+ books)</div></div>
+    <div class="tool-card"><div class="tool-icon">📓</div><div class="tool-name">Logseq</div><div class="tool-desc">Free, open-source, graph-based journal + notes. Local storage. Works offline.</div><div class="tool-science">↳ Daily journaling + linked notes</div></div>
+    <div class="tool-card"><div class="tool-icon">🗂️</div><div class="tool-name">PARA Method</div><div class="tool-desc">Projects / Areas / Resources / Archive. Tiago Forte's system. Folder structure, not app.</div><div class="tool-science">↳ Building a Second Brain (2022)</div></div>
+    <div class="tool-card"><div class="tool-icon">📱</div><div class="tool-name">Telegram (Saved)</div><div class="tool-desc">Message yourself links/ideas instantly. Universal capture on mobile. No friction.</div><div class="tool-science">↳ Capture friction = ideas lost</div></div>
+    <div class="tool-card"><div class="tool-icon">🔖</div><div class="tool-name">Raindrop.io</div><div class="tool-desc">Bookmark manager. Free tier, cross-platform. Better than browser folders.</div><div class="tool-science">↳ Second brain: archive resources</div></div>
+  </div>
+
+  <div id="tools-planning" class="tool-grid" style="display:none;">
+    <div class="tool-card"><div class="tool-icon">📅</div><div class="tool-name">Google Calendar</div><div class="tool-desc">Time-blocking tool. Schedule deep work, reviews, exercise. Calendar = commitment device.</div><div class="tool-science">↳ Gollwitzer (1999): if-then plans 2x follow-through</div></div>
+    <div class="tool-card"><div class="tool-icon">✅</div><div class="tool-name">Todoist / TickTick</div><div class="tool-desc">Task manager with priority levels, recurring tasks. GTD-compatible. Free tiers available.</div><div class="tool-science">↳ GTD: trusted external system</div></div>
+    <div class="tool-card"><div class="tool-icon">🗒️</div><div class="tool-name">Notion</div><div class="tool-desc">All-in-one workspace. Databases for projects, goals. Good for templates + structured planning.</div><div class="tool-science">↳ PARA + OKR tracking</div></div>
+    <div class="tool-card"><div class="tool-icon">📊</div><div class="tool-name">This App (Life OS)</div><div class="tool-desc">Data-driven daily/weekly/monthly reviews, OKRs, decision engine. You're using it now.</div><div class="tool-science">↳ Quantified Self methodology</div></div>
+    <div class="tool-card"><div class="tool-icon">🌅</div><div class="tool-name">Sunsama / Akiflow</div><div class="tool-desc">Daily planning tools that pull from multiple sources. Premium but excellent UX.</div><div class="tool-science">↳ Daily planning = intentional execution</div></div>
+  </div>
+
+  <div id="tools-health" class="tool-grid" style="display:none;">
+    <div class="tool-card"><div class="tool-icon">😴</div><div class="tool-name">Sleep Cycle</div><div class="tool-desc">Smart alarm wakes you in lightest sleep phase. Tracks sleep quality over time.</div><div class="tool-science">↳ Walker: 8h sleep = 40% more memory consolidation</div></div>
+    <div class="tool-card"><div class="tool-icon">🧘</div><div class="tool-name">Waking Up / Plum Village</div><div class="tool-desc">Meditation apps. Plum Village is free. Evidence: 8 weeks MBSR reduces cortisol, increases grey matter.</div><div class="tool-science">↳ Kabat-Zinn MBSR research</div></div>
+    <div class="tool-card"><div class="tool-icon">💪</div><div class="tool-name">Strong / FitNotes</div><div class="tool-desc">Free workout logging apps. Track progressive overload. No data selling.</div><div class="tool-science">↳ Progressive overload = muscle/strength gains</div></div>
+    <div class="tool-card"><div class="tool-icon">🥗</div><div class="tool-name">Cronometer</div><div class="tool-desc">Nutrition tracker. More micronutrient detail than MyFitnessPal. Free tier.</div><div class="tool-science">↳ Nutrient deficiencies → cognitive decline</div></div>
+    <div class="tool-card"><div class="tool-icon">🚶</div><div class="tool-name">10,000 Steps</div><div class="tool-desc">Phone step counter. Walking 8,000+ steps/day = 51% lower all-cause mortality (Paluch 2021).</div><div class="tool-science">↳ Paluch et al. 2021, JAMA</div></div>
+  </div>
+
+  <div id="tools-learning" class="tool-grid" style="display:none;">
+    <div class="tool-card"><div class="tool-icon">🃏</div><div class="tool-name">Anki</div><div class="tool-desc">Spaced repetition flashcards. Gold standard for long-term retention. Free, open-source.</div><div class="tool-science">↳ Ebbinghaus forgetting curve — SR beats re-reading 2.35x</div></div>
+    <div class="tool-card"><div class="tool-icon">📖</div><div class="tool-name">Readwise</div><div class="tool-desc">Resurfaces your highlights from books/articles daily. Prevents knowledge loss.</div><div class="tool-science">↳ Testing effect: retrieval practice > passive reading</div></div>
+    <div class="tool-card"><div class="tool-icon">🎓</div><div class="tool-name">Coursera / NPTEL</div><div class="tool-desc">Structured courses. NPTEL free + certificates. For NET JRF prep: IIT lectures on CS topics.</div><div class="tool-science">↳ Deliberate practice (Ericsson): structure over volume</div></div>
+    <div class="tool-card"><div class="tool-icon">✍️</div><div class="tool-name">Feynman Technique</div><div class="tool-desc">Explain concepts in simple words. Gaps in explanation = gaps in understanding. No app needed.</div><div class="tool-science">↳ Generation effect: teaching > reading for retention</div></div>
+    <div class="tool-card"><div class="tool-icon">🔍</div><div class="tool-name">Connected Papers</div><div class="tool-desc">Visual graph of related academic papers. Great for deep research dives.</div><div class="tool-science">↳ Research efficiency</div></div>
+  </div>
+
+  <div id="tools-backup" class="tool-grid" style="display:none;">
+    <div class="tool-card"><div class="tool-icon">☁️</div><div class="tool-name">3-2-1 Backup Rule</div><div class="tool-desc">3 copies, 2 different media, 1 offsite. Non-negotiable for anything important.</div><div class="tool-science">↳ Standard data resilience protocol</div></div>
+    <div class="tool-card"><div class="tool-icon">🐙</div><div class="tool-name">GitHub</div><div class="tool-desc">Version control + cloud backup for all code projects. Free for unlimited repos. Use daily.</div><div class="tool-science">↳ Every commit = a restore point</div></div>
+    <div class="tool-card"><div class="tool-icon">📦</div><div class="tool-name">Backblaze / rclone</div><div class="tool-desc">Cheap cloud backup ($7/mo unlimited). rclone = free, encrypt + sync to any cloud.</div><div class="tool-science">↳ Offsite = protection from local disaster</div></div>
+    <div class="tool-card"><div class="tool-icon">🔐</div><div class="tool-name">Bitwarden</div><div class="tool-desc">Open-source password manager. Free, self-hostable. Never lose credentials.</div><div class="tool-science">↳ Password manager adoption = key security hygiene</div></div>
+    <div class="tool-card"><div class="tool-icon">📤</div><div class="tool-name">Export (This App)</div><div class="tool-desc">Use Data Log → Export to download your Life OS data as JSON. Weekly backup habit.</div><div class="tool-science">↳ Data portability = resilience</div></div>
+  </div>
+</div>
+
+<!-- ===================== DATA LOG ===================== -->
+<div id="tab-data" class="panel">
+  <div class="page-head">
+    <h1>Data Log</h1>
+    <p>Your complete data archive. Export regularly. <span class="tag">Quantified Self</span><span class="tag">Personal Science</span></p>
+  </div>
+
+  <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+    <button class="btn btn-primary" onclick="exportData()">📤 Export All Data (JSON)</button>
+    <button class="btn btn-ghost" onclick="importDataPrompt()">📥 Import Data</button>
+    <button class="btn btn-warn" onclick="clearAllData()">🗑️ Clear All Data</button>
+  </div>
+
+  <div class="grid-2">
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title"><span class="dot"></span> All Daily Logs</div>
+        <div class="log-list" id="all-daily-logs">
+          <div style="padding:16px;font-size:0.8rem;color:var(--text3);">No logs yet. Start from Daily Log tab.</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title"><span class="dot" style="background:var(--accent2)"></span> All Weekly Reviews</div>
+        <div class="log-list" id="all-weekly-logs">
+          <div style="padding:16px;font-size:0.8rem;color:var(--text3);">No weekly reviews yet.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="dot" style="background:var(--accent3)"></span> Stats Summary</div>
+        <div id="stats-summary" style="font-size:0.82rem;line-height:2;">
+          <em style="color:var(--text3);">Log data to see stats.</em>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== FOCUS + REST TIMER POPUP ===================== -->
+<div id="timer-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;backdrop-filter:blur(4px);" onclick="if(event.target===this)closeTimer()"></div>
+<div id="timer-popup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:501;background:var(--surface2);border:1px solid var(--border2);border-radius:16px;padding:24px 28px;width:420px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.6);">
+
+  <div style="display:flex;gap:0;border:1px solid var(--border2);border-radius:8px;overflow:hidden;margin-bottom:20px;">
+    <button id="mode-focus-btn" onclick="switchTimerMode('focus')"
+      style="flex:1;padding:8px;font-family:var(--font-display);font-size:0.72rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;border:none;cursor:pointer;background:var(--accent);color:#000;transition:all 0.15s;">
+      ⚡ Focus
+    </button>
+    <button id="mode-rest-btn" onclick="switchTimerMode('rest')"
+      style="flex:1;padding:8px;font-family:var(--font-display);font-size:0.72rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;border:none;cursor:pointer;background:var(--surface3);color:var(--text3);transition:all 0.15s;">
+      ☕ Rest
+    </button>
+  </div>
+
+  <div style="text-align:center;margin-bottom:6px;">
+    <div id="timer-display" style="font-family:var(--font-mono);font-size:3.4rem;font-weight:700;color:var(--accent);letter-spacing:0.05em;line-height:1;">00:00:00</div>
+    <div id="timer-session-label" style="font-size:0.7rem;color:var(--text3);margin-top:6px;min-height:18px;">Not started</div>
+  </div>
+
+  <div style="display:flex;gap:0;background:var(--surface3);border-radius:6px;overflow:hidden;margin:14px 0;text-align:center;">
+    <div style="flex:1;padding:8px 0;border-right:1px solid var(--border);">
+      <div style="font-family:var(--font-mono);font-size:0.6rem;color:var(--text3);text-transform:uppercase;">Focus Today</div>
+      <div id="total-focus-display" style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--accent);">0m</div>
+    </div>
+    <div style="flex:1;padding:8px 0;">
+      <div style="font-family:var(--font-mono);font-size:0.6rem;color:var(--text3);text-transform:uppercase;">Rest Today</div>
+      <div id="total-rest-display" style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--accent3);">0m</div>
+    </div>
+    <div style="flex:1;padding:8px 0;border-left:1px solid var(--border);">
+      <div style="font-family:var(--font-mono);font-size:0.6rem;color:var(--text3);text-transform:uppercase;">F:R Ratio</div>
+      <div id="fr-ratio-display" style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--text2);">—</div>
+    </div>
+  </div>
+
+  <div id="focus-presets" style="display:flex;gap:6px;justify-content:center;margin-bottom:12px;flex-wrap:wrap;">
+    <button class="btn btn-ghost" style="padding:4px 10px;font-size:0.65rem;" onclick="setPreset('focus',25)">25m Pomodoro</button>
+    <button class="btn btn-ghost" style="padding:4px 10px;font-size:0.65rem;" onclick="setPreset('focus',45)">45m</button>
+    <button class="btn btn-ghost" style="padding:4px 10px;font-size:0.65rem;" onclick="setPreset('focus',60)">60m</button>
+    <button class="btn btn-ghost" style="padding:4px 10px;font-size:0.65rem;" onclick="setPreset('focus',90)">90m Ultradian</button>
+  </div>
+  <div id="rest-presets" style="display:none;gap:6px;justify-content:center;margin-bottom:12px;flex-wrap:wrap;">
+    <button class="btn btn-ghost" style="padding:4px 10px;font-size:0.65rem;" onclick="setPreset('rest',5)">5m micro</button>
+    <button class="btn btn-ghost" style="padding:4px 10px;font-size:0.65rem;" onclick="setPreset('rest',10)">10m</button>
+    <button class="btn btn-ghost" style="padding:4px 10px;font-size:0.65rem;" onclick="setPreset('rest',20)">20m Nap</button>
+    <button class="btn btn-ghost" style="padding:4px 10px;font-size:0.65rem;" onclick="setPreset('rest',30)">30m</button>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <input type="number" id="timer-custom-min" min="1" max="300" value="90" placeholder="min"
+      style="width:64px;text-align:center;flex-shrink:0;">
+    <button class="btn btn-ghost" style="padding:6px 10px;flex-shrink:0;" onclick="setPreset(activeMode, parseInt(document.getElementById('timer-custom-min').value)||25)">Set</button>
+    <input type="text" id="timer-session-name" placeholder="Label  (e.g. NET JRF — Trees)" style="flex:1;">
+  </div>
+
+  <div style="display:flex;gap:8px;justify-content:center;margin-bottom:12px;">
+    <button class="btn btn-primary" id="timer-start-btn" onclick="timerStart()" style="flex:1;">▶ Start</button>
+    <button class="btn btn-ghost"   id="timer-pause-btn" onclick="timerPause()" style="display:none;flex:1;">⏸ Pause</button>
+    <button class="btn btn-ghost"   onclick="timerReset()" style="padding:9px 14px;">↺</button>
+    <button class="btn btn-warn"    onclick="timerStop()" style="flex:1;">■ Stop &amp; Log</button>
+  </div>
+
+  <div id="timer-log-msg" style="font-size:0.74rem;color:var(--green);text-align:center;min-height:18px;margin-bottom:10px;"></div>
+
+  <div style="border-top:1px solid var(--border);padding-top:10px;">
+    <div style="font-family:var(--font-mono);font-size:0.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Today's Sessions</div>
+    <div id="timer-sessions-list" style="max-height:110px;overflow-y:auto;font-size:0.74rem;"></div>
+  </div>
+
+  <button onclick="closeTimer()" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--text3);font-size:1.2rem;cursor:pointer;line-height:1;">×</button>
+</div>
+
+<!-- Floating timer button -->
+<button onclick="openTimer()" title="Open Timer" style="position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;background:var(--accent);border:none;font-size:1.3rem;cursor:pointer;box-shadow:0 4px 20px rgba(0,212,170,0.4);z-index:200;transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">⏱</button>
+
+<!-- ===================== TIMER SCRIPT ===================== -->
+<script>
+let activeMode = 'focus';
+let timerInterval = null;
+let timerRunning = false;
+let timerElapsed = 0;
+let timerTarget = 0;
+let timerSeconds = 0;
+let timerSessionStart = null;
+
+function openTimer() {
+  document.getElementById('timer-overlay').style.display = 'block';
+  document.getElementById('timer-popup').style.display = 'block';
+  renderTimerSessions();
+  refreshTotalsStrip();
+}
+function closeTimer() {
+  document.getElementById('timer-overlay').style.display = 'none';
+  document.getElementById('timer-popup').style.display = 'none';
+}
+
+function switchTimerMode(mode) {
+  if(timerRunning) return;
+  activeMode = mode;
+  const isFocus = mode === 'focus';
+  document.getElementById('mode-focus-btn').style.background = isFocus ? 'var(--accent)' : 'var(--surface3)';
+  document.getElementById('mode-focus-btn').style.color    = isFocus ? '#000' : 'var(--text3)';
+  document.getElementById('mode-rest-btn').style.background = !isFocus ? 'var(--accent3)' : 'var(--surface3)';
+  document.getElementById('mode-rest-btn').style.color     = !isFocus ? '#000' : 'var(--text3)';
+  document.getElementById('focus-presets').style.display = isFocus ? 'flex' : 'none';
+  document.getElementById('rest-presets').style.display  = !isFocus ? 'flex' : 'none';
+  timerReset();
+  document.getElementById('timer-display').style.color = isFocus ? 'var(--accent)' : 'var(--accent3)';
+  document.getElementById('timer-session-label').textContent = isFocus ? 'Focus mode ready' : 'Rest mode ready';
+}
+
+function setPreset(mode, mins) {
+  if(timerRunning) return;
+  activeMode = mode;
+  timerTarget = mins * 60;
+  timerElapsed = 0;
+  timerSeconds = timerTarget;
+  document.getElementById('timer-display').textContent = formatTimerTime(timerSeconds);
+  document.getElementById('timer-display').style.color = mode === 'focus' ? 'var(--accent)' : 'var(--accent3)';
+  document.getElementById('timer-session-label').textContent = `${mins}m ${mode} countdown ready`;
+}
+
+function setTimerPreset(mins) { setPreset(activeMode, mins); }
+
+function formatTimerTime(s) {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return [h,m,sec].map(v => String(v).padStart(2,'0')).join(':');
+}
+
+function timerStart() {
+  if(timerRunning) return;
+  timerRunning = true;
+  timerSessionStart = new Date();
+  document.getElementById('timer-start-btn').style.display = 'none';
+  document.getElementById('timer-pause-btn').style.display = 'inline-block';
+  const label = document.getElementById('timer-session-name').value || (activeMode === 'focus' ? 'Focus session' : 'Rest break');
+  document.getElementById('timer-session-label').textContent = label + ' — running';
+
+  timerInterval = setInterval(() => {
+    timerElapsed++;
+    if(timerTarget > 0) {
+      timerSeconds = Math.max(0, timerTarget - timerElapsed);
+      document.getElementById('timer-display').textContent = formatTimerTime(timerSeconds);
+      if(timerSeconds === 0) {
+        timerPause();
+        const col = activeMode === 'focus' ? 'var(--green)' : 'var(--accent3)';
+        document.getElementById('timer-display').style.color = col;
+        document.getElementById('timer-session-label').textContent = activeMode === 'focus' ? '✓ Focus done — take a break!' : '✓ Rest done — back to work!';
+        document.getElementById('timer-log-msg').textContent =
+          activeMode === 'focus' ? '⚡ Log it, then switch to ☕ Rest' : '⚡ Log it, then switch to ⚡ Focus';
+      }
+    } else {
+      document.getElementById('timer-display').textContent = formatTimerTime(timerElapsed);
+    }
+  }, 1000);
+}
+
+function timerPause() {
+  timerRunning = false;
+  clearInterval(timerInterval);
+  document.getElementById('timer-start-btn').style.display = 'inline-block';
+  document.getElementById('timer-pause-btn').style.display = 'none';
+  if(timerElapsed > 0)
+    document.getElementById('timer-session-label').textContent = `Paused — ${formatTimerTime(timerElapsed)} elapsed`;
+}
+
+function timerReset() {
+  timerPause();
+  timerElapsed = 0;
+  timerSessionStart = null;
+  timerSeconds = timerTarget;
+  document.getElementById('timer-display').textContent = formatTimerTime(timerTarget || 0);
+  document.getElementById('timer-display').style.color = activeMode === 'focus' ? 'var(--accent)' : 'var(--accent3)';
+  document.getElementById('timer-session-label').textContent = 'Ready';
+  document.getElementById('timer-log-msg').textContent = '';
+}
+
+function timerStop() {
+  timerPause();
+  if(timerElapsed < 30) {
+    document.getElementById('timer-log-msg').textContent = '⚠ Min 30s needed to log.';
+    document.getElementById('timer-log-msg').style.color = 'var(--red)';
+    return;
+  }
+  document.getElementById('timer-log-msg').style.color = 'var(--green)';
+  const mins = Math.round(timerElapsed / 60);
+  const label = document.getElementById('timer-session-name').value ||
+    (activeMode === 'focus' ? 'Focus session' : 'Rest break');
+  const endedAt = new Date();
+  const session = {
+    mode: activeMode,
+    label,
+    mins,
+    ts: endedAt.toLocaleTimeString(),
+    preset_mins: timerTarget > 0 ? Math.round(timerTarget / 60) : null,
+    started_at: timerSessionStart ? timerSessionStart.toISOString() : null,
+    ended_at: endedAt.toISOString()
+  };
+
+  const key = todayKey();
+  const savedSessions = timerSessionsMap;
+  if(!savedSessions[key]) savedSessions[key] = [];
+  savedSessions[key].push(session);
+
+  // Update habitMap locally
+  if(!habitMap[key]) habitMap[key] = {logs:0, timerMins:0, restMins:0};
+  if(activeMode === 'focus') {
+    habitMap[key].timerMins = (habitMap[key].timerMins || 0) + mins;
+  } else {
+    habitMap[key].restMins = (habitMap[key].restMins || 0) + mins;
+  }
+  renderHeatmap();
+
+  const totalFocusMins = habitMap[key].timerMins || 0;
+  const focusEl = document.getElementById('focus-hours');
+  if(focusEl) focusEl.value = (totalFocusMins / 60).toFixed(2);
+  const mf = document.getElementById('m-focus');
+  if(mf) mf.textContent = (totalFocusMins / 60).toFixed(1) + 'h';
+
+  refreshTotalsStrip();
+  renderTimerSessions();
+
+  // Sync to Supabase
+  syncTimerSession(session, key);
+
+  const totalRestMins = habitMap[key].restMins || 0;
+  document.getElementById('timer-log-msg').textContent =
+    activeMode === 'focus'
+      ? `✓ +${mins}m focus — total ${totalFocusMins}m focus today`
+      : `✓ +${mins}m rest — total ${totalRestMins}m rest today`;
+
+  timerReset();
+}
+
+function refreshTotalsStrip() {
+  const key = todayKey();
+  const h = habitMap[key] || {};
+  const fm = h.timerMins || 0;
+  const rm = h.restMins  || 0;
+  document.getElementById('total-focus-display').textContent = fm >= 60 ? (fm/60).toFixed(1)+'h' : fm+'m';
+  document.getElementById('total-rest-display').textContent = rm >= 60 ? (rm/60).toFixed(1)+'h' : rm+'m';
+  if(fm > 0 && rm > 0) {
+    const ratio = (fm/rm).toFixed(1);
+    document.getElementById('fr-ratio-display').textContent = ratio+':1';
+    document.getElementById('fr-ratio-display').style.color =
+      ratio > 6 ? 'var(--red)' : ratio < 2 ? 'var(--yellow)' : 'var(--green)';
+  } else {
+    document.getElementById('fr-ratio-display').textContent = '—';
+    document.getElementById('fr-ratio-display').style.color = 'var(--text2)';
+  }
+}
+
+function renderTimerSessions() {
+  const key = todayKey();
+  const sessions = (timerSessionsMap)[key] || [];
+  const el = document.getElementById('timer-sessions-list');
+  if(!sessions.length) {
+    el.innerHTML = '<em style="color:var(--text3)">No sessions yet today</em>';
+    return;
+  }
+  el.innerHTML = sessions.map(s => {
+    const isFocus = s.mode === 'focus' || !s.mode;
+    const col = isFocus ? 'var(--accent)' : 'var(--accent3)';
+    const icon = isFocus ? '⚡' : '☕';
+    return `<div style="padding:4px 0;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;">
+      <span style="color:${col};font-size:0.8rem;">${icon}</span>
+      <span style="color:var(--text3);font-size:0.65rem;flex-shrink:0;">${s.ts}</span>
+      <span style="color:var(--text);font-size:0.78rem;flex:1;">${s.label}</span>
+      <span style="font-family:var(--font-mono);font-size:0.7rem;color:${col};">${s.mins}m</span>
+    </div>`;
+  }).join('');
+}
+</script>
+
+<!-- ===================== MAIN APP SCRIPT ===================== -->
+<script>
+// ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
+// IMPORTANT: Replace these with your actual Supabase project credentials.
+// Find them at: Supabase Dashboard → Project Settings → API
+const SUPA_URL = 'https://rpxhmlzrcklnkxhjsucc.supabase.co';   // e.g. 'https://xxxx.supabase.co'
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJweGhtbHpyY2tsbmt4aGpzdWNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMjc2MTMsImV4cCI6MjA5NjYwMzYxM30.tifrrM9x5j73d_pt4n6zHZNFPhncIYQwzQLI11u7OEk';      // e.g. 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+
+let supa = null;
+
+// ── Your fixed Supabase user ID ───────────────────────────────────────────────
+// Find this in Supabase Dashboard → Authentication → Users → your user row → copy the UUID
+// If you haven't created a user yet, leave blank — data will still cache locally.
+
+try {
+  supa = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+} catch(e) {
+  console.warn('Supabase init failed. App will have no data until reconnected.', e);
+}
+
+// ─── SYNC STATUS ─────────────────────────────────────────────────────────────
+function setSyncStatus(state) { // 'syncing' | 'synced' | 'error' | 'offline'
+  const dot = document.getElementById('sync-dot');
+  if(!dot) return;
+  dot.className = 'sync-dot';
+  if(state !== 'offline') dot.classList.add(state);
+  dot.title = { syncing:'Syncing to cloud...', synced:'All data synced ✓', error:'Sync error — check console', offline:'Offline — data unavailable' }[state] || '';
+}
+
+// ─── LOCAL STORAGE LAYER ─────────────────────────────────────────────────────
+// ─── IN-MEMORY STATE (Supabase only — no localStorage) ───────────────────────
+let logs        = [];
+let weeklyLogs  = [];
+let monthlyLogs = [];
+let decisions   = [];
+let woops       = [];
+let okrs        = [];
+let habitMap    = {};
+let domainScores= {health:0,work:0,social:0,finance:0,learn:0,well:0};
+let timerSessionsMap = {};
+let _checklistState = {}; // date -> {title: done}
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+// Change this to your own password
+const MASTER_PASSWORD = 'lifeos2026';
+
+async function initAuth() {
+  // If already unlocked this session, go straight in
+  if(sessionStorage.getItem('lifeos_unlocked') === '1') {
+    hideAuthScreen();
+    await loadFromSupabase();
+    initApp();
+    setSyncStatus(supa ? 'synced' : 'offline');
+  } else {
+    document.getElementById('auth-screen').style.display = 'flex';
+    setTimeout(() => document.getElementById('auth-password').focus(), 100);
+  }
+}
+
+async function toggleAuthEye(btn) {
+  const input = document.getElementById('auth-password');
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.textContent = show ? '🙈' : '👁';
+  input.focus();
+}
+
+function checkMasterPassword() {
+  const val = document.getElementById('auth-password').value;
+  const msg = document.getElementById('auth-msg');
+  if(val === MASTER_PASSWORD) {
+    msg.textContent = '✓ Access granted'; msg.className = 'success';
+    document.querySelector('.auth-lock-icon').textContent = '🔓';
+    setTimeout(() => {
+      sessionStorage.setItem('lifeos_unlocked', '1');
+      hideAuthScreen();
+      loadFromSupabase().then(() => initApp());
+      setSyncStatus(supa ? 'synced' : 'offline');
+    }, 400);
+  } else {
+    msg.textContent = '✗ Incorrect password.';
+    msg.style.color = 'var(--accent4)';
+    document.getElementById('auth-password').value = '';
+    document.getElementById('auth-password').focus();
+  }
+}
+
+function hideAuthScreen() {
+  document.getElementById('auth-screen').style.display = 'none';
+}
+
+function signOut() {
+  sessionStorage.removeItem('lifeos_unlocked');
+  document.getElementById('auth-screen').style.display = 'flex';
+  hideUserChip();
+  setTimeout(() => document.getElementById('auth-password').focus(), 100);
+}
+
+function showUserChip() {
+  document.getElementById('user-chip').style.display = 'flex';
+  document.getElementById('user-email-display').textContent = 'Unlocked';
+}
+function hideUserChip() {
+  document.getElementById('user-chip').style.display = 'none';
+}
+
+// ─── LOAD FROM SUPABASE ───────────────────────────────────────────────────────
+async function loadFromSupabase() {
+  if(!supa) { setSyncStatus('offline'); return; }
+  setSyncStatus('syncing');
+
+  const ninetyDaysAgo = new Date(); ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  const isoNinety = ninetyDaysAgo.toISOString().split('T')[0];
+  const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const isoThirty = thirtyDaysAgo.toISOString().split('T')[0];
+
+  try {
+    // 1. daily_logs — only overwrite local if cloud has data
+    const { data: dlRows, error: dlErr } = await supa.from('daily_logs')
+      .select('*').gte('log_date', isoNinety).order('log_date', { ascending: false });
+    if(!dlErr && dlRows && dlRows.length > 0) {
+      const cloudLogs = dlRows.map(r => ({
+        _id: r.id, type: r.log_type,
+        date: new Date(r.log_date.split('T')[0] + 'T00:00:00').toDateString(),
+        ts: r.created_at ? new Date(r.created_at).toLocaleTimeString() : '',
+        sleep: r.sleep_quality, energy: r.energy_level, mood: r.mood,
+        mit1: r.mit_1, mit2: r.mit_2, mit3: r.mit_3, intention: r.intention,
+        focus: r.focus_hours, exercise: r.exercise_level,
+        win: r.big_win, friction: r.friction,
+        stress: r.stress_level, journal: r.journal_html,
+        shutdown: r.shutdown_done, attachments: []
+      }));
+      // Merge: cloud wins for entries that exist in both; keep local-only entries
+      const cloudIds = new Set(cloudLogs.map(l => l._id).filter(Boolean));
+      const localOnly = logs.filter(l => !l._id); // entries never synced yet
+      logs = [...cloudLogs, ...localOnly];
+    }
+
+    // 2. timer_sessions
+    const { data: tsRows, error: tsErr } = await supa.from('timer_sessions')
+      .select('*').gte('session_date', isoThirty).order('session_date', { ascending: false });
+    if(!tsErr && tsRows && tsRows.length > 0) {
+      timerSessionsMap = {};
+      tsRows.forEach(r => {
+        const key = r.session_date;
+        if(!timerSessionsMap[key]) timerSessionsMap[key] = [];
+        timerSessionsMap[key].push({
+          mode: r.mode, label: r.label || r.mode, mins: r.duration_mins,
+          ts: r.ended_at ? new Date(r.ended_at).toLocaleTimeString() : '',
+          preset_mins: r.preset_mins, started_at: r.started_at, ended_at: r.ended_at
+        });
+      });
+    }
+
+    // 3. habit_map
+    const { data: hmRows, error: hmErr } = await supa.from('habit_map')
+      .select('*').gte('habit_date', isoThirty);
+    if(!hmErr && hmRows && hmRows.length > 0) {
+      hmRows.forEach(r => {
+        habitMap[r.habit_date] = { logs: r.log_count, timerMins: r.focus_mins, restMins: r.rest_mins };
+      });
+    }
+
+    // 4. goals + key_results
+    const { data: goalRows, error: gErr } = await supa.from('goals')
+      .select('*, key_results(*)').eq('status', 'active').order('sort_order');
+    if(!gErr && goalRows && goalRows.length > 0) {
+      okrs = goalRows.map(g => ({
+        _id: g.id, obj: g.objective,
+        krs: (g.key_results||[]).sort((a,b)=>a.sort_order-b.sort_order).map(kr=>kr.description),
+        krData: g.key_results||[], cat: g.category,
+        conf: g.confidence+'%', status: g.status, quarter: g.quarter
+      }));
+    }
+
+    // 5. woop_entries
+    const { data: woopRows, error: wErr } = await supa.from('woop_entries')
+      .select('*').order('created_at', { ascending: false });
+    if(!wErr && woopRows && woopRows.length > 0) {
+      woops = woopRows.map(r => ({
+        _id: r.id, date: new Date(r.created_at).toDateString(),
+        wish: r.wish, outcome: r.outcome, obstacle: r.obstacle, plan: r.plan
+      }));
+    }
+
+    // 6. decisions
+    const { data: decRows, error: dErr } = await supa.from('decisions')
+      .select('*').order('priority_score', { ascending: false });
+    if(!dErr && decRows && decRows.length > 0) {
+      decisions = decRows.map(r => ({
+        _id: r.id, date: new Date(r.created_at).toDateString(),
+        ts: new Date(r.created_at).getTime(),
+        decision: r.decision_text, options: r.options_considered,
+        reason: r.reasoning, confidence: r.confidence,
+        expected: r.expected_outcome, actual: r.actual_outcome,
+        priority: r.priority_score
+      }));
+    }
+
+    // 7. weekly_reviews
+    const { data: wrRows, error: wrErr } = await supa.from('weekly_reviews')
+      .select('*').order('week_start', { ascending: false }).limit(24);
+    if(!wrErr && wrRows && wrRows.length > 0) {
+      weeklyLogs = wrRows.map(r => ({
+        _id: r.id, date: new Date(r.week_start + 'T00:00:00').toDateString(),
+        ts: new Date(r.created_at).getTime(),
+        win: r.wins, friction: r.friction, change: r.change_plan, priority: r.north_star
+      }));
+    }
+
+    // 8. monthly_reviews
+    const { data: mrRows, error: mrErr } = await supa.from('monthly_reviews')
+      .select('*').order('month_start', { ascending: false }).limit(12);
+    if(!mrErr && mrRows && mrRows.length > 0) {
+      monthlyLogs = mrRows.map(r => ({
+        _id: r.id, date: new Date(r.month_start + 'T00:00:00').toDateString(),
+        ts: new Date(r.created_at).getTime(),
+        wins: r.top_wins, fail: r.biggest_failure,
+        system: r.system_change, theme: r.theme
+      }));
+    }
+
+    // 9. domain scores — only load if cloud has data
+    const { data: dsRows, error: dsErr } = await supa.from('domain_scores_history')
+      .select('*').order('scored_on', { ascending: false }).limit(1);
+    if(!dsErr && dsRows && dsRows.length > 0) {
+      const r = dsRows[0];
+      domainScores = { health: r.health||0, work: r.work||0, social: r.social||0,
+                       finance: r.finance||0, learn: r.learn||0, well: r.wellbeing||0 };
+    }
+
+    // 10. checklist_items for today
+    const today = todayKey();
+    const { data: ciRows } = await supa.from('checklist_items')
+      .select('*').eq('item_date', today).order('sort_order');
+    if(ciRows && ciRows.length) {
+      if(!_checklistState[today]) _checklistState[today] = {};
+      ciRows.forEach(r => { _checklistState[today][r.title] = r.done; });
+    }
+
+    setSyncStatus('synced');
+  } catch(err) {
+    console.error('loadFromSupabase error:', err);
+    setSyncStatus('error');
+  }
+}
+
+// ─── SUPABASE WRITE HELPERS ───────────────────────────────────────────────────
+
+async function syncDailyLog(entry, logType) {
+  if(!supa) return;
+  setSyncStatus('syncing');
+  try {
+    const today = todayKey(); // 'YYYY-MM-DD'
+    const payload = {
+      log_date: today,
+      log_type: logType,
+    };
+    if(logType === 'morning') {
+      payload.sleep_quality  = parseInt(entry.sleep)  || null;
+      payload.energy_level   = parseInt(entry.energy) || null;
+      payload.mood           = parseInt(entry.mood)   || null;
+      payload.mit_1          = entry.mit1 || null;
+      payload.mit_2          = entry.mit2 || null;
+      payload.mit_3          = entry.mit3 || null;
+      payload.intention      = entry.intention || null;
+    } else {
+      payload.focus_hours    = parseFloat(entry.focus) || null;
+      payload.exercise_level = parseInt(entry.exercise) || 0;
+      payload.big_win        = entry.win || null;
+      payload.friction       = entry.friction || null;
+      payload.stress_level   = parseInt(entry.stress) || null;
+      payload.journal_html   = entry.journal || null;
+      payload.shutdown_done  = false;
+    }
+    // Fallback approach for daily_logs to avoid missing unique constraint errors
+    const { data: existDL } = await supa.from('daily_logs')
+      .select('id').eq('log_date', today).eq('log_type', logType).maybeSingle();
+      
+    if (existDL) {
+      const { error } = await supa.from('daily_logs').update(payload).eq('id', existDL.id);
+      if(error) throw error;
+    } else {
+      const { error } = await supa.from('daily_logs').insert(payload);
+      if(error) throw error;
+    }
+
+    // Update habit_map directly
+    const _hmD = habitMap[today] || { logs: 0, timerMins: 0, restMins: 0 };
+    const hmPayload = {
+      habit_date: today,
+      log_count:  (_hmD.logs || 0) + 1,
+      focus_mins: _hmD.timerMins || 0,
+      rest_mins:  _hmD.restMins  || 0
+    };
+    
+    const { data: existHM } = await supa.from('habit_map')
+      .select('id').eq('habit_date', today).maybeSingle();
+      
+    if (existHM) {
+      await supa.from('habit_map').update(hmPayload).eq('id', existHM.id);
+    } else {
+      await supa.from('habit_map').insert(hmPayload);
+    }
+
+    setSyncStatus('synced');
+  } catch(err) {
+    console.error('syncDailyLog error:', err);
+    setSyncStatus('error');
+  }
+}
+
+async function syncTimerSession(session, dateKey) {
+  if(!supa) return;
+  setSyncStatus('syncing');
+  try {
+    const { error } = await supa.from('timer_sessions').insert({
+      session_date: dateKey,
+      mode: session.mode,
+      label: session.label || null,
+      duration_mins: session.mins,
+      preset_mins: session.preset_mins || null,
+      started_at: session.started_at || null,
+      ended_at: session.ended_at || null
+    });
+    if(error) throw error;
+
+
+    // Update habit_map directly
+    const _focD = session.mode === 'focus' ? session.mins : 0;
+    const _rstD = session.mode === 'rest'  ? session.mins : 0;
+    const _hmT = habitMap[dateKey] || { logs: 0, timerMins: 0, restMins: 0 };
+    await supa.from('habit_map').upsert({
+      habit_date: dateKey,
+      log_count:  _hmT.logs || 0,
+      focus_mins: (_hmT.timerMins || 0) + _focD,
+      rest_mins:  (_hmT.restMins  || 0) + _rstD
+    }, { onConflict: 'habit_date' });
+
+    setSyncStatus('synced');
+  } catch(err) {
+    console.error('syncTimerSession error:', err);
+    setSyncStatus('error');
+  }
+}
+
+async function syncGoal(okrObj) {
+  if(!supa) return;
+  setSyncStatus('syncing');
+  try {
+    const catMap = { Academic:'Academic', Project:'Project', Health:'Health',
+                     Finance:'Finance', Relationships:'Relationships', Skills:'Skills', General:'General' };
+    const catVal = catMap[okrObj.cat] || 'General';
+    const confVal = parseInt(okrObj.conf) || 50;
+
+    const { data: goalData, error: ge } = await supa.from('goals').insert({
+      objective: okrObj.obj,
+      category: catVal,
+      confidence: confVal,
+      status: 'active',
+      quarter: 'Q2-2026'
+    }).select('id').single();
+    if(ge) throw ge;
+
+    // Insert key results
+    if(goalData && okrObj.krs && okrObj.krs.length) {
+      const krRows = okrObj.krs.filter(Boolean).map((kr, i) => ({
+        goal_id: goalData.id,
+        description: kr,
+        sort_order: i,
+        progress: 0
+      }));
+      const { error: kre } = await supa.from('key_results').insert(krRows);
+      if(kre) throw kre;
+    }
+
+    setSyncStatus('synced');
+    return goalData ? goalData.id : null;
+  } catch(err) {
+    console.error('syncGoal error:', err);
+    setSyncStatus('error');
+  }
+}
+
+async function syncWoop(w) {
+  if(!supa) return;
+  setSyncStatus('syncing');
+  try {
+    const { error } = await supa.from('woop_entries').insert({
+      wish: w.wish || null, outcome: w.outcome || null,
+      obstacle: w.obstacle || null, plan: w.plan || null
+    });
+    if(error) throw error;
+    setSyncStatus('synced');
+  } catch(err) { console.error('syncWoop error:', err); setSyncStatus('error'); }
+}
+
+async function syncDecision(d) {
+  if(!supa) return;
+  setSyncStatus('syncing');
+  try {
+    const confPct = Math.round((parseInt(d.confidence) || 5) * 10); // 1-10 → 0-100
+    const { error } = await supa.from('decisions').insert({
+      decision_text: d.decision || null,
+      options_considered: d.options || null,
+      reasoning: d.reason || null,
+      confidence: confPct,
+      expected_outcome: d.expected || null,
+      priority_score: parseFloat(d._priority) || 5.0
+    });
+    if(error) throw error;
+    setSyncStatus('synced');
+  } catch(err) { console.error('syncDecision error:', err); setSyncStatus('error'); }
+}
+
+async function syncPremortem(p) {
+  if(!supa) return;
+  setSyncStatus('syncing');
+  try {
+    const { error } = await supa.from('premortems').insert({
+      project_name: p.project || 'Untitled',
+      failure_reasons: p.why || null,
+      failure_mode_1: p.f1 || null,
+      failure_mode_2: p.f2 || null,
+      failure_mode_3: p.f3 || null,
+      mitigation_plan: p.mit || null
+    });
+    if(error) throw error;
+    setSyncStatus('synced');
+  } catch(err) { console.error('syncPremortem error:', err); setSyncStatus('error'); }
+}
+
+async function syncWeeklyReview(entry) {
+  if(!supa) return;
+  setSyncStatus('syncing');
+  try {
+    // Compute this week's Monday
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+    const weekStart = monday.toISOString().split('T')[0];
+
+    const payload = {
+      week_start: weekStart,
+      wins: entry.win || null,
+      friction: entry.friction || null,
+      change_plan: entry.change || null,
+      north_star: entry.priority || null
+    };
+    
+    const { data: existWR } = await supa.from('weekly_reviews')
+      .select('id').eq('week_start', weekStart).maybeSingle();
+      
+    if (existWR) {
+      const { error } = await supa.from('weekly_reviews').update(payload).eq('id', existWR.id);
+      if(error) throw error;
+    } else {
+      const { error } = await supa.from('weekly_reviews').insert(payload);
+      if(error) throw error;
+    }
+
+
+    setSyncStatus('synced');
+  } catch(err) { console.error('syncWeeklyReview error:', err); setSyncStatus('error'); }
+}
+
+async function syncMonthlyReview(entry, domainScores) {
+  if(!supa) return;
+  setSyncStatus('syncing');
+  try {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const s = domainScores || getDomainScores();
+
+    const payload = {
+      month_start: monthStart,
+      theme: entry.theme || null,
+      top_wins: entry.wins || null,
+      biggest_failure: entry.fail || null,
+      system_change: entry.system || null,
+      score_health: s.health || null, score_work: s.work || null,
+      score_social: s.social || null, score_finance: s.finance || null,
+      score_learn: s.learn || null, score_wellbeing: s.well || null
+    };
+
+    const { data: existMR } = await supa.from('monthly_reviews')
+      .select('id').eq('month_start', monthStart).maybeSingle();
+      
+    if (existMR) {
+      const { error } = await supa.from('monthly_reviews').update(payload).eq('id', existMR.id);
+      if(error) throw error;
+    } else {
+      const { error } = await supa.from('monthly_reviews').insert(payload);
+      if(error) throw error;
+    }
+
+    // Snapshot to domain_scores_history
+    const { error: he } = await supa.from('domain_scores_history').insert({
+      scored_on: new Date().toISOString().split('T')[0],
+      source: 'monthly',
+      health: s.health, work: s.work, social: s.social,
+      finance: s.finance, learn: s.learn, wellbeing: s.well
+    });
+    if(he) console.warn('domain history insert:', he.message);
+
+    // Refresh monthly totals
+
+
+    setSyncStatus('synced');
+  } catch(err) { console.error('syncMonthlyReview error:', err); setSyncStatus('error'); }
+}
+
+async function syncDomainSnapshot(scores) {
+  if(!supa) return;
+  setSyncStatus('syncing');
+  try {
+    const { error } = await supa.from('domain_scores_history').insert({
+      scored_on: new Date().toISOString().split('T')[0],
+      source: 'manual',
+      health: scores.health, work: scores.work, social: scores.social,
+      finance: scores.finance, learn: scores.learn, wellbeing: scores.well
+    });
+    if(error) throw error;
+    setSyncStatus('synced');
+  } catch(err) { console.error('syncDomainSnapshot error:', err); setSyncStatus('error'); }
+}
+
+async function syncChecklistItem(title, done, sortOrder) {
+  if(!supa) return;
+  try {
+    const today = todayKey();
+    const payload = {
+      item_date: today,
+      title: title,
+      done: done,
+      sort_order: sortOrder || 0
+    };
+    
+    const { data: existCI } = await supa.from('checklist_items')
+      .select('id').eq('item_date', today).eq('title', title).maybeSingle();
+      
+    if (existCI) {
+      const { error } = await supa.from('checklist_items').update(payload).eq('id', existCI.id);
+      if(error) throw error;
+    } else {
+      const { error } = await supa.from('checklist_items').insert(payload);
+      if(error) throw error;
+    }
+  } catch(err) { console.warn('syncChecklistItem:', err.message); }
+}
+
+// ─── APP INIT ─────────────────────────────────────────────────────────────────
+function initApp() {
+  setDate();
+  renderHeatmap();
+  renderDomainBars();
+  renderWeeklyBarChart();
+  refreshDashboardMetrics();
+  renderDataLogs();
+  renderOKRList();
+  renderWoopList();
+  renderDecisionLog();
+  renderMonthlyDomainSliders();
+  computeWeekly();
+  loadJournalDraft();
+  restoreChecklistState();
+  if(typeof refreshTotalsStrip === 'function') refreshTotalsStrip();
+}
+
+function restoreChecklistState() {
+  const today = todayKey();
+  const savedChecks = (_checklistState[today] || {});
+  document.querySelectorAll('#today-checklist li').forEach((li, idx) => {
+    const title = li.dataset.title || li.querySelector('span:last-child')?.textContent;
+    if(savedChecks[title]) {
+      li.classList.add('done');
+      const box = li.querySelector('.check-box');
+      if(box) { box.classList.add('checked'); box.textContent = '✓'; }
+    }
+  });
+}
+
+// ─── THEMES ──────────────────────────────────────────────────────────────────
+const THEMES = {
+  'dark-amber': {
+    '--bg':'#0d0d0f','--surface':'#141416','--surface2':'#1c1c20','--surface3':'#232328','--surface4':'#2a2a32',
+    '--border':'#2a2a32','--border2':'#38383f','--border3':'#4a4a54',
+    '--accent':'#ffb830','--accent-dim':'rgba(255,184,48,0.10)',
+    '--accent2':'#00e5ff','--accent2-dim':'rgba(0,229,255,0.08)',
+    '--accent3':'#ff6b35','--accent3-dim':'rgba(255,107,53,0.10)',
+    '--accent4':'#ff3d7f','--accent4-dim':'rgba(255,61,127,0.10)',
+    '--text':'#f5f0e8','--text2':'#9a9488','--text3':'#555050',
+    '--green':'#39ff7e','--green-dim':'rgba(57,255,126,0.10)',
+    '--red':'#ff4444','--yellow':'#ffe033','--blue':'#4da6ff','--blue-dim':'rgba(77,166,255,0.08)',
+    label:'🔥 Amber'
+  },
+  'dark-neon': {
+    '--bg':'#08080e','--surface':'#0f0f1a','--surface2':'#141422','--surface3':'#1a1a2e','--surface4':'#1e1e38',
+    '--border':'#1e1e38','--border2':'#2a2a50','--border3':'#3a3a68',
+    '--accent':'#00ff88','--accent-dim':'rgba(0,255,136,0.10)',
+    '--accent2':'#bf5af2','--accent2-dim':'rgba(191,90,242,0.08)',
+    '--accent3':'#ff9f0a','--accent3-dim':'rgba(255,159,10,0.10)',
+    '--accent4':'#ff375f','--accent4-dim':'rgba(255,55,95,0.10)',
+    '--text':'#e8e8ff','--text2':'#7878a8','--text3':'#404060',
+    '--green':'#00ff88','--green-dim':'rgba(0,255,136,0.10)',
+    '--red':'#ff375f','--yellow':'#ff9f0a','--blue':'#0af5ff','--blue-dim':'rgba(10,245,255,0.08)',
+    label:'⚡ Neon'
+  },
+  'dark-rose': {
+    '--bg':'#0e0a0a','--surface':'#160f10','--surface2':'#1e1416','--surface3':'#261a1c','--surface4':'#2e2022',
+    '--border':'#2e2022','--border2':'#3e2c30','--border3':'#503840',
+    '--accent':'#ff6584','--accent-dim':'rgba(255,101,132,0.10)',
+    '--accent2':'#ffc947','--accent2-dim':'rgba(255,201,71,0.08)',
+    '--accent3':'#7ee8a2','--accent3-dim':'rgba(126,232,162,0.10)',
+    '--accent4':'#c77dff','--accent4-dim':'rgba(199,125,255,0.10)',
+    '--text':'#f8eef0','--text2':'#a08888','--text3':'#604848',
+    '--green':'#7ee8a2','--green-dim':'rgba(126,232,162,0.10)',
+    '--red':'#ff6584','--yellow':'#ffc947','--blue':'#64b5f6','--blue-dim':'rgba(100,181,246,0.08)',
+    label:'🌸 Rose'
+  },
+  'slate-cool': {
+    '--bg':'#0a0c10','--surface':'#111318','--surface2':'#171a20','--surface3':'#1d2028','--surface4':'#232632',
+    '--border':'#232632','--border2':'#2e323e','--border3':'#3a3f50',
+    '--accent':'#5e9bff','--accent-dim':'rgba(94,155,255,0.10)',
+    '--accent2':'#34d399','--accent2-dim':'rgba(52,211,153,0.08)',
+    '--accent3':'#f59e0b','--accent3-dim':'rgba(245,158,11,0.10)',
+    '--accent4':'#f87171','--accent4-dim':'rgba(248,113,113,0.10)',
+    '--text':'#e2e8f0','--text2':'#7888a8','--text3':'#444c60',
+    '--green':'#34d399','--green-dim':'rgba(52,211,153,0.10)',
+    '--red':'#f87171','--yellow':'#fbbf24','--blue':'#5e9bff','--blue-dim':'rgba(94,155,255,0.08)',
+    label:'🌊 Slate'
+  }
+};
+
+const THEME_KEYS = Object.keys(THEMES);
+let currentTheme = localStorage.getItem('lifeos_theme') || 'dark-amber';
+
+function applyTheme(key) {
+  const theme = THEMES[key];
+  if(!theme) return;
+  const root = document.documentElement.style;
+  Object.entries(theme).forEach(([k,v]) => { if(k.startsWith('--')) root.setProperty(k, v); });
+  currentTheme = key;
+  localStorage.setItem('lifeos_theme', key);
+  const btn = document.getElementById('theme-toggle-btn');
+  if(btn) btn.textContent = '🎨 ' + theme.label;
+}
+
+function cycleTheme() {
+  const idx = THEME_KEYS.indexOf(currentTheme);
+  const next = THEME_KEYS[(idx + 1) % THEME_KEYS.length];
+  applyTheme(next);
+}
+
+window.onload = () => { applyTheme(currentTheme); initAuth(); };
+
+// Alt+T to toggle timer
+document.addEventListener('keydown', e => {
+  if(e.altKey && e.key === 't') { e.preventDefault(); toggleTimer(); }
+});
+
+// ─── DATE ─────────────────────────────────────────────────────────────────────
+function setDate() {
+  const d = new Date();
+  document.getElementById('live-date').textContent = d.toLocaleDateString('en-IN', {weekday:'short', day:'numeric', month:'short', year:'numeric'});
+  setInterval(() => {
+    document.getElementById('live-date').textContent = new Date().toLocaleDateString('en-IN', {weekday:'short', day:'numeric', month:'short', year:'numeric'});
+  }, 60000);
+}
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if(btn) btn.classList.add('active');
+  else {
+    const tabs = ['dashboard','daily','weekly','monthly','goals','decisions','tools','data'];
+    const idx = tabs.indexOf(name);
+    if(idx >= 0) document.querySelectorAll('.tab-btn')[idx]?.classList.add('active');
+  }
+  sessionStorage.setItem('lifeos_tab', name);
+  if(name === 'weekly') loadWeeklyForm();
+  if(name === 'monthly') loadMonthlyForm();
+}
+
+function switchGoalTab(name) {
+  ['okr','woop','add'].forEach(t => document.getElementById('goal-'+t).style.display = 'none');
+  document.getElementById('goal-'+name).style.display = 'block';
+  document.querySelectorAll('#tab-goals .inner-tab').forEach((b,i) => {
+    b.classList.toggle('active', ['okr','woop','add'][i] === name);
+  });
+}
+
+function switchDecTab(name) {
+  ['matrix','journal','premortem','biases'].forEach(t => document.getElementById('dec-'+t).style.display = 'none');
+  document.getElementById('dec-'+name).style.display = 'block';
+  document.querySelectorAll('#tab-decisions .inner-tab').forEach((b,i) => {
+    b.classList.toggle('active', ['matrix','journal','premortem','biases'][i] === name);
+  });
+}
+
+function switchToolTab(name) {
+  ['focus','capture','planning','health','learning','backup'].forEach(t => {
+    const el = document.getElementById('tools-'+t);
+    if(el) el.style.display = 'none';
+  });
+  document.getElementById('tools-'+name).style.display = 'grid';
+  document.querySelectorAll('#tab-tools .inner-tab').forEach((b,i) => {
+    b.classList.toggle('active', ['focus','capture','planning','health','learning','backup'][i] === name);
+  });
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function updateSlider(id, val) {
+  const el = document.getElementById(id);
+  if(el) el.textContent = id.includes('conf') ? val+'%' : val;
+}
+
+function todayKey() {
+  return new Date().toISOString().split('T')[0];
+}
+function dateKey(daysAgo) {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return d.toISOString().split('T')[0];
+}
+
+function set(id, val) { const e = document.getElementById(id); if(e) e.textContent = val; }
+function setBar(id, pct, color) {
+  const e = document.getElementById(id);
+  if(e) { e.style.width = Math.max(0, Math.min(100, pct))+'%'; if(color) e.style.background = color; }
+}
+
+// ─── CHECKLIST ───────────────────────────────────────────────────────────────
+function toggleCheck(li) {
+  li.classList.toggle('done');
+  const box = li.querySelector('.check-box');
+  box.classList.toggle('checked');
+  box.textContent = box.classList.contains('checked') ? '✓' : '';
+
+  // Persist state locally
+  const today = todayKey();
+  const title = li.dataset.title || li.querySelector('span:last-child')?.textContent || '';
+  const savedChecks = (_checklistState[today] || {});
+  savedChecks[title] = box.classList.contains('checked');
+
+  // Sync to Supabase (fire and forget)
+  const items = document.querySelectorAll('#today-checklist li');
+  let sortOrder = 0;
+  items.forEach((item, i) => { if(item === li) sortOrder = i; });
+  syncChecklistItem(title, box.classList.contains('checked'), sortOrder);
+}
+
+// ─── HEATMAP ─────────────────────────────────────────────────────────────────
+function heatLevel(key) {
+  const h = habitMap[key];
+  if(!h) return 0;
+  const score = (h.logs||0)*1 + Math.floor((h.timerMins||0)/30);
+  return Math.min(score, 4);
+}
+
+function renderHeatmap() {
+  const grid = document.getElementById('heatmap');
+  grid.innerHTML = '';
+  for(let i = 29; i >= 0; i--) {
+    const key = dateKey(i);
+    const level = heatLevel(key);
+    const cell = document.createElement('div');
+    cell.className = `heat-cell heat-${level}`;
+    const h = habitMap[key] || {};
+    const d = new Date(key+'T00:00:00');
+    const label = d.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
+    cell.title = `${label}\nLogs: ${h.logs||0}  ·  Focus: ${h.timerMins||0}m  ·  Rest: ${h.restMins||0}m`;
+    grid.appendChild(cell);
+  }
+}
+
+// ─── DOMAIN BARS ─────────────────────────────────────────────────────────────
+const DOMAINS = [
+  {name:'Health & Energy',     color:'var(--green)',   key:'health'},
+  {name:'Deep Work / Study',   color:'var(--accent)',  key:'work'},
+  {name:'Relationships',       color:'var(--accent2)', key:'social'},
+  {name:'Finance',             color:'var(--accent3)', key:'finance'},
+  {name:'Learning / Growth',   color:'var(--blue)',    key:'learn'},
+  {name:'Wellbeing / Peace',   color:'var(--accent4)', key:'well'},
+];
+
+function getDomainScores() { return domainScores; }
+
+function renderDomainBars() {
+  const scores = getDomainScores();
+  const container = document.getElementById('domain-bars');
+  container.innerHTML = '';
+  DOMAINS.forEach(d => {
+    const val = scores[d.key] || 0;
+    const pct = val * 10;
+    container.innerHTML += `
+      <div class="prog-wrap">
+        <div class="prog-label">
+          <span style="font-size:0.8rem;color:var(--text);">${d.name}</span>
+          <span style="color:${d.color};font-family:var(--font-mono);font-size:0.75rem;">${val}/10</span>
+        </div>
+        <div class="prog-bar" style="height:7px;background:var(--surface4);">
+          <div class="prog-fill" style="width:${pct}%;background:${d.color};${pct===0?'background:var(--surface3);width:100%;opacity:0.3;':''}"></div>
+        </div>
+      </div>`;
+  });
+  const allZero = Object.values(scores).every(v => !v);
+  if(allZero) {
+    container.innerHTML += `<div style="font-size:0.72rem;color:var(--text3);margin-top:8px;text-align:center;">Go to Monthly Strategy → set domain scores</div>`;
+  }
+}
+
+function renderMonthlyDomainSliders() {
+  const scores = getDomainScores();
+  const container = document.getElementById('monthly-domain-sliders');
+  container.innerHTML = '';
+  DOMAINS.forEach(d => {
+    container.innerHTML += `
+      <div class="slider-row">
+        <div class="slider-row-head">
+          <span>${d.name}</span>
+          <span class="slider-val" id="ms-${d.key}">${scores[d.key]}</span>
+        </div>
+        <input type="range" min="1" max="10" value="${scores[d.key]}"
+          oninput="updateSlider('ms-${d.key}',this.value);updateDomainScore('${d.key}',this.value)">
+      </div>`;
+  });
+}
+
+let domainSnapshotTimer = null;
+function updateDomainScore(key, val) {
+  const scores = getDomainScores();
+  scores[key] = parseInt(val);
+  renderDomainBars();
+  // Debounce snapshot: wait 3s after last slider change before syncing
+  clearTimeout(domainSnapshotTimer);
+  domainSnapshotTimer = setTimeout(() => syncDomainSnapshot(scores), 3000);
+}
+
+function getLast7FocusHours() {
+  const result = [], labels = [];
+  for(let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().split('T')[0];
+    const dayStr = d.toDateString();
+    labels.push(['Su','Mo','Tu','We','Th','Fr','Sa'][d.getDay()]);
+    const timerH = ((habitMap[key] || {}).timerMins || 0) / 60;
+    const logEntry = logs.filter(l => l.type === 'evening' && l.date === dayStr).pop();
+    const logH = logEntry ? (parseFloat(logEntry.focus) || 0) : 0;
+    result.push(+(Math.max(timerH, logH).toFixed(2)));
+  }
+  return { values: result, labels };
+}
+
+function renderWeeklyBarChart() {
+  const chart = document.getElementById('weekly-bar-chart');
+  chart.innerHTML = '';
+  const { values, labels } = getLast7FocusHours();
+  const maxVal = Math.max(...values, 1);
+  values.forEach((val, i) => {
+    const pct = (val / Math.max(maxVal, 8)) * 100;
+    chart.innerHTML += `
+      <div class="bar-col" style="height:100px;">
+        <div style="flex:1;display:flex;align-items:flex-end;width:100%;">
+          <div class="bar-fill" style="height:${Math.max(pct,2)}%;width:100%;background:var(--accent2);opacity:${0.35+pct/130};border-radius:3px 3px 0 0;"></div>
+        </div>
+        <div class="bar-val">${val > 0 ? val.toFixed(1)+'h' : '—'}</div>
+        <div class="bar-label">${labels[i]}</div>
+      </div>`;
+  });
+}
+
+// ─── DASHBOARD METRICS ───────────────────────────────────────────────────────
+function refreshDashboardMetrics() {
+  const today = new Date().toDateString();
+  const todayMorning = logs.filter(l => l.type === 'morning' && l.date === today);
+  const todayEvening = logs.filter(l => l.type === 'evening' && l.date === today);
+  const allMorning   = logs.filter(l => l.type === 'morning');
+
+  if(allMorning.length) {
+    const avg = allMorning.slice(-7).reduce((s,l) => s + (parseInt(l.energy)||0), 0) / Math.min(allMorning.length,7);
+    document.getElementById('m-energy').textContent = avg.toFixed(1);
+  }
+
+  const todayKey_ = todayKey();
+  const focusMins = (habitMap[todayKey_] || {}).timerMins || 0;
+  const logFocus  = todayEvening.length ? parseFloat(todayEvening[0].focus) || 0 : 0;
+  const displayFocus = Math.max(focusMins / 60, logFocus);
+  document.getElementById('m-focus').textContent = displayFocus.toFixed(1) + 'h';
+
+  document.getElementById('m-streak').textContent = calcStreak();
+
+  const scores = getDomainScores();
+  const allZero = Object.values(scores).every(v => !v);
+  const ls = allZero ? '--' : Math.round(Object.values(scores).reduce((a,b)=>a+b,0) / 6 * 10);
+  document.getElementById('m-lifescore').textContent = ls;
+
+  if(todayMorning.length === 0 && todayEvening.length === 0) {
+    document.getElementById('alert-nolog').style.display = 'block';
+  } else {
+    document.getElementById('alert-nolog').style.display = 'none';
+  }
+
+  const streak = calcStreak();
+  if(streak >= 3) {
+    const alertStreak = document.getElementById('alert-streak');
+    alertStreak.style.display = 'block';
+    alertStreak.textContent = `🔥 ${streak}-day logging streak! Keep the data flowing.`;
+  }
+
+  renderDailySummary();
+  renderWeeklyBarChart();
+}
+
+function calcStreak() {
+  if(!logs.length) return 0;
+  const dates = [...new Set(logs.map(l => l.date).filter(Boolean))]
+    .map(d => new Date(d)).filter(d => !isNaN(d))
+    .sort((a,b) => a-b).map(d => d.toDateString());
+  if(!dates.length) return 0;
+  let streak = 0;
+  let check = new Date(); check.setHours(0,0,0,0);
+  for(let i = dates.length - 1; i >= 0; i--) {
+    const d = new Date(dates[i]); d.setHours(0,0,0,0);
+    const diff = Math.round((check - d) / 86400000);
+    if(diff <= 1) { streak++; check = d; }
+    else break;
+  }
+  return streak;
+}
+
+// ─── DAILY LOG ────────────────────────────────────────────────────────────────
+function saveDaily(type) {
+  const date = new Date().toDateString();
+  const ts = new Date().toLocaleTimeString();
+  let entry = { type, date, ts };
+
+  if(type === 'morning') {
+    entry.sleep     = document.getElementById('sleep-val').textContent;
+    entry.energy    = document.getElementById('energy-val').textContent;
+    entry.mood      = document.getElementById('mood-val').textContent;
+    entry.mit1      = document.getElementById('mit1').value;
+    entry.mit2      = document.getElementById('mit2').value;
+    entry.mit3      = document.getElementById('mit3').value;
+    entry.intention = document.getElementById('intention').value;
+  } else {
+    entry.focus    = document.getElementById('focus-hours').value;
+    entry.exercise = document.getElementById('exercise-done').value;
+    entry.win      = document.getElementById('big-win').value;
+    entry.friction = document.getElementById('friction').value;
+    entry.stress   = document.getElementById('stress-val').textContent;
+    entry.journal  = document.getElementById('journal-entry').innerHTML;
+    entry.attachments = journalAttachments.map(a => ({type:a.type, name:a.name}));
+  }
+
+  // Update habitMap locally
+  const key = todayKey();
+  if(!habitMap[key]) habitMap[key] = {logs:0, timerMins:0, restMins:0};
+  habitMap[key].logs = (habitMap[key].logs || 0) + 1;
+  renderHeatmap();
+
+  logs.push(entry);
+  showToast();
+  renderDailySummary();
+  refreshDashboardMetrics();
+  renderDataLogs();
+
+  // Reset form fields after save
+  if(type === 'morning') {
+    ['mit1','mit2','mit3','intention'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+  } else {
+    document.getElementById('focus-hours').value = '0';
+    document.getElementById('exercise-done').value = '0';
+    ['big-win','friction'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+    document.getElementById('journal-entry').innerHTML = '';
+    document.getElementById('journal-attachments').innerHTML = '';
+    journalAttachments = [];
+  }
+  markTodayLogStatus();
+  // Restore last active tab
+  const savedTab = sessionStorage.getItem('lifeos_tab');
+  if(savedTab) switchTab(savedTab);
+
+  // Async Supabase sync
+  syncDailyLog(entry, type);
+}
+
+function renderDailySummary() {
+  const today = new Date().toDateString();
+  const m = logs.filter(l => l.type === 'morning' && l.date === today).pop();
+  const e = logs.filter(l => l.type === 'evening' && l.date === today).pop();
+  const el = document.getElementById('daily-summary');
+  let html = '';
+  if(m) {
+    html += `<strong style="color:var(--text)">Morning</strong><br>
+      Sleep: ${m.sleep}/10 &nbsp;|&nbsp; Energy: ${m.energy}/10 &nbsp;|&nbsp; Mood: ${m.mood}/10<br>
+      MITs: ${[m.mit1,m.mit2,m.mit3].filter(Boolean).join(', ') || 'none'}<br>
+      Intention: <em>${m.intention || '—'}</em><br><br>`;
+  }
+  if(e) {
+    html += `<strong style="color:var(--text)">Evening</strong><br>
+      Deep Work: ${e.focus}h &nbsp;|&nbsp; Stress: ${e.stress}/10<br>
+      Win: ${e.win || '—'}<br>
+      Friction: ${e.friction || '—'}`;
+  }
+  el.innerHTML = html || '<em>No log yet.</em>';
+}
+
+function markTodayLogStatus() {
+  const today = new Date().toDateString();
+  const hasMorning = logs.some(l => l.type === 'morning' && l.date === today);
+  const hasEvening = logs.some(l => l.type === 'evening' && l.date === today);
+  const mTitle = document.querySelector('#tab-daily .card-title');
+  const eTitle = document.querySelectorAll('#tab-daily .card-title')[1];
+  // Morning card title badge
+  const mBadge = document.getElementById('morning-done-badge');
+  const eBadge = document.getElementById('evening-done-badge');
+  if(mBadge) mBadge.style.display = hasMorning ? 'inline-flex' : 'none';
+  if(eBadge) eBadge.style.display = hasEvening ? 'inline-flex' : 'none';
+}
+
+function clearDailyForm() {
+  ['mit1','mit2','mit3','intention','big-win','friction'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.value = '';
+  });
+  const fh = document.getElementById('focus-hours');
+  if(fh) fh.value = '';
+  document.getElementById('journal-entry').innerHTML = '';
+  document.getElementById('journal-attachments').innerHTML = '';
+  journalAttachments = [];
+}
+
+// ─── WEEKLY ───────────────────────────────────────────────────────────────────
+function computeWeekly() {
+  const recent = logs.filter(l => {
+    const d = new Date(l.date);
+    return (new Date() - d) < 7 * 86400000;
+  });
+  const mornings = recent.filter(l => l.type === 'morning');
+  const evenings = recent.filter(l => l.type === 'evening');
+
+  const totalFocus  = evenings.reduce((s,l) => s + (parseFloat(l.focus)||0), 0);
+  const exerciseDays = evenings.filter(l => parseInt(l.exercise) > 0).length;
+  const avgSleep    = mornings.length ? mornings.reduce((s,l) => s + (parseInt(l.sleep)||0), 0) / mornings.length : 0;
+  const avgMood     = mornings.length ? mornings.reduce((s,l) => s + (parseInt(l.mood)||0), 0) / mornings.length : 0;
+  const mitsPct     = mornings.length ? Math.min((mornings.length / 7) * 100, 100) : 0;
+
+  const focusPct = Math.min((totalFocus / 15) * 100, 100);
+  const exPct    = (exerciseDays / 7) * 100;
+  const sleepPct = (avgSleep / 10) * 100;
+  const moodPct  = (avgMood  / 10) * 100;
+
+  set('w-mit-pct', Math.round(mitsPct)+'%'); setBar('w-mit-bar', mitsPct);
+  set('w-focus-pct', Math.round(focusPct)+'%'); setBar('w-focus-bar', focusPct, 'var(--accent2)');
+  set('w-ex-pct', exerciseDays+'/7'); setBar('w-ex-bar', exPct, 'var(--accent3)');
+  set('w-sleep-avg', avgSleep ? avgSleep.toFixed(1)+'/10' : '—'); setBar('w-sleep-bar', sleepPct, 'var(--blue)');
+  set('w-mood-avg', avgMood ? avgMood.toFixed(1)+'/10' : '—'); setBar('w-mood-bar', moodPct, 'var(--green)');
+}
+
+function loadWeeklyForm() {
+  if(!weeklyLogs.length) return;
+  // Find this week's entry (within last 7 days)
+  const weekAgo = Date.now() - 7*86400000;
+  const thisWeek = weeklyLogs.slice().reverse().find(w => (w.ts||0) > weekAgo);
+  if(thisWeek) {
+    document.getElementById('wk-win').value = thisWeek.win || '';
+    document.getElementById('wk-friction').value = thisWeek.friction || '';
+    document.getElementById('wk-change').value = thisWeek.change || '';
+    document.getElementById('wk-priority').value = thisWeek.priority || '';
+  }
+}
+
+function saveWeekly() {
+  const entry = {
+    date: new Date().toDateString(),
+    ts: Date.now(),
+    win: document.getElementById('wk-win').value,
+    friction: document.getElementById('wk-friction').value,
+    change: document.getElementById('wk-change').value,
+    priority: document.getElementById('wk-priority').value,
+  };
+  // Replace if same week already exists
+  const weekAgo = Date.now() - 7*86400000;
+  const existIdx = weeklyLogs.findIndex(w => (w.ts||0) > weekAgo);
+  if(existIdx >= 0) weeklyLogs[existIdx] = entry; else weeklyLogs.push(entry);
+  showToast('Weekly review saved ✓');
+  renderDataLogs();
+  syncWeeklyReview(entry);
+}
+
+// ─── MONTHLY ─────────────────────────────────────────────────────────────────
+function computeMonthlyScore() {
+  const scores = getDomainScores();
+  const avg = Object.values(scores).reduce((a,b)=>a+b,0) / 6;
+  document.getElementById('m-month-score').textContent = (avg*10).toFixed(0);
+
+  const now = new Date();
+  const thisMonthLogs = logs.filter(l => {
+    const d = new Date(l.date);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  const evenings = thisMonthLogs.filter(l => l.type === 'evening');
+  const mornings = thisMonthLogs.filter(l => l.type === 'morning');
+  const totalFocus = evenings.reduce((s,l) => s + (parseFloat(l.focus)||0), 0);
+  const avgEnergy = mornings.length ? mornings.reduce((s,l) => s + (parseInt(l.energy)||0), 0) / mornings.length : 0;
+
+  document.getElementById('m-avg-energy').textContent = avgEnergy ? avgEnergy.toFixed(1) : '—';
+  document.getElementById('m-total-focus').textContent = totalFocus ? totalFocus+'h' : '—';
+}
+
+function loadMonthlyForm() {
+  if(!monthlyLogs.length) return;
+  const now = new Date();
+  const thisMonth = monthlyLogs.slice().reverse().find(m => {
+    const d = new Date(m.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  if(thisMonth) {
+    document.getElementById('mon-wins').value = thisMonth.wins || '';
+    document.getElementById('mon-fail').value = thisMonth.fail || '';
+    document.getElementById('mon-system').value = thisMonth.system || '';
+    document.getElementById('mon-theme').value = thisMonth.theme || '';
+  }
+}
+
+function saveMonthly() {
+  const entry = {
+    date: document.getElementById('mon-month').value || new Date().toDateString(),
+    ts: Date.now(),
+    wins: document.getElementById('mon-wins').value,
+    fail: document.getElementById('mon-fail').value,
+    system: document.getElementById('mon-system').value,
+    theme: document.getElementById('mon-theme').value,
+  };
+  // Replace if same month already exists
+  const now = new Date();
+  const existIdx = monthlyLogs.findIndex(m => {
+    const d = new Date(m.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  if(existIdx >= 0) monthlyLogs[existIdx] = entry; else monthlyLogs.push(entry);
+  showToast('Monthly review saved ✓');
+  renderDataLogs();
+  syncMonthlyReview(entry, getDomainScores());
+}
+
+// ─── GOALS ───────────────────────────────────────────────────────────────────
+function addOKR() {
+  const obj = document.getElementById('new-obj').value;
+  if(!obj) return;
+  const newOKR = {
+    id: Date.now(),
+    obj,
+    krs: [
+      document.getElementById('new-kr1').value,
+      document.getElementById('new-kr2').value,
+      document.getElementById('new-kr3').value,
+    ].filter(Boolean),
+    cat: document.getElementById('new-cat').value,
+    conf: document.getElementById('new-conf-val').textContent,
+  };
+  okrs.push(newOKR);
+  renderOKRList();
+  showToast();
+  syncGoal(newOKR);
+}
+
+function renderOKRList() {
+  const list = document.getElementById('okr-list');
+  if(!okrs.length) {
+    list.innerHTML = '<div class="empty-state"><span class="empty-icon">🎯</span>No goals yet. Add your first OKR above.</div>';
+    return;
+  }
+  list.innerHTML = okrs.map(o => `
+    <div class="okr-item">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div class="okr-obj">${o.obj}</div>
+        <span class="badge badge-blue">${o.cat}</span>
+      </div>
+      ${o.krs.map(kr => `<div class="okr-kr">${kr}</div>`).join('')}
+      <div class="prog-wrap" style="margin-top:10px;">
+        <div class="prog-label"><span>Confidence</span><span>${o.conf}</span></div>
+        <div class="prog-bar"><div class="prog-fill" style="width:${parseInt(o.conf)}%;background:var(--blue);"></div></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function saveWoop() {
+  const w = {
+    date: new Date().toDateString(),
+    wish:     document.getElementById('woop-wish').value,
+    outcome:  document.getElementById('woop-outcome').value,
+    obstacle: document.getElementById('woop-obstacle').value,
+    plan:     document.getElementById('woop-plan').value,
+  };
+  woops.push(w);
+  renderWoopList();
+  showToast();
+  syncWoop(w);
+}
+
+function renderWoopList() {
+  const list = document.getElementById('woop-list');
+  if(!woops.length) { list.innerHTML = '<em>No WOOPs saved yet.</em>'; return; }
+  list.innerHTML = woops.map(w => `
+    <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+      <strong style="color:var(--text)">${w.wish}</strong><br>
+      <span style="color:var(--text3)">Plan: </span>${w.plan || '—'}<br>
+      <span style="font-size:0.65rem;color:var(--text3)">${w.date}</span>
+    </div>
+  `).join('');
+}
+
+// ─── DECISIONS ───────────────────────────────────────────────────────────────
+function computeMatrix() {
+  const weights = [3,2,2,3];
+  const scores = document.querySelectorAll('.dm-score');
+  const grid = [[],[],[]];
+  scores.forEach(s => {
+    grid[parseInt(s.dataset.col)].push(parseInt(s.value)||5);
+  });
+  const totals = grid.map((col,ci) => col.reduce((s,v,ri) => s + v * weights[ri], 0));
+  const labels = [
+    document.getElementById('dm-a').value || 'Option A',
+    document.getElementById('dm-b').value || 'Option B',
+    document.getElementById('dm-c').value || 'Option C',
+  ];
+  const maxT = Math.max(...totals);
+  ['a','b','c'].forEach((x,i) => {
+    const el = document.getElementById('dm-total-'+x);
+    el.textContent = totals[i];
+    el.className = totals[i] === maxT ? 'best' : '';
+  });
+  const winner = labels[totals.indexOf(maxT)];
+  document.getElementById('matrix-result').innerHTML =
+    `<span class="badge badge-green">Data recommends: ${winner} (score ${maxT})</span> — but verify with intuition + bias checklist.`;
+}
+
+function saveMatrixDecision() { saveDecision(); }
+
+function saveDecision() {
+  const rawConf = document.getElementById('dj-conf-val').textContent;
+  const entry = {
+    date: new Date().toDateString(),
+    ts: Date.now(),
+    decision: document.getElementById('dj-decision').value,
+    options:  document.getElementById('dj-options').value,
+    reason:   document.getElementById('dj-reason').value,
+    confidence: rawConf,
+    expected: document.getElementById('dj-expected').value,
+  };
+  entry._priority = computeDecisionPriority(entry);
+  decisions.push(entry);
+  renderDecisionLog();
+  showToast();
+  syncDecision(entry);
+}
+
+function computeDecisionPriority(d) {
+  const conf = parseInt(d.confidence) || 5;
+  const ageMs = Date.now() - (d.ts || 0);
+  const ageDays = ageMs / 86400000;
+  const recency = Math.max(0, 10 - ageDays * 0.5);
+  const score = conf * 0.4 + recency * 0.6;
+  return Math.round(score * 10) / 10;
+}
+
+function renderDecisionLog() {
+  const list = document.getElementById('decision-log');
+  if(!decisions.length) { list.innerHTML = '<div style="padding:16px;font-size:0.8rem;color:var(--text3);">No decisions logged yet.</div>'; return; }
+  const sorted = [...decisions].map(d => ({...d, _priority: d._priority || computeDecisionPriority(d)}))
+    .sort((a,b) => b._priority - a._priority);
+  list.innerHTML = sorted.map((d, i) => {
+    const rank = i === 0 ? 'badge-green' : i === 1 ? 'badge-yellow' : 'badge-blue';
+    return `
+    <div class="log-entry" style="${i===0?'border-left:2px solid var(--green);':''}">
+      <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">
+        <span class="log-time">${d.date}</span>
+        <span class="badge ${rank}" title="Priority score">P${d._priority.toFixed(1)}</span>
+      </div>
+      <div class="log-content">
+        <strong style="color:var(--text)">${d.decision || '—'}</strong><br>
+        <span style="font-size:0.72rem;">${d.expected || ''}</span>
+      </div>
+      <span class="log-tag badge badge-blue">${d.confidence}% conf</span>
+    </div>`;
+  }).join('');
+}
+
+function savePremortem() {
+  const p = {
+    date: new Date().toDateString(),
+    project: document.getElementById('pm-project').value,
+    why: document.getElementById('pm-why').value,
+    f1: document.getElementById('pm-f1').value,
+    f2: document.getElementById('pm-f2').value,
+    f3: document.getElementById('pm-f3').value,
+    mit: document.getElementById('pm-mit').value,
+  };
+  const premortems = [];
+  premortems.push(p);
+  showToast();
+  syncPremortem(p);
+}
+
+// ─── DATA LOG ────────────────────────────────────────────────────────────────
+function renderDataLogs() {
+  const allDailyEl  = document.getElementById('all-daily-logs');
+  const allWeeklyEl = document.getElementById('all-weekly-logs');
+
+  if(logs.length) {
+    allDailyEl.innerHTML = logs.slice().reverse().map(l => `
+      <div class="log-entry">
+        <span class="log-time">${l.date}<br>${l.ts}</span>
+        <div class="log-content">
+          ${l.type === 'morning'
+            ? `Sleep ${l.sleep} · Energy ${l.energy} · Mood ${l.mood}${l.mit1 ? ' · MITs: '+[l.mit1,l.mit2,l.mit3].filter(Boolean).join(', ') : ''}`
+            : `Focus ${l.focus}h · Stress ${l.stress} · Win: ${l.win||'—'}`}
+        </div>
+        <span class="log-tag badge ${l.type==='morning'?'badge-yellow':'badge-blue'}">${l.type}</span>
+      </div>
+    `).join('');
+  }
+
+  if(weeklyLogs.length) {
+    allWeeklyEl.innerHTML = weeklyLogs.slice().reverse().map(w => `
+      <div class="log-entry">
+        <span class="log-time">${w.date}</span>
+        <div class="log-content"><strong style="color:var(--text)">${w.priority||'No priority set'}</strong><br>${w.win ? 'Win: '+w.win.slice(0,80) : ''}</div>
+        <span class="log-tag badge badge-accent">weekly</span>
+      </div>
+    `).join('');
+  }
+
+  const statsEl = document.getElementById('stats-summary');
+  const evenings = logs.filter(l => l.type === 'evening');
+  const mornings = logs.filter(l => l.type === 'morning');
+  const totalFocus = evenings.reduce((s,l) => s + (parseFloat(l.focus)||0), 0);
+  const avgMood    = mornings.length ? (mornings.reduce((s,l) => s + (parseInt(l.mood)||0), 0) / mornings.length).toFixed(1) : '—';
+  const avgEnergy  = mornings.length ? (mornings.reduce((s,l) => s + (parseInt(l.energy)||0), 0) / mornings.length).toFixed(1) : '—';
+  statsEl.innerHTML = `
+    <span style="color:var(--text3)">Total entries:</span> <strong>${logs.length}</strong><br>
+    <span style="color:var(--text3)">Total deep work logged:</span> <strong>${totalFocus}h</strong><br>
+    <span style="color:var(--text3)">Avg mood:</span> <strong>${avgMood}/10</strong><br>
+    <span style="color:var(--text3)">Avg energy:</span> <strong>${avgEnergy}/10</strong><br>
+    <span style="color:var(--text3)">Weekly reviews:</span> <strong>${weeklyLogs.length}</strong><br>
+    <span style="color:var(--text3)">Monthly reviews:</span> <strong>${monthlyLogs.length}</strong><br>
+    <span style="color:var(--text3)">Decisions logged:</span> <strong>${decisions.length}</strong><br>
+    <span style="color:var(--text3)">Streak:</span> <strong>${calcStreak()} days</strong>
+  `;
+}
+
+// ─── RICH JOURNAL ─────────────────────────────────────────────────────────────
+let journalAttachments = [];
+let mediaRecorder = null;
+let audioChunks = [];
+let recordingActive = false;
+
+function jExec(cmd, val) {
+  document.getElementById('journal-entry').focus();
+  document.execCommand(cmd, false, val || null);
+}
+
+function jInsertHR() {
+  document.getElementById('journal-entry').focus();
+  document.execCommand('insertHTML', false, '<hr>');
+}
+
+function saveJournalDraft() {
+}
+
+function loadJournalDraft() {
+  const draft = null;
+
+}
+
+function jAttachImage(input) {
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const data = ev.target.result;
+    journalAttachments.push({type:'image', name:file.name, data});
+    const preview = document.getElementById('journal-attachments');
+    preview.innerHTML += `<div style="position:relative;display:inline-block;">
+      <img src="${data}" class="j-img-preview" title="${file.name}">
+      <button onclick="this.parentElement.remove();journalAttachments=journalAttachments.filter(a=>a.name!=='${file.name}')"
+        style="position:absolute;top:-4px;right:-4px;background:var(--red);border:none;border-radius:50%;width:16px;height:16px;font-size:9px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function jAttachFile(input) {
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    journalAttachments.push({type:'file', name:file.name, data:ev.target.result});
+    document.getElementById('journal-attachments').innerHTML += `<div class="j-file-chip">📎 ${file.name} <button onclick="this.parentElement.remove()">✕</button></div>`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function jToggleAudio() {
+  const rec = document.getElementById('audio-recorder');
+  rec.style.display = rec.style.display === 'none' ? 'flex' : 'none';
+}
+
+async function toggleRecording() {
+  if(!recordingActive) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      audioChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunks, {type:'audio/webm'});
+        const url = URL.createObjectURL(blob);
+        document.getElementById('rec-playback').src = url;
+        document.getElementById('rec-playback').style.display = 'block';
+        document.getElementById('rec-attach-btn').style.display = 'inline-block';
+        document.getElementById('rec-status').textContent = 'Done — preview below';
+        stream.getTracks().forEach(t => t.stop());
+      };
+      mediaRecorder.start();
+      recordingActive = true;
+      document.getElementById('rec-btn').textContent = '⏹ Stop';
+      document.getElementById('rec-btn').style.background = 'var(--red)';
+      document.getElementById('rec-status').textContent = '⏺ Recording...';
+    } catch(e) {
+      document.getElementById('rec-status').textContent = 'Mic access denied.';
+    }
+  } else {
+    mediaRecorder.stop();
+    recordingActive = false;
+    document.getElementById('rec-btn').textContent = '⏺ Record';
+    document.getElementById('rec-btn').style.background = '';
+  }
+}
+
+function attachRecording() {
+  const blob = new Blob(audioChunks, {type:'audio/webm'});
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const name = `voice-${Date.now()}.webm`;
+    journalAttachments.push({type:'audio', name, data:ev.target.result});
+    document.getElementById('journal-attachments').innerHTML += `<div class="j-audio-chip">🎙 ${name} <audio controls src="${ev.target.result}" style="height:28px;"></audio></div>`;
+    document.getElementById('rec-attach-btn').style.display = 'none';
+    document.getElementById('rec-playback').style.display = 'none';
+    showToast('Audio attached ✓');
+  };
+  reader.readAsDataURL(blob);
+}
+
+// ─── EXPORT / IMPORT ─────────────────────────────────────────────────────────
+function exportData() {
+  const data = {
+    exported: new Date().toISOString(),
+    version: '3.0-cloud',
+    dailyLogs: logs,
+    weeklyLogs,
+    monthlyLogs,
+    decisions,
+    woops,
+    okrs,
+    domainScores: getDomainScores(),
+    habitMap,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `lifeos-backup-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  showToast('Exported ✓');
+}
+
+function importDataPrompt() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if(data.dailyLogs)   { logs = data.dailyLogs; }
+        if(data.weeklyLogs)  { weeklyLogs = data.weeklyLogs; }
+        if(data.monthlyLogs) { monthlyLogs = data.monthlyLogs; }
+        if(data.decisions)   { decisions = data.decisions; }
+        if(data.woops)       { woops = data.woops; }
+        if(data.okrs)        { okrs = data.okrs; }
+        if(data.domainScores)
+        if(data.habitMap)    { habitMap = data.habitMap; }
+        showToast('Imported ✓');
+        setTimeout(() => location.reload(), 800);
+      } catch(err) { alert('Invalid file.'); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+async function clearAllData() {
+  const answer = prompt('Type DELETE to wipe ALL data from Supabase (cannot be undone):');
+  if(answer !== 'DELETE') { if(answer !== null) alert('Cancelled — text did not match.'); return; }
+  if(!supa) { alert('Not connected to Supabase.'); return; }
+  setSyncStatus('syncing');
+  try {
+    await Promise.all([
+      supa.from('daily_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+      supa.from('weekly_reviews').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+      supa.from('monthly_reviews').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+      supa.from('decisions').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+      supa.from('woop_entries').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+      supa.from('goals').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+      supa.from('habit_map').delete().neq('habit_date', '1900-01-01'),
+      supa.from('timer_sessions').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+    ]);
+    logs=[]; weeklyLogs=[]; monthlyLogs=[]; decisions=[]; woops=[]; okrs=[];
+    habitMap={}; timerSessionsMap={}; domainScores={health:0,work:0,social:0,finance:0,learn:0,well:0};
+    setSyncStatus('synced');
+    showToast('All data deleted');
+    initApp();
+  } catch(err) {
+    console.error('clearAllData error:', err);
+    setSyncStatus('error');
+    alert('Error deleting data: ' + err.message);
+  }
+}
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+function showToast(msg = 'Logged ✓') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+</script>
+
+<!-- HISTORY MODAL -->
+<div id="history-modal" onclick="if(event.target===this)closeHistoryModal()" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; justify-content:center; align-items:center; backdrop-filter:blur(6px);">
+  <div style="background:var(--surface); border:1px solid var(--border2); border-radius:16px; width:82vw; max-width:1200px; height:86vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,0.7); overflow:hidden;">
+
+    <!-- Header -->
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 22px; border-bottom:1px solid var(--border2); flex-shrink:0; background:var(--surface2);">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <h3 id="history-modal-title" style="margin:0; font-family:var(--font-display); font-size:1rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--text);">History</h3>
+        <input id="history-search" type="text" placeholder="Search entries…" oninput="filterHistoryList(this.value)"
+          style="background:var(--surface3); border:1px solid var(--border2); border-radius:20px; padding:5px 14px; font-size:0.75rem; color:var(--text); width:220px; outline:none;">
+      </div>
+      <button onclick="closeHistoryModal()" style="background:none; border:none; color:var(--text3); font-size:1.4rem; cursor:pointer; line-height:1; padding:2px 6px;">✕</button>
+    </div>
+
+    <!-- Two-panel body -->
+    <div style="display:flex; flex:1; overflow:hidden;">
+
+      <!-- LEFT: Entry list -->
+      <div id="history-list-panel" style="width:280px; flex-shrink:0; border-right:1px solid var(--border); overflow-y:auto; padding:10px 8px; display:flex; flex-direction:column; gap:4px;">
+        <div style="padding:20px; color:var(--text3); font-size:0.8rem; text-align:center;">Loading…</div>
+      </div>
+
+      <!-- RIGHT: Detail view -->
+      <div id="history-detail-panel" style="flex:1; overflow-y:auto; padding:28px 32px;">
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--text3); gap:12px;">
+          <span style="font-size:2.5rem; opacity:0.3;">📖</span>
+          <span style="font-size:0.82rem;">Select an entry from the list to view it</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── HISTORY MODAL ────────────────────────────────────────────────────────────
+let _historyType = null;
+let _historyData = [];
+
+function openHistoryModal(type) {
+  _historyType = type;
+  const titles = { daily:'Daily Logs', weekly:'Weekly Reviews', monthly:'Monthly Reviews', decision:'Decision Log', woop:'WOOP Entries' };
+  document.getElementById('history-modal-title').textContent = titles[type] || 'History';
+  document.getElementById('history-search').value = '';
+  document.getElementById('history-modal').style.display = 'flex';
+
+  if (type === 'daily') {
+    _historyData = (logs || []).slice().reverse();
+  } else if (type === 'weekly') {
+    _historyData = (weeklyLogs || []).slice().reverse();
+  } else if (type === 'monthly') {
+    _historyData = (monthlyLogs || []).slice().reverse();
+  } else if (type === 'decision') {
+    _historyData = (decisions || []).slice().sort((a,b) => (b.ts||0) - (a.ts||0));
+  } else if (type === 'woop') {
+    _historyData = (woops || []).slice().reverse();
+  }
+
+  renderHistoryList(_historyData);
+  // Clear detail panel
+  document.getElementById('history-detail-panel').innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text3);gap:12px;">
+      <span style="font-size:2.5rem;opacity:0.3;">📖</span>
+      <span style="font-size:0.82rem;">Select an entry from the list to view it</span>
+    </div>`;
+}
+
+function renderHistoryList(data) {
+  const panel = document.getElementById('history-list-panel');
+  if (!data || !data.length) {
+    panel.innerHTML = '<div style="padding:20px;color:var(--text3);font-size:0.78rem;text-align:center;">No entries yet.</div>';
+    return;
+  }
+  panel.innerHTML = data.map((entry, i) => {
+    const label = getEntryListLabel(entry, _historyType);
+    const sub   = getEntryListSub(entry, _historyType);
+    const icon  = getEntryIcon(entry, _historyType);
+    return `<div onclick="openEntryDetail(${i})" data-idx="${i}"
+      style="padding:10px 12px;border-radius:8px;cursor:pointer;border:1px solid transparent;transition:all 0.15s;"
+      onmouseover="this.style.background='var(--surface2)';this.style.borderColor='var(--border2)'"
+      onmouseout="this.style.background='';this.style.borderColor='transparent'"
+      id="hist-item-${i}">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:1rem;flex-shrink:0;">${icon}</span>
+        <div style="min-width:0;">
+          <div style="font-size:0.78rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div>
+          <div style="font-size:0.65rem;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${sub}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filterHistoryList(q) {
+  if (!q.trim()) { renderHistoryList(_historyData); return; }
+  const lower = q.toLowerCase();
+  const filtered = _historyData.map((e,i) => ({...e, _origIdx:i})).filter(e => {
+    const combined = JSON.stringify(e).toLowerCase();
+    return combined.includes(lower);
+  });
+  // Re-render with filtered but keep origIdx for openEntryDetail
+  const panel = document.getElementById('history-list-panel');
+  if (!filtered.length) {
+    panel.innerHTML = '<div style="padding:20px;color:var(--text3);font-size:0.78rem;text-align:center;">No matches.</div>';
+    return;
+  }
+  panel.innerHTML = filtered.map((entry, i) => {
+    const label = getEntryListLabel(entry, _historyType);
+    const sub   = getEntryListSub(entry, _historyType);
+    const icon  = getEntryIcon(entry, _historyType);
+    const oi    = entry._origIdx;
+    return `<div onclick="openEntryDetail(${oi})"
+      style="padding:10px 12px;border-radius:8px;cursor:pointer;border:1px solid transparent;transition:all 0.15s;"
+      onmouseover="this.style.background='var(--surface2)';this.style.borderColor='var(--border2)'"
+      onmouseout="this.style.background='';this.style.borderColor='transparent'">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:1rem;flex-shrink:0;">${icon}</span>
+        <div style="min-width:0;">
+          <div style="font-size:0.78rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div>
+          <div style="font-size:0.65rem;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${sub}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function getEntryIcon(e, type) {
+  if (type === 'daily') return e.type === 'morning' ? '☀️' : '🌙';
+  if (type === 'weekly')  return '📆';
+  if (type === 'monthly') return '📊';
+  if (type === 'decision') return '⚖️';
+  if (type === 'woop') return '🌟';
+  return '📝';
+}
+
+function getEntryListLabel(e, type) {
+  if (type === 'daily')   return e.date || '—';
+  if (type === 'weekly')  return e.date || '—';
+  if (type === 'monthly') return e.date || '—';
+  if (type === 'decision') return e.decision ? e.decision.slice(0,42) : '—';
+  if (type === 'woop') return e.wish ? e.wish.slice(0,42) : '—';
+  return '—';
+}
+
+function getEntryListSub(e, type) {
+  if (type === 'daily')   return e.type === 'morning' ? `Sleep ${e.sleep||'?'} · Energy ${e.energy||'?'} · Mood ${e.mood||'?'}` : `Focus ${e.focus||0}h · Stress ${e.stress||'?'} · ${e.win ? e.win.slice(0,30) : 'no win logged'}`;
+  if (type === 'weekly')  return e.priority ? e.priority.slice(0,50) : (e.win ? e.win.slice(0,50) : '—');
+  if (type === 'monthly') return e.theme ? '🎯 ' + e.theme : (e.wins ? e.wins.slice(0,50) : '—');
+  if (type === 'decision') return e.date || '';
+  if (type === 'woop') return e.date || '';
+  return '';
+}
+
+function openEntryDetail(idx) {
+  // Highlight selected in list
+  document.querySelectorAll('#history-list-panel > div').forEach(el => {
+    el.style.background = '';
+    el.style.borderColor = 'transparent';
+  });
+  const item = document.getElementById('hist-item-'+idx);
+  if (item) { item.style.background = 'var(--accent-dim)'; item.style.borderColor = 'rgba(0,212,170,0.3)'; }
+
+  const entry = _historyData[idx];
+  if (!entry) return;
+  const panel = document.getElementById('history-detail-panel');
+
+  if (_historyType === 'daily') panel.innerHTML = renderDailyDetail(entry);
+  else if (_historyType === 'weekly')  panel.innerHTML = renderWeeklyDetail(entry);
+  else if (_historyType === 'monthly') panel.innerHTML = renderMonthlyDetail(entry);
+  else if (_historyType === 'decision') panel.innerHTML = renderDecisionDetail(entry);
+  else if (_historyType === 'woop') panel.innerHTML = renderWoopDetail(entry);
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function scoreBar(val, max, color) {
+  const pct = Math.round((val/max)*100);
+  return `<div style="display:flex;align-items:center;gap:10px;">
+    <div style="flex:1;height:6px;background:var(--surface4);border-radius:4px;">
+      <div style="width:${pct}%;height:100%;background:${color};border-radius:4px;transition:width 0.4s;"></div>
+    </div>
+    <span style="font-family:var(--font-mono);font-size:0.72rem;color:${color};font-weight:700;width:32px;text-align:right;">${val}/${max}</span>
+  </div>`;
+}
+
+function detailSection(icon, title, content, accentColor) {
+  return `<div style="margin-bottom:24px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);">
+      <span style="font-size:1.1rem;">${icon}</span>
+      <span style="font-family:var(--font-display);font-size:0.7rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${accentColor||'var(--text3)'};">${title}</span>
+    </div>
+    ${content}
+  </div>`;
+}
+
+function detailRow(label, value) {
+  if (!value || value === '—') return `<div style="display:flex;gap:12px;padding:6px 0;border-bottom:1px solid var(--border);opacity:0.45;">
+    <span style="font-size:0.72rem;color:var(--text3);min-width:120px;flex-shrink:0;">${label}</span>
+    <span style="font-size:0.78rem;color:var(--text3);">—</span>
+  </div>`;
+  return `<div style="display:flex;gap:12px;padding:6px 0;border-bottom:1px solid var(--border);">
+    <span style="font-size:0.72rem;color:var(--text3);min-width:120px;flex-shrink:0;">${label}</span>
+    <span style="font-size:0.82rem;color:var(--text);line-height:1.5;">${value}</span>
+  </div>`;
+}
+
+// ── Daily Detail ─────────────────────────────────────────────────────────────
+function renderDailyDetail(e) {
+  const isMorning = e.type === 'morning';
+  const accentCol = isMorning ? 'var(--yellow)' : 'var(--accent2)';
+  const typeLabel = isMorning ? '☀️ Morning Check-in' : '🌙 Evening Debrief';
+
+  let html = `<div style="margin-bottom:24px;">
+    <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;color:var(--text);margin-bottom:4px;">${typeLabel}</div>
+    <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text3);">${e.date}${e.ts ? ' · ' + e.ts : ''}</div>
+  </div>`;
+
+  if (isMorning) {
+    html += detailSection('📊', 'Vitals', `
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div><div style="font-size:0.68rem;color:var(--text3);margin-bottom:4px;">Sleep Quality</div>${scoreBar(e.sleep||0,10,'var(--blue)')}</div>
+        <div><div style="font-size:0.68rem;color:var(--text3);margin-bottom:4px;">Energy Level</div>${scoreBar(e.energy||0,10,'var(--green)')}</div>
+        <div><div style="font-size:0.68rem;color:var(--text3);margin-bottom:4px;">Mood</div>${scoreBar(e.mood||0,10,'var(--yellow)')}</div>
+      </div>`, accentCol);
+
+    const mits = [e.mit1,e.mit2,e.mit3].filter(Boolean);
+    if (mits.length) {
+      html += detailSection('🎯', 'Most Important Tasks', mits.map((m,i) => `
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);">
+          <span style="font-family:var(--font-mono);font-size:0.65rem;color:var(--accent);font-weight:700;flex-shrink:0;margin-top:2px;">MIT ${i+1}</span>
+          <span style="font-size:0.85rem;color:var(--text);line-height:1.5;">${m}</span>
+        </div>`).join(''), 'var(--accent)');
+    }
+
+    if (e.intention) {
+      html += detailSection('✨', 'Intention / Focus Word', `
+        <div style="font-size:1.4rem;font-family:var(--font-display);font-weight:700;color:var(--accent);padding:10px 0;">${e.intention}</div>`, 'var(--accent)');
+    }
+
+  } else {
+    // Evening
+    html += detailSection('⚡', 'Performance', `
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div>
+          <div style="font-size:0.68rem;color:var(--text3);margin-bottom:4px;">Deep Focus Hours</div>
+          <div style="font-family:var(--font-mono);font-size:1.6rem;font-weight:700;color:var(--accent2);">${e.focus||0}<span style="font-size:0.8rem;color:var(--text3);"> hrs</span></div>
+        </div>
+        <div><div style="font-size:0.68rem;color:var(--text3);margin-bottom:4px;">Stress Level</div>${scoreBar(e.stress||0,10,'var(--accent4)')}</div>
+        ${e.exercise !== undefined ? `<div style="font-size:0.72rem;color:var(--text3);">Exercise: <span style="color:var(--text)">${['None','Light','Moderate','Intense'][e.exercise]||e.exercise}</span></div>` : ''}
+      </div>`, accentCol);
+
+    html += detailSection('🏆', 'Wins & Friction', `
+      ${detailRow('Big Win', e.win)}
+      ${detailRow('Friction / Blocked by', e.friction)}`, 'var(--green)');
+
+    if (e.journal && e.journal.trim() && e.journal !== '<br>') {
+      html += detailSection('📓', 'Journal Entry',
+        `<div style="font-size:0.88rem;line-height:1.8;color:var(--text2);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px 18px;border-left:3px solid var(--accent2);">${e.journal}</div>`,
+        'var(--accent2)');
+    }
+  }
+
+  return html;
+}
+
+// ── Weekly Detail ─────────────────────────────────────────────────────────────
+function renderWeeklyDetail(w) {
+  let html = `<div style="margin-bottom:24px;">
+    <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;color:var(--text);margin-bottom:4px;">📆 Weekly Review</div>
+    <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text3);">${w.date}</div>
+  </div>`;
+
+  if (w.priority) {
+    html += detailSection('🧭', 'North Star / Priority', `
+      <div style="font-size:1rem;font-family:var(--font-display);font-weight:700;color:var(--accent2);background:var(--accent2-dim);border-radius:8px;padding:12px 16px;border-left:3px solid var(--accent2);">${w.priority}</div>`,
+      'var(--accent2)');
+  }
+
+  html += detailSection('✅', 'Wins & Achievements',
+    `<div style="font-size:0.88rem;line-height:1.8;color:var(--text);white-space:pre-wrap;">${w.win || '<span style="color:var(--text3)">Nothing logged</span>'}</div>`,
+    'var(--green)');
+
+  html += detailSection('⛰️', 'Friction / What Blocked',
+    `<div style="font-size:0.88rem;line-height:1.8;color:var(--text);white-space:pre-wrap;">${w.friction || '<span style="color:var(--text3)">Nothing logged</span>'}</div>`,
+    'var(--accent3)');
+
+  html += detailSection('🔧', 'Change Plan for Next Week',
+    `<div style="font-size:0.88rem;line-height:1.8;color:var(--text);white-space:pre-wrap;">${w.change || '<span style="color:var(--text3)">Nothing logged</span>'}</div>`,
+    'var(--accent)');
+
+  return html;
+}
+
+// ── Monthly Detail ────────────────────────────────────────────────────────────
+function renderMonthlyDetail(m) {
+  let html = `<div style="margin-bottom:24px;">
+    <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;color:var(--text);margin-bottom:6px;">📊 Monthly Strategy Review</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text3);">${m.date}</span>
+      ${m.theme ? `<span style="background:var(--accent3-dim);border:1px solid var(--accent3);color:var(--accent3);border-radius:20px;padding:2px 10px;font-size:0.68rem;font-family:var(--font-display);font-weight:700;letter-spacing:0.06em;">🎯 ${m.theme}</span>` : ''}
+    </div>
+  </div>`;
+
+  html += detailSection('🏆', 'Top Wins / Achievements',
+    `<div style="font-size:0.88rem;line-height:1.8;color:var(--text);background:var(--green-dim);border-radius:8px;padding:14px 16px;border-left:3px solid var(--green);white-space:pre-wrap;">${m.wins || '<span style="color:var(--text3)">Nothing logged</span>'}</div>`,
+    'var(--green)');
+
+  html += detailSection('💡', 'Biggest Failure / Lesson',
+    `<div style="font-size:0.88rem;line-height:1.8;color:var(--text);background:var(--accent4-dim);border-radius:8px;padding:14px 16px;border-left:3px solid var(--accent4);white-space:pre-wrap;">${m.fail || '<span style="color:var(--text3)">Nothing logged</span>'}</div>`,
+    'var(--accent4)');
+
+  html += detailSection('⚙️', 'System to Change',
+    `<div style="font-size:0.88rem;line-height:1.8;color:var(--text);background:var(--blue-dim);border-radius:8px;padding:14px 16px;border-left:3px solid var(--blue);white-space:pre-wrap;">${m.system || '<span style="color:var(--text3)">Nothing logged</span>'}</div>`,
+    'var(--blue)');
+
+  return html;
+}
+
+// ── Decision Detail ───────────────────────────────────────────────────────────
+function renderDecisionDetail(d) {
+  const confNum = parseInt(d.confidence) || 0;
+  const confCol = confNum >= 70 ? 'var(--green)' : confNum >= 40 ? 'var(--yellow)' : 'var(--accent4)';
+
+  let html = `<div style="margin-bottom:24px;">
+    <div style="font-family:var(--font-display);font-size:1.3rem;font-weight:800;color:var(--text);margin-bottom:6px;line-height:1.4;">⚖️ ${d.decision || 'Decision'}</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text3);">${d.date}</span>
+      <span style="background:var(--surface3);border:1px solid ${confCol};color:${confCol};border-radius:20px;padding:2px 10px;font-size:0.68rem;font-family:var(--font-mono);font-weight:700;">${d.confidence}% confidence</span>
+    </div>
+  </div>`;
+
+  html += detailSection('🔀', 'Options Considered',
+    `<div style="font-size:0.88rem;line-height:1.8;color:var(--text);white-space:pre-wrap;">${d.options || '<span style="color:var(--text3)">Not logged</span>'}</div>`,
+    'var(--accent)');
+
+  html += detailSection('🧠', 'Reasoning',
+    `<div style="font-size:0.88rem;line-height:1.8;color:var(--text);background:var(--surface2);border-radius:8px;padding:14px 16px;white-space:pre-wrap;">${d.reason || '<span style="color:var(--text3)">Not logged</span>'}</div>`,
+    'var(--accent2)');
+
+  html += detailSection('🔮', 'Expected Outcome',
+    `<div style="font-size:0.88rem;line-height:1.8;color:var(--text);white-space:pre-wrap;">${d.expected || '<span style="color:var(--text3)">Not logged</span>'}</div>`,
+    'var(--accent3)');
+
+  if (d.actual) {
+    html += detailSection('📌', 'Actual Outcome (Retrospective)',
+      `<div style="font-size:0.88rem;line-height:1.8;color:var(--text);background:var(--green-dim);border-radius:8px;padding:14px 16px;border-left:3px solid var(--green);white-space:pre-wrap;">${d.actual}</div>`,
+      'var(--green)');
+  }
+
+  return html;
+}
+
+// ── WOOP Detail ───────────────────────────────────────────────────────────────
+function renderWoopDetail(w) {
+  let html = `<div style="margin-bottom:24px;">
+    <div style="font-family:var(--font-display);font-size:1.3rem;font-weight:800;color:var(--text);margin-bottom:4px;line-height:1.4;">🌟 ${w.wish || 'WOOP Entry'}</div>
+    <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text3);">${w.date}</div>
+  </div>`;
+
+  const items = [
+    { icon:'🌟', label:'Wish', key:'wish', color:'var(--accent)' },
+    { icon:'🏆', label:'Outcome (Best Result)', key:'outcome', color:'var(--green)' },
+    { icon:'⛰️', label:'Obstacle (Inner Barrier)', key:'obstacle', color:'var(--accent3)' },
+    { icon:'📋', label:'Plan (If → Then)', key:'plan', color:'var(--accent2)' },
+  ];
+
+  items.forEach(({ icon, label, key, color }) => {
+    html += detailSection(icon, label,
+      `<div style="font-size:0.9rem;line-height:1.8;color:var(--text);background:var(--surface2);border-radius:8px;padding:14px 16px;border-left:3px solid ${color};">${w[key] || '<span style="color:var(--text3)">Not filled</span>'}</div>`,
+      color);
+  });
+
+  return html;
+}
+
+function closeHistoryModal() {
+  document.getElementById('history-modal').style.display = 'none';
+}
+</script>
+</body>
+</html>

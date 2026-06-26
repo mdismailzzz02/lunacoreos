@@ -1,0 +1,3 @@
+/* For Render Static Sites — redirects all routes to index.html for React SPA routing */
+/*  This file goes in the /public folder */
+/* /index.html  200 */

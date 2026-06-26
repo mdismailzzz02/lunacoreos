@@ -1,0 +1,121 @@
+.date-calendar {
+    padding: 12px;
+    background: var(--surface, #1e1e1e);
+    border: 1px solid var(--border, #3a3a3a);
+    border-radius: 8px;
+    font-size: 14px;
+    user-select: none;
+}
+
+.dc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 0 4px;
+}
+
+.dc-month-year {
+    font-weight: 600;
+    color: var(--text, #e0e0e0);
+    font-size: 15px;
+}
+
+.dc-nav-btn {
+    background: none;
+    border: none;
+    color: var(--accent, #7c3aed);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.dc-nav-btn:hover {
+    background: rgba(124, 58, 237, 0.1);
+}
+
+.dc-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.dc-weekday {
+    text-align: center;
+    font-weight: 600;
+    color: var(--text-secondary, #a0a0a0);
+    font-size: 12px;
+    padding: 4px 0;
+}
+
+.dc-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.dc-day {
+    aspect-ratio: 1;
+    border: 1px solid var(--border, #3a3a3a);
+    background: var(--surface, #1e1e1e);
+    color: var(--text, #e0e0e0);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 2px;
+    font-size: 12px;
+    transition: all 0.2s;
+    font-weight: 500;
+}
+
+.dc-day:not(.empty):hover {
+    background: rgba(124, 58, 237, 0.15);
+    border-color: var(--accent, #7c3aed);
+}
+
+.dc-day.empty {
+    cursor: default;
+    background: transparent;
+    border: none;
+}
+
+.dc-day.has-entries {
+    border-color: var(--accent, #7c3aed);
+    color: #fff;
+}
+
+.dc-day.selected {
+    background: var(--accent, #7c3aed);
+    border-color: var(--accent, #7c3aed);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(124, 58, 237, 0.4);
+}
+
+.dc-day-num {
+    line-height: 1;
+}
+
+.dc-entry-count {
+    font-size: 9px;
+    background: rgba(124, 58, 237, 0.3);
+    color: var(--accent, #7c3aed);
+    padding: 2px 4px;
+    border-radius: 3px;
+    margin-top: 2px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.dc-day.selected .dc-entry-count {
+    background: rgba(255, 255, 255, 0.3);
+    color: #fff;
+}
