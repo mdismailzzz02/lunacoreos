@@ -72,7 +72,7 @@ export default function Sidebar({ active, onNavigate, userName, isOffline, onPre
 
             <div className="sidebar-logo">
                 <div className="logo-flex" onClick={() => onNavigate('dashboard')} style={{ cursor: 'pointer' }}>
-                    <img src="/moon-icon.webp" alt="Logo" className="app-logo-img" />
+                    <img src="/profile.jpg" alt="Logo" className="app-logo-img" style={{ borderRadius: '50%', objectFit: 'cover' }} />
                     <div className="logo-text">
                         <h1>LunaCoreOS</h1>
                         <p>Your private sanctuary</p>
