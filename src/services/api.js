@@ -1327,3 +1327,83 @@ export const getVaultFoldersLegacy = () => getVaultFolders();
 export const getVaultFacesLegacy = () => getVaultFaces();
 
 
+
+
+// --- Password Manager --------------------------------------------------------
+// NOTE: All password data stored here is already encrypted (AES-256-GCM) by the
+// client. The API layer only deals with ciphertext — never plaintext passwords.
+
+/** Fetch all password entries (ciphertext — decryption is the UI's job). */
+export const getPasswords = async () => {
+    const { data, error } = await supabase
+        .from('passwords')
+        .select('*')
+        .order('site_name', { ascending: true });
+    if (error) throw error;
+    return data;
+};
+
+/**
+ * Create a single encrypted password entry.
+ */
+export const createPassword = async (params) => {
+    const entry = {
+        id: params.id || `PWD-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+        site_name: params.site_name || '',
+        site_url: params.site_url || '',
+        username: params.username || '',
+        enc_password: params.enc_password,
+        enc_iv: params.enc_iv,
+        notes: params.notes || '',
+        category: params.category || 'General',
+        strength: params.strength || 'fair',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from('passwords').insert([entry]).select();
+    if (error) throw error;
+    return data[0];
+};
+
+/**
+ * Update an existing password entry.
+ */
+export const updatePassword = async (params) => {
+    const { id, ...updates } = params;
+    updates.updated_at = new Date().toISOString();
+    const { data, error } = await supabase
+        .from('passwords')
+        .update(updates)
+        .eq('id', id)
+        .select();
+    if (error) throw error;
+    return data[0];
+};
+
+/** Hard-delete a password entry by id. */
+export const deletePassword = async (id) => {
+    const { error } = await supabase.from('passwords').delete().eq('id', id);
+    if (error) throw error;
+};
+
+/**
+ * Bulk-insert multiple encrypted password entries (from CSV import).
+ */
+export const bulkCreatePasswords = async (entries) => {
+    const rows = entries.map((p) => ({
+        id: p.id || `PWD-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+        site_name: p.site_name || '',
+        site_url: p.site_url || '',
+        username: p.username || '',
+        enc_password: p.enc_password,
+        enc_iv: p.enc_iv,
+        notes: p.notes || '',
+        category: p.category || 'General',
+        strength: p.strength || 'fair',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+    }));
+    const { data, error } = await supabase.from('passwords').insert(rows).select();
+    if (error) throw error;
+    return data;
+};

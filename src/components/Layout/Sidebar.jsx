@@ -11,6 +11,7 @@ const TABS = [
     { id: 'bookmarks', icon: '❤️', label: 'Bookmarks' },
     { id: 'journal', icon: '📖', label: 'Journal' },
     { id: 'vault', icon: '💎', label: 'Vault', isRed: true },
+    { id: 'passwords', icon: '🔑', label: 'Passwords' },
     // { id: 'musicplayer', icon: '🎵', label: 'Music Player' },
     { id: 'videos', icon: '🎬', label: 'Videos' },
     { id: 'media', icon: '🎨', label: 'Media Library' },
