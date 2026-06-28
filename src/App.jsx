@@ -27,6 +27,7 @@ import InformationPage from './components/Information/InformationPage';
 import MusicPlayerPage from './components/MusicPlayer/MusicPlayerPage';
 import SettingsPage from './components/Settings/SettingsPage';
 import PasswordsPage from './components/Passwords/PasswordsPage';
+import LunaAIPage from './components/LunaAI/LunaAIPage';
 import * as api from './services/api';
 import { Preloader } from './services/preloader';
 import { OfflineCache } from './services/offlineCache';
@@ -223,6 +224,7 @@ export default function App() {
             case 'media': return <MediaLibraryPage />;
             case 'vault': return <VaultPage />;
             case 'passwords': return <PasswordsPage />;
+            case 'luna': return <LunaAIPage />;
             case 'lifemap': return <LifeMapPage />;
             case 'timecapsule': return <TimeCapsulePage />;
             case 'whoami': return <WhoAmIPage />;

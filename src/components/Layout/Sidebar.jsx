@@ -5,6 +5,7 @@ import { Disc, Settings, Play, Pause, SkipForward } from 'lucide-react';
 
 const TABS = [
     { id: 'dashboard', icon: '🌸', label: 'Dashboard' },
+    { id: 'luna', icon: '✨', label: 'Luna AI' },
     { id: 'lifeos', icon: '🧬', label: 'LifeOS', isExternal: '/lifeos.html' },
     { id: 'studynotes', icon: '📝', label: 'Study Notes' },
     { id: 'writing', icon: '✍️', label: 'Writing' },
