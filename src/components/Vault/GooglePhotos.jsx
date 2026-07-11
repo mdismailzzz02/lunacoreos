@@ -1,12 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { getVaultMedia, getLikedImages, toggleLikedImage, getFaceGroups, getFileTextContent, getVaultIndex, saveVaultIndex } from '../../services/api';
+import {
+    getVaultFiles,
+    getLikedVaultFiles,
+    toggleLikedVaultFile,
+    getR2PresignedGet,
+    getR2PresignedBatch,
+    syncVaultCollection,
+    uploadFileToR2,
+    getFileTextContent,
+} from '../../services/api';
 import { SkeletonCard } from '../Shared/Skeleton';
 import FaceScanner from './FaceScanner';
 import FaceGroupsView from './FaceGroupsView';
 
-
-// ─── File Type Classifier ─────────────────────────────────────
+// ─── Mime Type Classifier ─────────────────────────────────────
 function classifyMime(mime) {
     if (!mime) return 'image';
     if (mime.startsWith('video/')) return 'video';
@@ -14,6 +22,21 @@ function classifyMime(mime) {
     if (mime === 'application/pdf') return 'pdf';
     if (mime.startsWith('text/') || mime === 'application/json') return 'text';
     return 'image';
+}
+
+// ─── URL Cache (keyed by r2_key, auto-expires before 15 min) ──
+const urlCache = new Map(); // r2_key → { url, expiresAt }
+const URL_TTL_MS = 13 * 60 * 1000; // 13 min (presigned GET is 15 min)
+
+function getCachedUrl(r2Key) {
+    const entry = urlCache.get(r2Key);
+    if (entry && Date.now() < entry.expiresAt) return entry.url;
+    urlCache.delete(r2Key);
+    return null;
+}
+
+function setCachedUrl(r2Key, url) {
+    urlCache.set(r2Key, { url, expiresAt: Date.now() + URL_TTL_MS });
 }
 
 // ─── VaultLightbox ───────────────────────────────────────────
@@ -25,15 +48,37 @@ function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [textContent, setTextContent] = useState(null);
     const [textLoading, setTextLoading] = useState(false);
-    const [audioError, setAudioError] = useState(false);
+    const [mediaUrl, setMediaUrl] = useState(null);
 
     useEffect(() => {
         setCurrent(index);
         setScale(1);
         setTranslate({ x: 0, y: 0 });
         setTextContent(null);
-        setAudioError(false);
+        setMediaUrl(null);
     }, [index]);
+
+    useEffect(() => {
+        const item = items[current];
+        if (!item) return;
+        // Fetch presigned URL for current item if not already cached
+        const cached = getCachedUrl(item.r2_key);
+        if (cached) { setMediaUrl(cached); return; }
+        getR2PresignedGet(item.r2_key)
+            .then(({ url }) => { setCachedUrl(item.r2_key, url); setMediaUrl(url); })
+            .catch(console.error);
+    }, [current, items]);
+
+    useEffect(() => {
+        const item = items[current];
+        if (!item || item.type !== 'text' || !mediaUrl) return;
+        setTextLoading(true);
+        setTextContent(null);
+        getFileTextContent(item.r2_key)
+            .then(res => setTextContent(res?.content || ''))
+            .catch(() => setTextContent('// Could not load file content.'))
+            .finally(() => setTextLoading(false));
+    }, [current, items, mediaUrl]);
 
     const navigate = (dir) => {
         setCurrent(c => (c + dir + items.length) % items.length);
@@ -50,17 +95,6 @@ function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
         return () => window.removeEventListener('keydown', handleKey);
     }, [items.length, onClose]);
 
-    useEffect(() => {
-        const item = items[current];
-        if (!item || item.type !== 'text') return;
-        setTextLoading(true);
-        setTextContent(null);
-        getFileTextContent(item.id)
-            .then(res => setTextContent(res?.content || ''))
-            .catch(() => setTextContent('// Could not load file content.'))
-            .finally(() => setTextLoading(false));
-    }, [current, items]);
-
     const handleWheel = (e) => {
         e.preventDefault();
         setScale(s => Math.min(4, Math.max(0.5, s + (e.deltaY > 0 ? -0.15 : 0.15))));
@@ -73,7 +107,7 @@ function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
 
     if (index < 0 || !items[current]) return null;
     const item = items[current];
-    const itemType = item.type || 'image';
+    const itemType = item.type || classifyMime(item.mime_type);
     const isImage = itemType === 'image';
     const isLiked = likedIds?.has(item.id);
 
@@ -100,7 +134,7 @@ function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
 
             <div className="vl-topbar" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2rem', background: 'linear-gradient(to bottom, rgba(0,0,0,0.95), transparent)', zIndex: 20 }}>
                 <div style={{ color: 'white', fontSize: '0.95rem', fontWeight: 800, background: 'rgba(255,255,255,0.08)', padding: '8px 20px', borderRadius: '30px', backdropFilter: 'blur(15px)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    {item.title || 'SECURE_ASSET'}
+                    {item.filename || 'SECURE_ASSET'}
                 </div>
                 <div style={{ display: 'flex', gap: '1rem' }}>
                     <button onClick={(e) => { e.stopPropagation(); onLike(item); }} style={{ background: isLiked ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '48px', height: '48px', fontSize: '1.4rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -111,32 +145,41 @@ function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
             </div>
 
             <div className="vault-lightbox-media" onClick={e => e.stopPropagation()} onWheel={isImage ? handleWheel : undefined} onMouseDown={isImage ? handleMouseDown : undefined} onMouseMove={isImage ? handleMouseMove : undefined} onMouseUp={isImage ? handleMouseUp : undefined}>
-                {isImage && <img className="vault-lightbox-img" src={item.largeSrc || item.src} referrerPolicy="no-referrer" alt="" style={{ transform: `scale(${scale}) translate(${translate.x / scale}px, ${translate.y / scale}px)`, transition: dragging ? 'none' : 'transform 0.15s ease' }} />}
-                
-                {itemType === 'video' && <iframe src={`https://drive.google.com/file/d/${item.id}/preview`} style={{ width: 'min(95vw, 1280px)', height: 'min(80vh, 720px)', border: 'none', borderRadius: '24px', boxShadow: '0 40px 100px rgba(0,0,0,0.8)' }} allow="autoplay; fullscreen" allowFullScreen />}
-                
-                {itemType === 'audio' && (
+                {!mediaUrl && (
+                    <div style={{ opacity: 0.4, fontSize: '0.9rem', fontWeight: 700, letterSpacing: '0.1em' }}>LOADING_ASSET...</div>
+                )}
+
+                {mediaUrl && isImage && (
+                    <img className="vault-lightbox-img" src={mediaUrl} referrerPolicy="no-referrer" alt=""
+                        style={{ transform: `scale(${scale}) translate(${translate.x / scale}px, ${translate.y / scale}px)`, transition: dragging ? 'none' : 'transform 0.15s ease' }} />
+                )}
+
+                {mediaUrl && itemType === 'video' && (
+                    <video controls autoPlay src={mediaUrl} style={{ maxWidth: '95vw', maxHeight: '85vh', borderRadius: '16px', boxShadow: '0 40px 100px rgba(0,0,0,0.8)' }} />
+                )}
+
+                {mediaUrl && itemType === 'audio' && (
                     <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', padding: '4rem', borderRadius: '40px', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
-                        <div style={{ fontSize: '6rem', marginBottom: '2rem', animation: 'pulse 2s infinite ease-in-out' }}>🎵</div>
-                        <h3 style={{ margin: '0 0 2rem', fontSize: '1.2rem', fontWeight: 800 }}>{item.title}</h3>
-                        <audio controls autoPlay src={`https://drive.google.com/uc?id=${item.id}&export=download`} style={{ width: '320px', filter: 'invert(1) hue-rotate(180deg)' }} />
+                        <div style={{ fontSize: '6rem', marginBottom: '2rem' }}>🎵</div>
+                        <h3 style={{ margin: '0 0 2rem', fontSize: '1.2rem', fontWeight: 800 }}>{item.filename}</h3>
+                        <audio controls autoPlay src={mediaUrl} style={{ width: '320px', filter: 'invert(1) hue-rotate(180deg)' }} />
                     </div>
                 )}
 
-                {itemType === 'pdf' && <iframe src={`https://drive.google.com/file/d/${item.id}/preview`} style={{ width: 'min(90vw, 1000px)', height: '85vh', border: 'none', borderRadius: '16px' }} />}
+                {mediaUrl && itemType === 'pdf' && (
+                    <iframe src={mediaUrl} style={{ width: 'min(90vw, 1000px)', height: '85vh', border: 'none', borderRadius: '16px' }} />
+                )}
 
                 {itemType === 'text' && (
                     <div style={{ width: 'min(95vw, 1000px)', height: '80vh', background: '#0d0d15', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 40px 100px rgba(0,0,0,0.8)' }}>
                         <div style={{ padding: '1.2rem 2rem', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.1em' }}>SOURCE_CODE_DECRYPTOR</span>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.1em' }}>SOURCE_CODE_VIEWER</span>
                         </div>
                         <div style={{ flex: 1, overflow: 'auto', padding: '2rem', fontFamily: '"Fira Code", "JetBrains Mono", monospace', fontSize: '0.9rem', lineHeight: 1.6, color: '#e2e8f0' }}>
                             {textLoading ? (
-                                <div style={{ opacity: 0.5 }}>DECRYPTING_BUFFER...</div>
+                                <div style={{ opacity: 0.5 }}>LOADING_CONTENT...</div>
                             ) : (
-                                <pre style={{ margin: 0 }}>
-                                    <code>{textContent || '// No content detected.'}</code>
-                                </pre>
+                                <pre style={{ margin: 0 }}><code>{textContent || '// No content detected.'}</code></pre>
                             )}
                         </div>
                     </div>
@@ -145,20 +188,14 @@ function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
 
             {items.length > 1 && (
                 <>
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); navigate(-1); }} 
-                        style={{ position: 'absolute', left: '2rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '50%', width: '64px', height: '64px', fontSize: '2.5rem', cursor: 'pointer', backdropFilter: 'blur(10px)', zIndex: 100, transition: 'all 0.2s' }}
+                    <button onClick={(e) => { e.stopPropagation(); navigate(-1); }} style={{ position: 'absolute', left: '2rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '50%', width: '64px', height: '64px', fontSize: '2.5rem', cursor: 'pointer', backdropFilter: 'blur(10px)', zIndex: 100, transition: 'all 0.2s' }}
                         onMouseOver={e => e.target.style.background = 'rgba(255,255,255,0.2)'}
-                        onMouseOut={e => e.target.style.background = 'rgba(255,255,255,0.1)'}
-                    >
+                        onMouseOut={e => e.target.style.background = 'rgba(255,255,255,0.1)'}>
                         ‹
                     </button>
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); navigate(1); }} 
-                        style={{ position: 'absolute', right: '2rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '50%', width: '64px', height: '64px', fontSize: '2.5rem', cursor: 'pointer', backdropFilter: 'blur(10px)', zIndex: 100, transition: 'all 0.2s' }}
+                    <button onClick={(e) => { e.stopPropagation(); navigate(1); }} style={{ position: 'absolute', right: '2rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '50%', width: '64px', height: '64px', fontSize: '2.5rem', cursor: 'pointer', backdropFilter: 'blur(10px)', zIndex: 100, transition: 'all 0.2s' }}
                         onMouseOver={e => e.target.style.background = 'rgba(255,255,255,0.2)'}
-                        onMouseOut={e => e.target.style.background = 'rgba(255,255,255,0.1)'}
-                    >
+                        onMouseOut={e => e.target.style.background = 'rgba(255,255,255,0.1)'}>
                         ›
                     </button>
                 </>
@@ -168,166 +205,291 @@ function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
     );
 }
 
-// ─── MediaGrid ───────────────────────────────────────────────
-function MediaGrid({ items, likedIds, onLike, onOpen }) {
+// ─── Lazy Image Card ──────────────────────────────────────────
+function VaultCard({ file, isLiked, onLike, onOpen }) {
+    const [thumbUrl, setThumbUrl] = useState(() => getCachedUrl(file.r2_key));
+    const [imgLoaded, setImgLoaded] = useState(false);
+    const cardRef = useRef(null);
+    const retryRef = useRef(null);
+
+    useEffect(() => {
+        // Already in cache — done
+        const cached = getCachedUrl(file.r2_key);
+        if (cached) { setThumbUrl(cached); return; }
+
+        // Wait for the batch-prefetch to populate the cache (up to 3s),
+        // then fall back to an individual request only if still missing.
+        let attempts = 0;
+        const MAX_ATTEMPTS = 12; // 12 × 250ms = 3s
+        retryRef.current = setInterval(() => {
+            const url = getCachedUrl(file.r2_key);
+            if (url) {
+                clearInterval(retryRef.current);
+                setThumbUrl(url);
+                return;
+            }
+            attempts++;
+            if (attempts >= MAX_ATTEMPTS) {
+                clearInterval(retryRef.current);
+                // Batch didn't cover this key — fetch individually as last resort
+                getR2PresignedGet(file.r2_key)
+                    .then(({ url: u }) => { setCachedUrl(file.r2_key, u); setThumbUrl(u); })
+                    .catch(console.error);
+            }
+        }, 250);
+
+        return () => clearInterval(retryRef.current);
+    }, [file.r2_key]);
+
+    const fileType = classifyMime(file.mime_type);
+
     return (
-        <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(5, 1fr)', // Force exactly 5 columns
-            gap: '16px',
-            width: '100%',
-            overflowX: 'hidden', 
-            boxSizing: 'border-box',
-            paddingBottom: '40px'
-        }} className="vault-ultimate-grid">
-            <style>{`
-                @media (max-width: 767px) { .vault-ultimate-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; width: 100% !important; } }
-                @media (min-width: 768px) and (max-width: 1023px) { .vault-ultimate-grid { grid-template-columns: repeat(3, 1fr) !important; width: 90% !important; } }
-                .vault-card {
-                    position: relative;
-                    aspect-ratio: 1/1;
-                    border-radius: 24px;
-                    overflow: hidden;
-                    cursor: pointer;
-                    background: rgba(255,255,255,0.03);
-                    border: 1px solid rgba(255,255,255,0.1);
-                    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-                }
-                .vault-card:hover {
-                    transform: translateY(-12px) scale(1.03);
-                    border-color: rgba(167,139,250,0.6);
-                    box-shadow: 0 30px 60px rgba(0,0,0,0.8), 0 0 20px rgba(167,139,250,0.2);
-                }
-                .vault-thumb {
-                    width: 100%; height: 100%;
-                    object-fit: cover;
-                    object-position: center;
-                    display: block;
-                    transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
-                }
-                .vault-card:hover .vault-thumb { transform: scale(1.15); }
-                .card-overlay {
-                    position: absolute; inset: 0;
-                    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent 70%);
-                    opacity: 0.95;
-                }
-            `}</style>
-            {items.map((photo, index) => (
-                <div key={photo.id || index} onClick={() => onOpen(index)} className="vault-card">
-                    <img className="vault-thumb" src={photo.src} loading="lazy" referrerPolicy="no-referrer" alt="" />
-                    <div className="card-overlay" />
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); onLike(photo); }}
-                        style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)', transition: 'all 0.2s', zIndex: 5 }}
-                    >
-                        {likedIds.has(photo.id) ? '❤️' : '🤍'}
-                    </button>
-                    {photo.type && photo.type !== 'image' && (
-                        <div style={{ position: 'absolute', top: '12px', left: '12px', background: 'rgba(167,139,250,0.2)', padding: '4px 10px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 800, color: 'white', backdropFilter: 'blur(8px)', border: '1px solid rgba(167,139,250,0.3)', zIndex: 5 }}>
-                            {photo.type.toUpperCase()}
-                        </div>
+        <div ref={cardRef} onClick={() => onOpen()} className="vault-card">
+            {/* Shimmer placeholder — always present, hidden after image loads */}
+            {!imgLoaded && (
+                <div className="vault-shimmer">
+                    {!thumbUrl && (
+                        <span style={{ fontSize: '2rem', opacity: 0.25 }}>
+                            {fileType === 'video' ? '🎬' : fileType === 'audio' ? '🎵' : fileType === 'pdf' ? '📄' : fileType === 'text' ? '📝' : '🖼️'}
+                        </span>
                     )}
                 </div>
+            )}
+            {thumbUrl && fileType === 'image' && (
+                <img
+                    className={`vault-thumb ${imgLoaded ? 'vault-thumb--loaded' : ''}`}
+                    src={thumbUrl}
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    alt=""
+                    onLoad={() => setImgLoaded(true)}
+                />
+            )}
+            <div className="card-overlay" />
+            <button
+                onClick={(e) => { e.stopPropagation(); onLike(file); }}
+                style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)', transition: 'all 0.2s', zIndex: 5 }}
+            >
+                {isLiked ? '❤️' : '🤍'}
+            </button>
+            {fileType !== 'image' && (
+                <div style={{ position: 'absolute', top: '12px', left: '12px', background: 'rgba(167,139,250,0.2)', padding: '4px 10px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 800, color: 'white', backdropFilter: 'blur(8px)', border: '1px solid rgba(167,139,250,0.3)', zIndex: 5 }}>
+                    {fileType.toUpperCase()}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ─── Media Grid ───────────────────────────────────────────────
+function MediaGrid({ items, likedIds, onLike, onOpen }) {
+    return (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px', width: '100%', overflowX: 'hidden', boxSizing: 'border-box', paddingBottom: '40px' }} className="vault-ultimate-grid">
+            <style>{`
+                @media (max-width: 767px) { .vault-ultimate-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; } }
+                @media (min-width: 768px) and (max-width: 1023px) { .vault-ultimate-grid { grid-template-columns: repeat(3, 1fr) !important; } }
+                .vault-card {
+                    position: relative; aspect-ratio: 1/1; border-radius: 24px; overflow: hidden;
+                    cursor: pointer; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
+                    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s, box-shadow 0.4s;
+                    will-change: transform;
+                    contain: layout style paint;
+                }
+                .vault-card:hover { transform: translateY(-8px) scale(1.02); border-color: rgba(167,139,250,0.6); box-shadow: 0 20px 40px rgba(0,0,0,0.6), 0 0 15px rgba(167,139,250,0.15); }
+                .vault-thumb {
+                    position: absolute; inset: 0;
+                    width: 100%; height: 100%;
+                    object-fit: cover; object-position: center; display: block;
+                    opacity: 0; transition: opacity 0.35s ease, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+                }
+                .vault-thumb--loaded { opacity: 1; }
+                .vault-card:hover .vault-thumb { transform: scale(1.08); }
+                .vault-shimmer {
+                    position: absolute; inset: 0;
+                    background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 75%);
+                    background-size: 200% 100%;
+                    animation: vault-shimmer 1.6s infinite;
+                    display: flex; align-items: center; justify-content: center;
+                }
+                @keyframes vault-shimmer {
+                    0% { background-position: 200% 0; }
+                    100% { background-position: -200% 0; }
+                }
+                .card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent 70%); opacity: 0.95; pointer-events: none; }
+            `}</style>
+            {items.map((file, idx) => (
+                <VaultCard key={file.id || idx} file={file} isLiked={likedIds.has(file.id)} onLike={onLike} onOpen={() => onOpen(idx)} />
             ))}
         </div>
     );
 }
 
-// ─── Main Component ──────────────────────────────────────────
-export default function GooglePhotos({ activeTab, folders, onTabChange }) {
+// ─── Upload Queue UI ──────────────────────────────────────────
+function UploadQueue({ collectionId, onDone }) {
+    const [files, setFiles] = useState([]);
+    const [progress, setProgress] = useState({});
+    const [running, setRunning] = useState(false);
+    const inputRef = useRef(null);
+    const CONCURRENCY = 4;
+
+    const addFiles = (incoming) => {
+        setFiles(prev => [...prev, ...Array.from(incoming)]);
+    };
+
+    const startUpload = async () => {
+        if (!files.length || running) return;
+        setRunning(true);
+        const queue = [...files];
+        const results = [];
+
+        const uploadOne = async (file) => {
+            try {
+                await uploadFileToR2(file, collectionId, (pct) => {
+                    setProgress(p => ({ ...p, [file.name]: pct }));
+                });
+                results.push({ name: file.name, ok: true });
+            } catch (err) {
+                console.error('Upload failed:', file.name, err);
+                setProgress(p => ({ ...p, [file.name]: -1 }));
+            }
+        };
+
+        // Run in batches of CONCURRENCY
+        for (let i = 0; i < queue.length; i += CONCURRENCY) {
+            const batch = queue.slice(i, i + CONCURRENCY);
+            await Promise.all(batch.map(uploadOne));
+        }
+        setRunning(false);
+        setFiles([]);
+        setProgress({});
+        onDone();
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        if (e.dataTransfer.files) addFiles(e.dataTransfer.files);
+    };
+
+    return (
+        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '1.5rem', marginBottom: '2rem' }}>
+            <div
+                onDrop={handleDrop}
+                onDragOver={e => e.preventDefault()}
+                onClick={() => inputRef.current?.click()}
+                style={{ border: '2px dashed rgba(167,139,250,0.3)', borderRadius: '16px', padding: '2rem', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s' }}
+            >
+                <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📁</div>
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: '0.85rem', margin: 0 }}>
+                    Drag & drop files here, or click to browse
+                </p>
+                <input ref={inputRef} type="file" multiple style={{ display: 'none' }} onChange={e => addFiles(e.target.files)} />
+            </div>
+
+            {files.length > 0 && (
+                <div style={{ marginTop: '1rem' }}>
+                    {files.map(f => (
+                        <div key={f.name} style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '8px' }}>
+                            <span style={{ flex: 1, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.7)' }}>{f.name}</span>
+                            <div style={{ width: '120px', height: '4px', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+                                <div style={{
+                                    height: '100%', borderRadius: '4px', transition: 'width 0.3s',
+                                    width: `${progress[f.name] || 0}%`,
+                                    background: progress[f.name] === -1 ? '#ef4444' : progress[f.name] === 100 ? '#34d399' : '#a78bfa'
+                                }} />
+                            </div>
+                            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', width: '35px', textAlign: 'right' }}>
+                                {progress[f.name] === -1 ? '✗' : progress[f.name] === 100 ? '✓' : progress[f.name] ? `${progress[f.name]}%` : '—'}
+                            </span>
+                        </div>
+                    ))}
+                    <button
+                        onClick={startUpload}
+                        disabled={running}
+                        style={{ marginTop: '0.75rem', width: '100%', padding: '0.75rem', borderRadius: '12px', background: running ? 'rgba(167,139,250,0.2)' : 'linear-gradient(135deg, #a78bfa, #7c3aed)', border: 'none', color: 'white', fontWeight: 800, fontSize: '0.85rem', cursor: running ? 'not-allowed' : 'pointer' }}
+                    >
+                        {running ? `UPLOADING... (${Object.values(progress).filter(p => p === 100).length}/${files.length})` : `UPLOAD ${files.length} FILE${files.length > 1 ? 'S' : ''}`}
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ─── Main Component ───────────────────────────────────────────
+export default function GooglePhotos({ activeTab, collections, onTabChange }) {
     const [liked, setLiked] = useState([]);
-    const [folderCache, setFolderCache] = useState({});
+    const [collectionCache, setCollectionCache] = useState({}); // colId → { files, page, total, hasMore }
     const [loading, setLoading] = useState(false);
     const [initLoading, setInitLoading] = useState(true);
     const [lightboxIndex, setLightboxIndex] = useState(-1);
     const [lightboxItems, setLightboxItems] = useState([]);
     const [likePending, setLikePending] = useState(new Set());
+    const [syncing, setSyncing] = useState(false);
+    const [syncMsg, setSyncMsg] = useState('');
+    const [showUpload, setShowUpload] = useState(false);
+    const [showScanner, setShowScanner] = useState(false);
+    const [scannedGroups, setScannedGroups] = useState(null);
 
-    // Always rebuild Drive thumbnail URLs from the file ID to avoid 403 expired signed URLs
-    const buildSrcFromId = (id) => ({
-        src: `https://lh3.googleusercontent.com/u/0/d/${id}=s800`,
-        largeSrc: `https://lh3.googleusercontent.com/u/0/d/${id}=s1600`,
-    });
-
+    // Load liked items on mount + batch-prefetch their presigned URLs
     useEffect(() => {
-        getLikedImages()
-            .then(res => {
-                const items = Array.isArray(res) ? res : (res.data?.liked || res.liked || []);
-                setLiked(items.map(it => {
-                    const finalId = it.id || it.ID;
-                    // Always regenerate from ID — stored Drive URLs expire and return 403
-                    const { src, largeSrc } = buildSrcFromId(finalId);
-                    return {
-                        id: finalId,
-                        title: it.title || it.Title || 'Untitled Asset',
-                        src,
-                        largeSrc,
-                        type: it.type || it.Type || 'image'
-                    };
-                }));
+        getLikedVaultFiles()
+            .then(items => {
+                const arr = Array.isArray(items) ? items : [];
+                setLiked(arr);
+                // Batch-prefetch presigned URLs for liked tab (20 at a time)
+                const keys = arr.map(f => f.r2_key).filter(k => k && !getCachedUrl(k));
+                for (let i = 0; i < keys.length; i += 20) {
+                    const batch = keys.slice(i, i + 20);
+                    getR2PresignedBatch(batch)
+                        .then(({ urls }) => { Object.entries(urls).forEach(([k, url]) => setCachedUrl(k, url)); })
+                        .catch(console.error);
+                }
             })
-            .catch(err => console.error("Vault retrieval error:", err))
+            .catch(err => console.error('Vault liked fetch error:', err))
             .finally(() => setInitLoading(false));
     }, []);
 
+    // Load collection when active tab changes
     useEffect(() => {
         if (!activeTab || activeTab === 'liked') return;
-        const folder = folders?.find(f => String(f.id) === String(activeTab));
-        if (folder) fetchFolder(folder);
-    }, [activeTab, folders]);
+        const col = collections?.find(c => String(c.id) === String(activeTab));
+        if (col && !collectionCache[col.id]) {
+            fetchCollectionPage(col.id, 1);
+        }
+        // Reset scanner states on tab change
+        setShowScanner(false);
+        setScannedGroups(null);
+    }, [activeTab, collections]);
 
-    const fetchFolder = async (folder, isLoadMore = false, forceResync = false) => {
-        const fid = folder.folder_id || folder.folderId;
-        
-        // In-memory load more
-        if (isLoadMore) {
-            setFolderCache(c => {
-                const currentData = c[fid];
-                if (!currentData) return c;
-                const currentCount = currentData.displayedItems.length;
-                const nextBatch = currentData.allItems.slice(currentCount, currentCount + 50);
+    const fetchCollectionPage = async (collectionId, page) => {
+        setLoading(true);
+        try {
+            const res = await getVaultFiles(collectionId, page, 50);
+            const newFiles = res.files || [];
+
+            // Batch-prefetch thumbnail presigned URLs (20 at a time)
+            const keys = newFiles.map(f => f.r2_key).filter(k => !getCachedUrl(k));
+            for (let i = 0; i < keys.length; i += 20) {
+                const batch = keys.slice(i, i + 20);
+                getR2PresignedBatch(batch)
+                    .then(({ urls }) => { Object.entries(urls).forEach(([k, url]) => setCachedUrl(k, url)); })
+                    .catch(console.error);
+            }
+
+            setCollectionCache(prev => {
+                const existing = prev[collectionId];
                 return {
-                    ...c,
-                    [fid]: {
-                        ...currentData,
-                        displayedItems: [...currentData.displayedItems, ...nextBatch]
+                    ...prev,
+                    [collectionId]: {
+                        files: page === 1 ? newFiles : [...(existing?.files || []), ...newFiles],
+                        page,
+                        total: res.total,
+                        hasMore: res.hasMore
                     }
                 };
             });
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const res = await getVaultMedia(fid, forceResync);
-            if (res && res.success && res.index) {
-                const index = res.index;
-                const totalCount = index.ids ? index.ids.length : 0;
-                
-                // Shuffle indices
-                const indices = Array.from({ length: totalCount }, (_, i) => i);
-                const shuffledIndices = indices.sort(() => Math.random() - 0.5);
-                
-                // Build items
-                const allItems = shuffledIndices.map(i => {
-                    const id = index.ids[i];
-                    const { src, largeSrc } = buildSrcFromId(id);
-                    return {
-                        id,
-                        src,
-                        largeSrc,
-                        title: index.names ? index.names[i] : 'Untitled',
-                        type: index.mimeTypes ? classifyMime(index.mimeTypes[i]) : 'image'
-                    };
-                });
-
-                setFolderCache(c => ({
-                    ...c,
-                    [fid]: { allItems, displayedItems: allItems.slice(0, 50), totalCount }
-                }));
-            }
         } catch (err) {
-            console.error("Index sync failed:", err);
+            console.error('fetchCollectionPage error:', err);
         } finally {
             setLoading(false);
         }
@@ -335,37 +497,55 @@ export default function GooglePhotos({ activeTab, folders, onTabChange }) {
 
     const likedIds = new Set(liked.map(l => l.id));
 
-    const handleLike = async (photo) => {
-        if (likePending.has(photo.id)) return;
-        setLikePending(p => new Set(p).add(photo.id));
-        const isLiked = likedIds.has(photo.id);
-        setLiked(prev => isLiked ? prev.filter(l => l.id !== photo.id) : [...prev, { ...photo }]);
+    const handleLike = async (file) => {
+        if (likePending.has(file.id)) return;
+        setLikePending(p => new Set(p).add(file.id));
+        const isLiked = likedIds.has(file.id);
+        setLiked(prev => isLiked ? prev.filter(l => l.id !== file.id) : [...prev, { ...file }]);
         try {
-            await toggleLikedImage({ id: photo.id, title: photo.title, thumbnailLink: photo.src, largeSrc: photo.largeSrc, type: photo.type, liked: !isLiked });
+            await toggleLikedVaultFile(file.id, !isLiked);
         } catch {
-            setLiked(prev => isLiked ? [...prev, { ...photo }] : prev.filter(l => l.id !== photo.id));
+            setLiked(prev => isLiked ? [...prev, { ...file }] : prev.filter(l => l.id !== file.id));
         } finally {
-            setLikePending(p => { const n = new Set(p); n.delete(photo.id); return n; });
+            setLikePending(p => { const n = new Set(p); n.delete(file.id); return n; });
+        }
+    };
+
+    const handleSync = async (collectionId) => {
+        setSyncing(true);
+        setSyncMsg('Scanning R2...');
+        try {
+            const result = await syncVaultCollection(collectionId);
+            setSyncMsg(`✅ +${result.added} new files (${result.skipped} already indexed)`);
+            // Refresh the collection
+            await fetchCollectionPage(collectionId, 1);
+            setTimeout(() => setSyncMsg(''), 4000);
+        } catch (err) {
+            setSyncMsg(`❌ Sync failed: ${err.message}`);
+            setTimeout(() => setSyncMsg(''), 5000);
+        } finally {
+            setSyncing(false);
         }
     };
 
     if (initLoading) return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '1.5rem', opacity: 0.5 }}>
             <div style={{ width: '40px', height: '40px', border: '3px solid rgba(167,139,250,0.1)', borderTop: '3px solid #a78bfa', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <p style={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.1em' }}>INITIALIZING_VAULT_DECRYPTOR</p>
+            <p style={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.1em' }}>INITIALIZING_VAULT_CORE</p>
         </div>
     );
 
+    // ─── LIKED TAB ───────────────────────────────────────────
     if (activeTab === 'liked') {
         return (
             <div style={{ animation: 'vault-fade-in 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                    <p style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 700, margin: 0 }}>{liked.length} SECURE ITEMS RETRIEVED</p>
+                    <p style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 700, margin: 0 }}>{liked.length} SAVED ITEMS</p>
                 </div>
                 {liked.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '5rem', background: 'rgba(255,255,255,0.02)', borderRadius: '30px', border: '1px dashed rgba(255,255,255,0.1)' }}>
                         <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🤍</div>
-                        <p style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 700 }}>NO ENCRYPTED LIKES FOUND</p>
+                        <p style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 700 }}>NO LIKED ITEMS YET</p>
                     </div>
                 ) : (
                     <MediaGrid items={liked} likedIds={likedIds} onLike={handleLike} onOpen={(i) => { setLightboxItems(liked); setLightboxIndex(i); }} />
@@ -375,49 +555,88 @@ export default function GooglePhotos({ activeTab, folders, onTabChange }) {
         );
     }
 
-    const folder = folders?.find(f => String(f.id) === String(activeTab));
-    if (!folder) return <div style={{ color: 'rgba(255,255,255,0.2)', padding: '2rem' }}>INITIALIZING_STREAM...</div>;
-    const fid = folder.folder_id || folder.folderId;
-    const folderData = folderCache[fid] || { displayedItems: [], allItems: [] };
-    const items = folderData.displayedItems;
-    const hasMore = folderData.allItems.length > items.length;
+    // ─── COLLECTION TAB ───────────────────────────────────────
+    const col = collections?.find(c => String(c.id) === String(activeTab));
+    if (!col) return <div style={{ color: 'rgba(255,255,255,0.2)', padding: '2rem' }}>INITIALIZING_STREAM...</div>;
+
+    const colData = collectionCache[col.id] || { files: [], hasMore: false, total: 0 };
+    const items = colData.files;
 
     return (
         <div style={{ animation: 'vault-fade-in 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <p style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 700, margin: 0 }}>{items.length} SHUFFLED ASSETS · {folder.name.toUpperCase()}</p>
-                    {loading && <span style={{ fontSize: '0.65rem', color: '#a78bfa', fontWeight: 800, letterSpacing: '0.1em', animation: 'pulse 1.5s infinite' }}>[ SYNCING_DEEP_INDEX ]</span>}
+                    <p style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 700, margin: 0 }}>
+                        {items.length}{colData.total > items.length ? ` / ${colData.total}` : ''} FILES · {col.name.toUpperCase()}
+                    </p>
+                    {syncing && <span style={{ fontSize: '0.65rem', color: '#a78bfa', fontWeight: 800, letterSpacing: '0.1em', animation: 'pulse 1.5s infinite' }}>[ SYNCING_R2 ]</span>}
+                    {syncMsg && <span style={{ fontSize: '0.75rem', color: syncMsg.startsWith('✅') ? '#34d399' : '#f87171', fontWeight: 700 }}>{syncMsg}</span>}
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                    <button 
-                        onClick={() => fetchFolder(folder, false, true)} 
-                        style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)', color: '#34d399', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                        SYNC_DRIVE
-                    </button>
-                    <button 
-                        onClick={() => { 
-                            setFolderCache(c => {
-                                const currentData = c[fid];
-                                if (!currentData) return c;
-                                const shuffled = [...currentData.allItems].sort(() => Math.random() - 0.5);
-                                return {
-                                    ...c,
-                                    [fid]: {
-                                        ...currentData,
-                                        allItems: shuffled,
-                                        displayedItems: shuffled.slice(0, 50)
-                                    }
-                                };
-                            });
-                        }} 
+                    <button
+                        onClick={() => setShowUpload(v => !v)}
                         style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.2)', color: '#a78bfa', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
                     >
-                        RESHUFFLE_STREAM
+                        {showUpload ? 'CLOSE_UPLOAD' : '↑ UPLOAD'}
+                    </button>
+                    <button
+                        onClick={() => handleSync(col.id)}
+                        disabled={syncing}
+                        style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)', color: '#34d399', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: syncing ? 'not-allowed' : 'pointer' }}
+                    >
+                        SYNC_R2
+                    </button>
+                    <button
+                        onClick={() => { setShowScanner(v => !v); setScannedGroups(null); }}
+                        style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.2)', color: '#38bdf8', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                        {showScanner || scannedGroups ? 'CLOSE SCANNER' : 'SCAN FACES'}
+                    </button>
+                    <button
+                        onClick={() => {
+                            setCollectionCache(prev => {
+                                const current = prev[col.id];
+                                if (!current) return prev;
+                                const shuffled = [...current.files].sort(() => Math.random() - 0.5);
+                                return { ...prev, [col.id]: { ...current, files: shuffled } };
+                            });
+                        }}
+                        style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.2)', color: '#a78bfa', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                        RESHUFFLE
                     </button>
                 </div>
             </div>
+
+            {showUpload && (
+                <UploadQueue
+                    collectionId={col.id}
+                    onDone={() => { setShowUpload(false); fetchCollectionPage(col.id, 1); }}
+                />
+            )}
+
+            {showScanner && !scannedGroups && (
+                <div style={{ marginBottom: '2rem' }}>
+                    <FaceScanner 
+                        collectionId={col.id} 
+                        images={items} 
+                        onComplete={(res) => setScannedGroups(res)} 
+                        onCancel={() => setShowScanner(false)} 
+                    />
+                </div>
+            )}
+            
+            {scannedGroups && (
+                <div style={{ marginBottom: '2rem' }}>
+                    <FaceGroupsView 
+                        collectionId={col.id}
+                        groups={scannedGroups} 
+                        onSave={() => { setScannedGroups(null); setShowScanner(false); }}
+                        onBack={() => setScannedGroups(null)}
+                    />
+                </div>
+            )}
+
             {loading && items.length === 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
                     {[...Array(15)].map((_, i) => <SkeletonCard key={i} />)}
@@ -425,26 +644,23 @@ export default function GooglePhotos({ activeTab, folders, onTabChange }) {
             ) : (
                 <>
                     <MediaGrid items={items} likedIds={likedIds} onLike={handleLike} onOpen={(i) => { setLightboxItems(items); setLightboxIndex(i); }} />
-                    
-                    {hasMore && (
+
+                    {colData.hasMore && (
                         <div style={{ display: 'flex', justifyContent: 'center', marginTop: '4rem', paddingBottom: '4rem' }}>
-                            <button 
-                                onClick={() => fetchFolder(folder, true)}
-                                style={{ 
-                                    background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.2)', 
-                                    color: '#a78bfa', padding: '1.2rem 3rem', borderRadius: '20px', 
-                                    fontSize: '0.9rem', fontWeight: 800, cursor: 'pointer',
-                                    transition: 'all 0.3s', letterSpacing: '0.1em'
-                                }}
+                            <button
+                                onClick={() => fetchCollectionPage(col.id, colData.page + 1)}
+                                disabled={loading}
+                                style={{ background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.2)', color: '#a78bfa', padding: '1.2rem 3rem', borderRadius: '20px', fontSize: '0.9rem', fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.3s', letterSpacing: '0.1em' }}
                                 onMouseOver={e => { e.target.style.background = 'rgba(167,139,250,0.15)'; e.target.style.borderColor = '#a78bfa'; }}
                                 onMouseOut={e => { e.target.style.background = 'rgba(167,139,250,0.05)'; e.target.style.borderColor = 'rgba(167,139,250,0.2)'; }}
                             >
-                                LOAD_MORE_ASSETS
+                                {loading ? 'LOADING...' : `LOAD MORE (${colData.total - items.length} remaining)`}
                             </button>
                         </div>
                     )}
                 </>
             )}
+
             <VaultLightbox items={lightboxItems} index={lightboxIndex} onClose={() => setLightboxIndex(-1)} likedIds={likedIds} onLike={handleLike} />
         </div>
     );

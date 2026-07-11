@@ -71,8 +71,17 @@ CREATE TABLE habit_logs (
 );
 
 CREATE TABLE media (
-  "media_id" TEXT PRIMARY KEY, "media_type" TEXT, "mime_type" TEXT, "filename" TEXT, "display_name" TEXT, "drive_file_id" TEXT, "drive_link" TEXT, "thumbnail_link" TEXT, "file_extension" TEXT, "file_size_kb" TEXT, "duration_seconds" TEXT, "date_uploaded" TEXT, "time_uploaded" TEXT, "uploaded_from" TEXT, "source_id" TEXT, "referenced_in" TEXT, "tags" TEXT, "notes" TEXT, "is_orphan" TEXT, "drive_folder" TEXT, "status" TEXT
+  "media_id" TEXT PRIMARY KEY, "media_type" TEXT, "mime_type" TEXT, "filename" TEXT, "display_name" TEXT, "drive_file_id" TEXT, "drive_link" TEXT, "thumbnail_link" TEXT, "file_extension" TEXT, "file_size_kb" TEXT, "duration_seconds" TEXT, "date_uploaded" TEXT, "time_uploaded" TEXT, "uploaded_from" TEXT, "source_id" TEXT, "referenced_in" TEXT, "tags" TEXT, "notes" TEXT, "is_orphan" TEXT, "drive_folder" TEXT, "status" TEXT,
+  -- R2 storage columns (added for Media Library → R2 migration)
+  "storage_path" TEXT,       -- legacy: Supabase Storage bucket path
+  "r2_key" TEXT,             -- new: R2 object key (e.g. media-library/general/1720600000-photo.jpg)
+  "r2_public_url" TEXT       -- new: full public R2 URL (set when bucket has public access enabled)
 );
+
+-- Run this once in Supabase SQL Editor if the table already exists:
+-- ALTER TABLE media ADD COLUMN IF NOT EXISTS storage_path TEXT;
+-- ALTER TABLE media ADD COLUMN IF NOT EXISTS r2_key TEXT;
+-- ALTER TABLE media ADD COLUMN IF NOT EXISTS r2_public_url TEXT;
 
 DROP TABLE IF EXISTS config CASCADE;
 CREATE TABLE config (
@@ -252,3 +261,104 @@ END $$;
 INSERT INTO config (config_id, content) 
 VALUES ('MAIN_CONFIG', '{"app_name": "LunaOs", "version": "1.0.0"}'::jsonb)
 ON CONFLICT (config_id) DO NOTHING;
+
+-- ═══════════════════════════════════════════════════════════════════
+-- VAULT R2 OVERHAUL — New Tables (2024)
+-- Old tables (vault_folders, vault_index, vault_liked, vault_faces,
+-- app_passwords) are preserved below as a migration safety net.
+-- Drop them manually after confirming the new system works.
+-- ═══════════════════════════════════════════════════════════════════
+
+-- Collections: replaces vault_folders' Drive-folder-linking role
+CREATE TABLE IF NOT EXISTS vault_collections (
+  id          TEXT PRIMARY KEY DEFAULT 'COL-' || substr(md5(random()::text), 1, 8),
+  name        TEXT NOT NULL,
+  type        TEXT NOT NULL DEFAULT 'gallery',  -- gallery | documents | code
+  key_prefix  TEXT NOT NULL,                    -- R2 prefix, e.g. "gallery-personal/"
+  file_count  INT DEFAULT 0,
+  size_bytes  BIGINT DEFAULT 0,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Files: replaces vault_index (one row per R2 object)
+CREATE TABLE IF NOT EXISTS vault_files (
+  id             TEXT PRIMARY KEY DEFAULT 'FILE-' || substr(md5(random()::text), 1, 12),
+  collection_id  TEXT NOT NULL REFERENCES vault_collections(id) ON DELETE CASCADE,
+  r2_key         TEXT NOT NULL UNIQUE,
+  filename       TEXT NOT NULL,
+  size_bytes     BIGINT DEFAULT 0,
+  mime_type      TEXT,
+  thumbnail_key  TEXT,       -- optional: separate lower-res version in R2
+  uploaded_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Liked Files: replaces vault_liked (heart icon toggles this)
+CREATE TABLE IF NOT EXISTS vault_liked_files (
+  id        TEXT PRIMARY KEY DEFAULT 'LIKE-' || substr(md5(random()::text), 1, 10),
+  file_id   TEXT NOT NULL REFERENCES vault_files(id) ON DELETE CASCADE,
+  liked_at  TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(file_id)
+);
+
+-- Face Groups: replaces FaceGroupsJSON blob column in vault_folders
+CREATE TABLE IF NOT EXISTS vault_face_groups (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  collection_id       TEXT NOT NULL REFERENCES vault_collections(id) ON DELETE CASCADE,
+  person_name         TEXT,
+  cover_file_id       TEXT REFERENCES vault_files(id) ON DELETE SET NULL,
+  member_file_ids     TEXT[],     -- array of vault_files.id
+  descriptor_centroid FLOAT8[],  -- 128-dim centroid for future matching
+  created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Salted App Passwords v2: replaces app_passwords (adds per-record salt)
+CREATE TABLE IF NOT EXISTS app_passwords_v2 (
+  id          TEXT PRIMARY KEY,
+  label       TEXT,
+  salt        TEXT NOT NULL,
+  hash        TEXT NOT NULL,  -- SHA256(salt + password)
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Vault index (for R2 sync delta tracking)
+CREATE TABLE IF NOT EXISTS vault_sync_log (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  collection_id  TEXT NOT NULL REFERENCES vault_collections(id) ON DELETE CASCADE,
+  last_synced_at TIMESTAMPTZ DEFAULT NOW(),
+  files_added    INT DEFAULT 0,
+  UNIQUE(collection_id)
+);
+
+-- Apply RLS to all new tables
+ALTER TABLE vault_collections    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vault_files          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vault_liked_files    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vault_face_groups    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_passwords_v2     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vault_sync_log       ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Auth Only" ON vault_collections;
+DROP POLICY IF EXISTS "Auth Only" ON vault_files;
+DROP POLICY IF EXISTS "Auth Only" ON vault_liked_files;
+DROP POLICY IF EXISTS "Auth Only" ON vault_face_groups;
+DROP POLICY IF EXISTS "Auth Only" ON app_passwords_v2;
+DROP POLICY IF EXISTS "Auth Only" ON vault_sync_log;
+
+CREATE POLICY "Auth Only" ON vault_collections    FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth Only" ON vault_files          FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth Only" ON vault_liked_files    FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth Only" ON vault_face_groups    FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth Only" ON app_passwords_v2     FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth Only" ON vault_sync_log       FOR ALL USING (auth.role() = 'authenticated');
+
+
+-- 5. Helper Functions (RPC)
+CREATE OR REPLACE FUNCTION increment_collection_stats(p_collection_id TEXT, p_file_delta INT, p_size_delta BIGINT)
+RETURNS void AS $$
+BEGIN
+  UPDATE vault_collections
+  SET file_count = COALESCE(file_count, 0) + p_file_delta,
+      size_bytes = COALESCE(size_bytes, 0) + p_size_delta
+  WHERE id = p_collection_id;
+END;
+$$ LANGUAGE plpgsql;

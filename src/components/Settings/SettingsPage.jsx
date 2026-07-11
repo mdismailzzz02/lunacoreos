@@ -49,7 +49,7 @@ export default function SettingsPage() {
         try {
             await supabase.from('guest_codes').update({ used: true }).eq('used', false);
             const newCodes = Array(5).fill(0).map(() => ({
-                code: 'guest_' + Math.random().toString(36).substring(2, 7),
+                code: 'guest' + Math.floor(100 + Math.random() * 900).toString(),
                 used: false
             }));
             const { data, error } = await supabase.from('guest_codes').insert(newCodes).select();

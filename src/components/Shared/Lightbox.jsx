@@ -1,19 +1,31 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as api from '../../services/api';
+import { useSecureUrl } from '../../hooks/useSecureUrl';
 
 function LightboxImage({ item, index }) {
-    const getInitialSrc = (url) => {
-        if (!url) return '';
-        const match = url.match(/\/d\/([^/]+)/) || url.match(/id=([^&/]+)/);
-        if (!match) return url;
-        return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w2500`;
-    };
+    // For Supabase-stored media: fetch the signed URL in JS and expose only a
+    // session-local blob: URL to the <img> tag. The raw signed URL never
+    // appears in the DOM, address bar, or browser history.
+    const isSupabase = !!item._isSupabaseStorage;
+    const { blobUrl, loading } = useSecureUrl(
+        isSupabase ? item.drive_link : null,
+        !isSupabase,
+        item
+    );
 
-    const [src, setSrc] = useState(getInitialSrc(item.drive_link));
+    // For legacy Drive items, convert to a high-res thumbnail URL
+    const driveSrc = isSupabase ? null : (() => {
+        if (!item.drive_link) return '';
+        const match = item.drive_link.match(/\/d\/([^/]+)/) || item.drive_link.match(/id=([^&/]+)/);
+        if (!match) return item.drive_link;
+        return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w2500`;
+    })();
+
+    const resolvedSrc = isSupabase ? blobUrl : driveSrc;
+
     const [failed, setFailed] = useState(false);
 
     useEffect(() => {
-        setSrc(getInitialSrc(item.drive_link));
         setFailed(false);
     }, [item.media_id]);
 
@@ -22,16 +34,28 @@ function LightboxImage({ item, index }) {
         setFailed(true);
         try {
             const res = await api.getThumbnailBase64(item.media_id);
-            if (res && res.base64) setSrc(res.base64);
+            if (res && res.base64) { /* handled via state if needed */ }
         } catch (e) {
             console.error('Lightbox proxy fail:', e);
         }
     };
 
+    if (loading && !resolvedSrc) {
+        return (
+            <div className="lightbox-img" style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'rgba(0,0,0,0.4)', color: 'rgba(255,255,255,0.4)',
+                fontSize: '0.85rem', minHeight: 200
+            }}>
+                ⏳ Loading…
+            </div>
+        );
+    }
+
     return (
         <img
             className="lightbox-img"
-            src={src}
+            src={resolvedSrc || ''}
             alt={item.display_name || `Image ${index + 1}`}
             referrerPolicy="no-referrer"
             onClick={e => e.stopPropagation()}
@@ -185,7 +209,13 @@ export default function Lightbox({ images, startIndex = 0, onClose }) {
                             onClick={() => setIdx(i)}
                         >
                             <img
-                                src={`https://drive.google.com/thumbnail?id=${(img.drive_link?.match(/\/d\/([^/]+)/) || img.drive_link?.match(/id=([^&/]+)/))?.[1]}&sz=w100`}
+                                src={
+                                    img._isR2
+                                        ? img.drive_link // R2 items
+                                        : img._isSupabaseStorage && img.drive_link
+                                            ? img.drive_link  // signed Supabase URL with cache-buster
+                                            : `https://drive.google.com/thumbnail?id=${(img.drive_link?.match(/\/d\/([^/]+)/) || img.drive_link?.match(/id=([^&/]+)/))?.[1]}&sz=w100`
+                                }
                                 alt={img.display_name}
                                 referrerPolicy="no-referrer"
                                 draggable={false}

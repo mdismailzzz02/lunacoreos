@@ -1,0 +1,101 @@
+PROJECT: Luna Vault — Full Overhaul to Supabase + R2 Only
+
+CONTEXT
+Current vault uses Google Drive as storage backend with Supabase caching 
+an index (vault_index, vault_folders, vault_liked, app_passwords tables). 
+Key files: src/components/Vault/VaultPage.jsx, GooglePhotos.jsx, 
+FaceScanner.jsx, PeopleView.jsx, VaultLock.jsx, src/services/api.js, 
+src/services/googleAuth.js, supa.sql.
+
+GOAL
+Rip out Google Drive entirely. Rebuild the vault on Supabase (metadata, 
+auth, DB) + Cloudflare R2 (all file storage) only. Preserve every existing 
+utility: folders/collections, liked items, face scanning & people 
+clustering, password-lock screen. No Drive dependency anywhere.
+
+PART 1 — REMOVE DRIVE
+- Delete/strip: src/services/googleAuth.js Drive-specific functions 
+  (scanDriveFolderIdsOnly, uploadFileToDrive, Drive OAuth flow).
+- Remove Drive OAuth setup, Drive API scopes, related env vars.
+- Remove lh3.googleusercontent.com thumbnail URL construction in 
+  GooglePhotos.jsx.
+- Keep Google OAuth ONLY if it's also used for basic app login/identity 
+  separate from Drive file access — confirm and preserve that distinction, 
+  don't remove login if it's shared.
+
+PART 2 — NEW SCHEMA (Supabase)
+- `collections` table: id, name, type (gallery/documents/code), key_prefix, 
+  created_at, user_id. Replaces vault_folders' Drive-folder-linking role.
+- `files` table: id, collection_id (FK), r2_key, filename, size_bytes, 
+  mime_type, uploaded_at, thumbnail_key (nullable). Replaces vault_index.
+- `liked_files` table: id, file_id (FK), user_id, liked_at. Replaces 
+  vault_liked, same behavior (heart icon toggles this).
+- `face_groups` table: id, collection_id (FK), person_name (nullable), 
+  descriptor_centroid, file_ids (array or join table). Move 
+  FaceGroupsJSON blob out of vault_folders into a proper table — 
+  cleaner than the current JSON-column approach.
+- Migrate `app_passwords` hashing from SHA-256 to bcrypt/argon2 with 
+  per-user salt (existing weakness, fix now). One-time re-hash-on-login 
+  migration for any existing stored password.
+- Apply RLS on all new tables matching existing vault security pattern.
+
+PART 3 — R2 STORAGE + SYNC
+- All files live in one R2 bucket under collection key_prefix, e.g. 
+  gallery-personal/{uuid}-{filename}, documents/{uuid}-{filename}, 
+  projects/{name}/{uuid}-{filename}.
+- Backend endpoint: `syncR2Collection(collectionId)` — lists R2 objects 
+  under that collection's prefix (S3 ListObjectsV2), diffs against 
+  existing `files` rows, inserts metadata for anything new. This lets 
+  me bulk-upload via rclone outside the app (e.g. 11,000 images) and 
+  just hit "Sync" in the UI to index them — same delta-sync pattern as 
+  the old Drive flow, just pointed at R2 instead.
+- Backend endpoint: generate presigned PUT URL for a given collection + 
+  filename, scoped, 5 min expiry. Client uploads directly to R2, then 
+  calls backend to insert the `files` row.
+- Backend endpoint: generate presigned GET URL for viewing/downloading 
+  a file (short expiry, don't use permanently public URLs unless I 
+  explicitly ask for a public bucket + custom domain later).
+- In-app multi-file uploader (drag-drop, few files at a time): queue 
+  with progress bar, limited concurrency (4-6 parallel uploads), 
+  validate file type/size before requesting presigned URL.
+- Paginate file listing (50-100 per page) — never fetch full collection 
+  metadata in one query, especially for the 11k-image gallery.
+
+PART 4 — FACE SCANNING (preserve, repoint to R2)
+- FaceScanner.jsx currently loads images to canvas for face-api.js 
+  processing — repoint image source from Drive thumbnail URLs to R2 
+  presigned GET URLs (or public URLs if bucket is public).
+- Clustering/descriptor logic unchanged, just update where it reads 
+  images from and where it writes results (new face_groups table 
+  instead of FaceGroupsJSON).
+- PeopleView.jsx: update queries to new schema.
+
+PART 5 — SECURITY (fix while rebuilding)
+- Remove hardcoded offline emergency passcode (8734) in VaultLock.jsx. 
+- R2 credentials only in backend env vars, never in client bundle.
+- Presigned URLs scoped to single object keys, short expiry.
+
+PART 6 — UI
+- Collection grid/list view (replaces current Drive-folder cards): 
+  create/rename/delete collection, shows type icon (gallery/docs/code), 
+  file count, storage used.
+- "Sync" button per collection (for rclone-uploaded bulk content) + 
+  in-app upload button (for day-to-day additions).
+- Storage usage indicator: sum size_bytes per collection and total 
+  across account, visible at a glance (10GB free tier tracking).
+- Keep existing liked-items tab, people/groups tab, lock screen flow — 
+  same UX, new backend underneath.
+
+CONSTRAINTS
+- Do not leave any Drive API calls, OAuth scopes, or Drive env vars in 
+  the codebase after this — full removal, not just unused code.
+- Preserve every current feature (folders, likes, face clustering, 
+  password lock) — this is a backend swap, not a feature cut.
+- Follow existing code patterns (api.js for service calls, 
+  component-per-feature under src/components/Vault/).
+
+DELIVERABLE
+Implementation plan first (Plan Artifact) before touching the DB or 
+writing components — I want to review the schema and migration order 
+before you execute. Flag any assumption (e.g. public vs presigned URLs, 
+whether Google login is shared with Drive access) instead of guessing.

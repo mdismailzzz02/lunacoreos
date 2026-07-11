@@ -3,14 +3,53 @@ import { useMedia } from '../../hooks/useMedia';
 import Lightbox from '../Shared/Lightbox';
 import SmartThumbnail from '../Shared/SmartThumbnail';
 import { SkeletonCard } from '../Shared/Skeleton';
+import FileViewerModal from '../Shared/FileViewerModal';
+
+// Opens a media item:
+// - R2 items: public URL, open directly in new tab
+// - Supabase items: fetch via JS + blob URL so the signed URL never appears in the address bar
+const secureOpen = async (item) => {
+    // R2: public URL — open directly
+    if (item._isR2 || (!item.storage_path && item.drive_link && !item.drive_link.includes('supabase.co/storage'))) {
+        window.open(item.drive_link, '_blank', 'noopener,noreferrer');
+        return;
+    }
+    // Supabase Storage: blob URL flow
+    if (!item.drive_link) return;
+    try {
+        const res = await fetch(item.drive_link, { cache: 'no-store', credentials: 'omit' });
+        if (!res.ok) throw new Error('fetch failed');
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const win = window.open(blobUrl, '_blank');
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+        if (!win) {
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = item.display_name || item.filename || 'file';
+            a.click();
+        }
+    } catch (err) {
+        console.error('secureOpen failed:', err);
+        alert('Could not open file. The link may have expired — please refresh the page.');
+    }
+};
 
 const TYPE_ICONS = { audio: '🔊', image: '🖼️', file: '📎', video: '🎬' };
 
 export default function MediaLibraryPage({ guestMode = false }) {
-    const { media, loading, upload, remove, scan, isUploading, uploadProgress } = useMedia();
+    const { media, loading, upload, remove, scan, rename, isUploading, uploadProgress } = useMedia();
     const [filter, setFilter] = useState('all');
     const [lb, setLb] = useState(null);
+    const [previewItem, setPreviewItem] = useState(null);
     const [search, setSearch] = useState('');
+
+    const handleRename = async (item) => {
+        const newName = window.prompt('Enter new name for this file:', item.display_name || item.filename);
+        if (newName && newName.trim() !== '' && newName !== (item.display_name || item.filename)) {
+            await rename(item.media_id, newName.trim());
+        }
+    };
 
     const confirmRemove = (item) => {
         const label = item.display_name || item.filename;
@@ -39,8 +78,8 @@ export default function MediaLibraryPage({ guestMode = false }) {
         };
     };
 
-    // In guest mode: show nothing until user has typed a search query
-    const showResults = !guestMode || search.trim().length > 0;
+    // In guest mode: show nothing until user has typed at least 3 characters
+    const showResults = !guestMode || search.trim().length >= 3;
 
     const filtered = showResults ? media.filter(m => {
         if (filter !== 'all' && m.media_type !== filter) return false;
@@ -54,7 +93,10 @@ export default function MediaLibraryPage({ guestMode = false }) {
     const handleUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        const mediaType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('audio/') ? 'audio' : file.type.startsWith('video/') ? 'video' : 'file';
+        const mediaType = file.type.startsWith('image/') ? 'image'
+            : file.type.startsWith('audio/') ? 'audio'
+            : file.type.startsWith('video/') ? 'video'
+            : 'file';
         await upload(file, mediaType, 'media_library', null);
     };
 
@@ -122,7 +164,7 @@ export default function MediaLibraryPage({ guestMode = false }) {
                 <div className="empty-state">
                     <div className="empty-emoji">🔍</div>
                     <p style={{ fontWeight: 600 }}>Search for a file to view it</p>
-                    <p style={{ fontSize: '0.78rem', opacity: 0.5, marginTop: '0.4rem' }}>Files are hidden for privacy. Enter a filename or keyword above.</p>
+                    <p style={{ fontSize: '0.78rem', opacity: 0.5, marginTop: '0.4rem' }}>Files are hidden for privacy. Type at least 3 characters to search.</p>
                 </div>
             )}
 
@@ -158,16 +200,23 @@ export default function MediaLibraryPage({ guestMode = false }) {
                                             {item.is_orphan === 'TRUE' && (
                                                 <span style={{ fontSize: '0.65rem', color: 'var(--warning)' }}>⚠ Orphan</span>
                                             )}
-                                            <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                                            <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
                                                 <button
                                                     className="btn btn-primary btn-sm"
-                                                    style={{ flex: 1, fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(255,255,255,0.1)' }}
+                                                    style={{ flex: 1, minWidth: '45%', fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(255,255,255,0.1)' }}
                                                     onClick={e => handlePrint(e, item)}
                                                 >🖨️ Print</button>
                                                 {!guestMode && (
                                                     <button
+                                                        className="btn btn-ghost btn-sm"
+                                                        style={{ flex: 1, minWidth: '45%', fontSize: '0.7rem', padding: '2px 6px' }}
+                                                        onClick={e => { e.stopPropagation(); handleRename(item); }}
+                                                    >✏️ Rename</button>
+                                                )}
+                                                {!guestMode && (
+                                                    <button
                                                         className="btn btn-danger btn-sm"
-                                                        style={{ flex: 1, fontSize: '0.7rem', padding: '2px 6px' }}
+                                                        style={{ flex: 1, minWidth: '45%', fontSize: '0.7rem', padding: '2px 6px' }}
                                                         onClick={e => { e.stopPropagation(); confirmRemove(item); }}
                                                     >✕</button>
                                                 )}
@@ -191,12 +240,16 @@ export default function MediaLibraryPage({ guestMode = false }) {
                                             <div style={{ fontSize: '0.85rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.display_name || item.filename}</div>
                                             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>
                                                 <span className="badge badge-ref">{item.media_id}</span>
-                                                {' '}{item.file_size_kb}KB · {String(item.upload_date).substring(0, 10)}
+                                                {' '}{item.file_size_kb ? `${item.file_size_kb} KB` : ''}{item.date_uploaded ? ` · ${String(item.date_uploaded).substring(0, 10)}` : ''}
                                                 {item.referenced_in && <span style={{ color: 'var(--success)', marginLeft: 6 }}>📎 In use</span>}
                                                 {item.is_orphan === 'TRUE' && <span style={{ color: 'var(--warning)', marginLeft: 6 }}>⚠ Orphan</span>}
                                             </div>
                                         </div>
-                                        <a href={item.drive_link} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">Open ↗</a>
+                                        <button
+                                            className="btn btn-ghost btn-sm"
+                                            onClick={e => { e.stopPropagation(); setPreviewItem(item); }}
+                                            title="Preview file"
+                                        >👁 Preview</button>
                                         <button
                                             className="btn btn-ghost btn-sm"
                                             style={{ flexShrink: 0 }}
@@ -204,9 +257,18 @@ export default function MediaLibraryPage({ guestMode = false }) {
                                         >🖨️</button>
                                         {!guestMode && (
                                             <button
+                                                className="btn btn-ghost btn-sm"
+                                                style={{ flexShrink: 0 }}
+                                                onClick={e => { e.stopPropagation(); handleRename(item); }}
+                                                title="Rename"
+                                            >✏️</button>
+                                        )}
+                                        {!guestMode && (
+                                            <button
                                                 className="btn btn-danger btn-sm"
                                                 style={{ flexShrink: 0 }}
                                                 onClick={() => confirmRemove(item)}
+                                                title="Delete"
                                             >✕</button>
                                         )}
                                     </div>
@@ -222,6 +284,13 @@ export default function MediaLibraryPage({ guestMode = false }) {
                     images={images}
                     startIndex={lb}
                     onClose={() => setLb(null)}
+                />
+            )}
+
+            {previewItem && (
+                <FileViewerModal
+                    item={previewItem}
+                    onClose={() => setPreviewItem(null)}
                 />
             )}
         </div>

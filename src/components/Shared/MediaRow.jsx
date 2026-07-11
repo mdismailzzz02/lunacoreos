@@ -5,10 +5,34 @@ import Lightbox from './Lightbox';
 import SmartThumbnail from './SmartThumbnail';
 import * as api from '../../services/api';
 
+// Opens a Supabase media item securely using a blob URL so the raw signed
+// URL never appears in the browser address bar, history, or DOM href.
+const secureOpen = async (item) => {
+    if (!item.drive_link) return;
+    try {
+        const res = await fetch(item.drive_link, { cache: 'no-store', credentials: 'omit' });
+        if (!res.ok) throw new Error('fetch failed');
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const win = window.open(blobUrl, '_blank');
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+        if (!win) {
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = item.display_name || item.filename || 'file';
+            a.click();
+        }
+    } catch (err) {
+        console.error('secureOpen failed:', err);
+        alert('Could not open file. Link may have expired — please refresh the page.');
+    }
+};
+
 function fileTypeIcon(ext) {
     const map = { pdf: '📄', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊', ppt: '📋', pptx: '📋', txt: '📃', zip: '🗜️', js: '💻', jsx: '💻', ts: '💻', tsx: '💻', py: '🐍', html: '🌐', css: '🎨', json: '📋', md: '📝', sql: '🗄️' };
     return map[ext?.toLowerCase()] || '📎';
 }
+
 
 function classifyExtension(ext) {
     const e = (ext || '').toLowerCase().replace('.', '');
@@ -214,7 +238,12 @@ function AudioBox({ items = [], onUpload, onRecord, onRemove }) {
                             </button>
                         )}
                         <span className="audio-name" style={{ flex: 1 }}>{item.display_name || item.filename}</span>
-                        <a href={item.drive_link} target="_blank" rel="noreferrer" className="badge badge-ref" style={{ textDecoration: 'none', cursor: 'alias' }} title="View in Google Drive">↗ View</a>
+                        <button
+                            className="badge badge-ref"
+                            style={{ textDecoration: 'none', cursor: 'pointer', background: 'none', border: 'none', color: 'inherit' }}
+                            title="Open securely"
+                            onClick={() => item._isSupabaseStorage ? secureOpen(item) : window.open(item.drive_link, '_blank')}
+                        >↗ View</button>
                         {onRemove && (
                             <button
                                 className="media-remove-btn-inline"
@@ -307,13 +336,16 @@ function FilesBox({ items = [], onUpload, onRemove }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, overflowY: 'auto' }}>
                 {items.map(item => (
                     <div key={item.media_id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {/* File card (click opens in Drive, unless previewable) */}
-                        <a href={item.drive_link} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', flex: 1 }}>
+                        {/* File card — use secure JS open for Supabase items */}
+                        <div
+                            style={{ textDecoration: 'none', flex: 1, cursor: 'pointer' }}
+                            onClick={() => item._isSupabaseStorage ? secureOpen(item) : window.open(item.drive_link, '_blank')}
+                        >
                             <div className="file-card">
                                 <span className="file-icon">{fileTypeIcon(item.file_extension)}</span>
                                 <span className="file-name">{item.display_name || item.filename}</span>
                             </div>
-                        </a>
+                        </div>
 
                         {/* Preview button for PDFs, text/code, audio */}
                         {isPreviewable(item) && (

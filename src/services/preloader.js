@@ -1,4 +1,4 @@
-import { getVaultMedia, getVaultFolders, getLikedImages } from './api';
+import { getVaultCollections, getVaultFiles, getLikedVaultFiles } from './api';
 
 /**
  * Concurrency Limiter for parallel fetches
@@ -30,116 +30,61 @@ async function limitConcurrency(tasks, limit, onProgress) {
 }
 
 /**
- * Preloader Service - Upgraded with Shuffle & Manual Logic
+ * Preloader Service - Updated for Supabase R2
  */
 export const Preloader = {
     async start(onProgress) {
         try {
-            console.log('[Preloader] Starting manual sync...');
+            console.log('[Preloader] Starting R2 metadata sync...');
             
-            // 1. Get folders
-            const foldersRes = await getVaultFolders();
-            const folders = foldersRes.data?.folders || foldersRes.folders || [];
-            if (folders.length === 0) {
-                console.warn('[Preloader] No folders found to sync.');
-                onProgress(0, 0, 'No folders found'); 
+            // 1. Get collections
+            const collections = await getVaultCollections();
+            if (!collections || collections.length === 0) {
+                console.warn('[Preloader] No collections found to sync.');
+                onProgress(0, 0, 'No collections found'); 
                 return;
             }
 
-            // 2. Discovery Phase: Get 500 from newdisk + all liked images
-            let pool = [];
-            let targetFolder = null;
-
-            // Find "newdisk" folder specifically
-            const newdiskFolder = folders.find(f => f.name?.toLowerCase().includes('newdisk'));
-            const folderToScan = newdiskFolder || folders[0]; // Fallback to first folder if newdisk not found
-
-            if (folderToScan) {
-                console.log(`[Preloader] Fetching from: ${folderToScan.name}...`);
-                let nextToken = null;
-                
-                // Fetch pages until we have 500 items or run out of pages
-                while (pool.length < 500) {
-                    const res = await getVaultMedia(folderToScan.folderId, nextToken);
-                    const contents = res?.data?.items || res?.items || [];
-                    pool = [...pool, ...contents];
-                    nextToken = res?.data?.continuationToken || res?.continuationToken || null;
-                    
-                    console.log(`[Preloader] Fetched batch: ${contents.length} items (total: ${pool.length})`);
-                    
-                    if (!nextToken) {
-                        console.log(`[Preloader] Reached end of folder. Total: ${pool.length} items`);
-                        break;
-                    }
-                }
-                
-                targetFolder = folderToScan;
-            }
-
-            // 3. Get Liked Images
-            const likedRes = await getLikedImages();
-            const likedItems = likedRes?.data?.liked || likedRes?.liked || [];
-            console.log(`[Preloader] Found ${likedItems.length} liked images.`);
-            
-            if (pool.length === 0 && likedItems.length === 0) {
-                console.warn('[Preloader] No content found in any folder.');
-                onProgress(0, 0);
-                return;
-            }
-
-            // 4. Shuffle & Pick
-            for (let i = pool.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [pool[i], pool[j]] = [pool[j], pool[i]];
-            }
-
-            // Use all from newdisk (up to 500) + all liked images
-            const targetMedia = pool.slice(0, 500);
-            const masterPool = [...likedItems, ...targetMedia];
-            
-            console.log(`[Preloader] Syncing: ${targetMedia.length} from newdisk + ${likedItems.length} liked = ${masterPool.length} total`);
-
-            // 5. Save the lists for Instant Loading
-            if (targetFolder) {
-                localStorage.setItem(`luna_vault_cache_${targetFolder.folderId}`, JSON.stringify({
-                    items: targetMedia,
-                    updatedAt: Date.now()
-                }));
-            }
-            
-            localStorage.setItem('luna_vault_liked_cache', JSON.stringify({
-                items: likedItems,
-                updatedAt: Date.now()
-            }));
-
-            // 6. Queue Parallel Fetches
-            const tasks = masterPool.map((item, idx) => async () => {
-                const id = item.id || item.googleId;
-                if (!id) return;
-                
-                // Add a small 200ms delay to prevent 429 rate limits
-                await sleep(200);
-
-                const url = `https://drive.google.com/thumbnail?id=${id}&sz=w400`;
+            // 2. Fetch the first page for every collection to cache metadata
+            const tasks = collections.map(col => async () => {
                 try {
-                    await fetch(url, { mode: 'no-cors' });
-                } catch (e) { console.error(`[Preloader] Item ${idx} skip:`, e); }
+                    const res = await getVaultFiles(col.id, 1, 50);
+                    const contents = res.files || [];
+                    // Cache in local storage for instant loading
+                    localStorage.setItem(`luna_vault_cache_${col.id}`, JSON.stringify({
+                        items: contents,
+                        updatedAt: Date.now()
+                    }));
+                } catch (err) {
+                    console.error(`[Preloader] Failed to pre-fetch collection ${col.name}:`, err);
+                }
             });
 
-            // Tag tasks with status for the UI
-            tasks.status = targetFolder ? targetFolder.name : 'Liked Images';
+            // 3. Fetch Liked Images
+            tasks.push(async () => {
+                try {
+                    const likedItems = await getLikedVaultFiles();
+                    localStorage.setItem('luna_vault_liked_cache', JSON.stringify({
+                        items: likedItems,
+                        updatedAt: Date.now()
+                    }));
+                } catch (err) {
+                    console.error(`[Preloader] Failed to pre-fetch liked items:`, err);
+                }
+            });
+
+            tasks.status = 'Vault Data';
 
             if (tasks.length === 0) {
                 onProgress(0, 0, 'Nothing to sync');
             } else {
-                await limitConcurrency(tasks, 3, onProgress); // Reduced from 6 to 3 for stability
+                await limitConcurrency(tasks, 3, onProgress);
             }
 
-            console.log(`[Preloader] Sync Complete! ${masterPool.length} items cached.`);
+            console.log(`[Preloader] Sync Complete!`);
         } catch (e) {
             console.error('[Preloader] Engine Error:', e);
             onProgress(0, 0); // Reset UI on error
         }
     }
 };
-

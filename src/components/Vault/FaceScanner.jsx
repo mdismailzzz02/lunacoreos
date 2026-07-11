@@ -1,19 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as faceapi from 'face-api.js';
-import { saveFaceGroups, getVaultMedia } from '../../services/api';
+import { getVaultFiles, getR2PresignedGet } from '../../services/api';
 
 /**
  * FaceScanner Component
- * Handles ML model loading, image processing, and face clustering.
+ * Handles ML model loading, image processing, and face clustering via R2.
  */
-export default function FaceScanner({ folderId, images, onComplete, onCancel }) {
+export default function FaceScanner({ collectionId, images, onComplete, onCancel }) {
     const [status, setStatus] = useState('loading'); // loading | ready | fetching | scanning | clustering | complete
     const [progress, setProgress] = useState(0);
     const [discoveryCount, setDiscoveryCount] = useState(0);
     const [batchesChecked, setBatchesChecked] = useState(0);
     const [faceDetectedCount, setFaceDetectedCount] = useState(0);
     const [log, setLog] = useState('Initializing face-api.js...');
-
 
     const [results, setResults] = useState(null);
     const abortRef = useRef(false);
@@ -41,50 +40,32 @@ export default function FaceScanner({ folderId, images, onComplete, onCancel }) 
     }, []);
 
     const startQuickScan = () => {
-        const upgraded = (images || []).map(img => ({
-            ...img,
-            src: img.src?.replace('sz=w300', 'sz=w800') || img.src
-        }));
-        startScan(upgraded);
+        // images passed from GooglePhotos (only current page, usually up to 50)
+        startScan(images.filter(img => img.mime_type?.startsWith('image/')));
     };
-
 
     const startDeepScan = async () => {
         setStatus('fetching');
-        setLog('Searching for every image in the folder...');
+        setLog('Searching for every image in the collection...');
         let allMedia = [];
-        let nextToken = null;
-        let batchCount = 0;
+        let page = 1;
+        let hasMore = true;
 
         try {
-            do {
+            while (hasMore) {
                 if (abortRef.current) return;
-                batchCount++;
-                setBatchesChecked(batchCount);
-                setLog(`Fetching batch ${batchCount}... (${allMedia.length} found)`);
+                setBatchesChecked(page);
+                setLog(`Fetching page ${page}... (${allMedia.length} found)`);
 
-                const res = await getVaultMedia(folderId, nextToken);
-                if (!res || res.success === false) {
-                    throw new Error(res?.error || 'Failed to fetch media from Drive');
-                }
+                const res = await getVaultFiles(collectionId, page, 50);
+                const items = res.files || [];
+                hasMore = res.hasMore;
 
-                const data = res.data || {};
-                const items = data.items || [];
-                nextToken = data.continuationToken || null;
-
-
-                const formatted = items.map(item => ({
-                    id: item.id,
-                    src: item.thumbnailLink ? item.thumbnailLink.replace('sz=w300', 'sz=w800') : null,
-                    width: 400, height: 300,
-                    largeSrc: item.viewLink || item.thumbnailLink,
-                    title: item.name, type: item.mimeType?.startsWith('video/') ? 'video' : 'image',
-                }));
-
-                allMedia = [...allMedia, ...formatted];
+                const imagesOnly = items.filter(i => i.mime_type?.startsWith('image/'));
+                allMedia = [...allMedia, ...imagesOnly];
                 setDiscoveryCount(allMedia.length);
-            } while (nextToken);
-
+                page++;
+            }
 
             setLog(`Found ${allMedia.length} images. Starting scan...`);
             startScan(allMedia);
@@ -98,14 +79,16 @@ export default function FaceScanner({ folderId, images, onComplete, onCancel }) 
     const startScan = async (scanItems) => {
         setStatus('scanning');
         const descriptorsFound = [];
-        const CONCURRENCY = 4; // Scan 4 images at a time
+        const CONCURRENCY = 3; // Reduced to 3 to ease R2 presign + CPU load
         let completedCount = 0;
 
-        // Helper to process a single image and update shared results
+        // Helper to process a single image
         const processImage = async (imgData) => {
             if (abortRef.current) return;
             try {
-                const img = await faceapi.fetchImage(imgData.src);
+                // Fetch presigned URL just-in-time so it doesn't expire during long scans
+                const { url } = await getR2PresignedGet(imgData.r2_key);
+                const img = await faceapi.fetchImage(url);
                 const detections = await faceapi.detectAllFaces(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 }))
                     .withFaceLandmarks()
                     .withFaceDescriptors();
@@ -115,9 +98,8 @@ export default function FaceScanner({ folderId, images, onComplete, onCancel }) 
                     detections.forEach(det => {
                         descriptorsFound.push({
                             imageId: imgData.id,
-                            src: imgData.src,
-                            largeSrc: imgData.largeSrc,
-                            descriptor: det.descriptor
+                            r2_key: imgData.r2_key,
+                            descriptor: Array.from(det.descriptor) // convert Float32Array to normal array for DB
                         });
                     });
                 }
@@ -147,15 +129,18 @@ export default function FaceScanner({ folderId, images, onComplete, onCancel }) 
         setLog(`Identified ${groups.length} distinct people!`);
     };
 
-
     const clusterFaces = (faces) => {
         const groups = [];
         const threshold = 0.55;
 
         faces.forEach(face => {
             let matchedGroup = null;
+            // Re-convert arrays back to Float32Array for faceapi distance calc
+            const f32Desc = new Float32Array(face.descriptor);
+            
             for (const group of groups) {
-                const distance = faceapi.euclideanDistance(face.descriptor, group.members[0].descriptor);
+                const g32Desc = new Float32Array(group.members[0].descriptor);
+                const distance = faceapi.euclideanDistance(f32Desc, g32Desc);
                 if (distance < threshold) {
                     matchedGroup = group;
                     break;
@@ -172,12 +157,15 @@ export default function FaceScanner({ folderId, images, onComplete, onCancel }) 
             }
         });
 
+        // Format for FaceGroupsView
         return groups.map(g => ({
-            groupId: g.id,
+            groupId: g.id, // temporary client-side ID
             label: '(unknown)',
             coverImageId: g.members[0].imageId,
+            coverR2Key: g.members[0].r2_key,
             memberImageIds: [...new Set(g.members.map(m => m.imageId))],
-            _members: g.members.map(m => ({ id: m.imageId, src: m.src }))
+            descriptor_centroid: g.members[0].descriptor, // use first member's descriptor as centroid for now
+            _members: g.members.map(m => ({ id: m.imageId, r2_key: m.r2_key }))
         }));
     };
 
@@ -190,7 +178,9 @@ export default function FaceScanner({ folderId, images, onComplete, onCancel }) 
                 }
                 .scan-modes { display: flex; gap: 1rem; justifyContent: center; flexWrap: wrap; }
                 .scan-card { flex: 1; min-width: 150px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); borderRadius: 16px; padding: 1.25rem; cursor: pointer; transition: all 0.2s; }
+                .scan-card:hover { transform: translateY(-4px); background: rgba(255,255,255,0.08); }
                 .scan-card-deep { background: rgba(167,139,250,0.1) !important; border: 1px solid rgba(167,139,250,0.3) !important; }
+                .scan-card-deep:hover { background: rgba(167,139,250,0.2) !important; }
                 
                 @media (max-width: 768px) {
                     .face-scanner-container { padding: 1.5rem 1rem; border-radius: 16px; }
@@ -228,7 +218,7 @@ export default function FaceScanner({ folderId, images, onComplete, onCancel }) 
                         }} />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                             {status === 'fetching' ? `Discovery Phase...` :
                                 status === 'scanning' ? `Scanning... (${faceDetectedCount} faces)` :
                                     status === 'clustering' ? 'Grouping...' : `${progress}% SCANNED`}
@@ -244,7 +234,7 @@ export default function FaceScanner({ folderId, images, onComplete, onCancel }) 
                             <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>⚡</div>
                             <div>
                                 <h4 style={{ margin: 0, fontSize: '0.9rem' }}>Quick Scan</h4>
-                                <p style={{ fontSize: '0.7rem', opacity: 0.5 }}>Latest {images.length} images</p>
+                                <p style={{ fontSize: '0.7rem', opacity: 0.5 }}>Loaded {images.filter(i=>i.mime_type?.startsWith('image/')).length} images</p>
                             </div>
                         </div>
 
@@ -252,25 +242,26 @@ export default function FaceScanner({ folderId, images, onComplete, onCancel }) 
                             <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🛸</div>
                             <div>
                                 <h4 style={{ margin: 0, fontSize: '0.9rem' }}>Deep Scan</h4>
-                                <p style={{ fontSize: '0.7rem', opacity: 0.6 }}>Whole folder (Slow)</p>
+                                <p style={{ fontSize: '0.7rem', opacity: 0.6 }}>Entire collection</p>
                             </div>
                         </div>
                     </>
                 )}
                 {status === 'complete' && (
-                    <button className="btn btn-primary" style={{ flex: 1, padding: '0.75rem 0' }} onClick={() => onComplete(results)}>View Results</button>
+                    <button style={{ padding: '0.75rem 2rem', background: '#a78bfa', color: '#1a1a2e', borderRadius: '12px', border: 'none', fontWeight: 800, cursor: 'pointer' }} onClick={() => onComplete(results)}>
+                        View Results
+                    </button>
                 )}
                 {(status === 'ready' || status === 'complete') && (
-                    <button className="btn btn-ghost" style={{ width: '100%', marginTop: '0.5rem' }} onClick={onCancel}>
-                        {status === 'complete' ? 'Back' : 'Cancel'}
+                    <button style={{ padding: '0.75rem 2rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', marginLeft: '10px' }} onClick={onCancel}>
+                        {status === 'complete' ? 'Discard' : 'Cancel'}
                     </button>
                 )}
             </div>
 
             <p style={{ marginTop: '2rem', fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)' }}>
-                Powered by face-api.js.
+                Powered by face-api.js. Client-side processing only.
             </p>
         </div>
     );
 }
-

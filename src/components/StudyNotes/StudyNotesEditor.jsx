@@ -310,7 +310,7 @@ export default function StudyNotesEditor({
                             // Trigger the real upload logic
                             try {
                                 const res = await api.uploadMedia({
-                                    base64data: base64data.split(',')[1],
+                                    file: file,
                                     filename: `pasted_image_${Date.now()}.png`,
                                     mime_type: file.type,
                                     media_type: 'image',
@@ -502,15 +502,9 @@ export default function StudyNotesEditor({
                 }).run();
 
                 try {
-                    const base64data = await new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onload = () => resolve(reader.result.split(',')[1]);
-                        reader.onerror = reject;
-                        reader.readAsDataURL(blob);
-                    });
-
+                    const audioFile = new File([blob], filename, { type: mimeType });
                     const res = await api.uploadMedia({
-                        base64data,
+                        file: audioFile,
                         filename,
                         mime_type: mimeType,
                         media_type: 'audio',
@@ -593,11 +587,9 @@ export default function StudyNotesEditor({
         if (!file) return;
 
         try {
-            const base64data = await api.fileToBase64(file);
-
             // Upload to get the media record
             const res = await api.uploadMedia({
-                base64data,
+                file: file,
                 filename: file.name,
                 mime_type: file.type,
                 media_type: 'file', // Changed from 'document' to 'file' to match MediaAttachmentsPanel
@@ -655,7 +647,7 @@ export default function StudyNotesEditor({
 
             // Step 2: Upload to Drive in background
             const res = await api.uploadMedia({
-                base64data,
+                file: file,
                 filename: file.name,
                 mime_type: file.type,
                 media_type: 'image',

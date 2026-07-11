@@ -1,4 +1,4 @@
-import { scanDriveFolder, scanDriveFolderIdsOnly, requestDriveAccess } from './googleAuth';
+import { requestDriveAccess } from './googleAuth'; // kept for Music Player — Drive removed from Vault
 import { supabase } from './supabaseClient';
 import { decode } from 'base64-arraybuffer';
 export { supabase };
@@ -241,166 +241,604 @@ export const calculateStreaks = async () => {
     return { success: true };
 };
 
-// ─── Vault ────────────────────────────────────────────────────
+// ─── Vault R2 — Collections ─────────────────────────────────
 
-export const getVaultFolders = async () => {
-    const { data, error } = await supabase.from('vault_folders').select('*');
-    if (error) throw error;
-    // Map uppercase DB columns back to what frontend expects
-    return data.map(f => ({ 
-        id: f.ID, 
-        name: f.Name,
-        folder_id: f.FolderID,
-        faceGroupsJSON: f.FaceGroupsJSON || '[]'
-    }));
-};
-
-export const createVaultFolder = async (params) => {
-    const newId = `VLT-${Math.random().toString(36).substr(2, 8)}`;
-    const { data, error } = await supabase.from('vault_folders').insert([{
-        "ID": newId,
-        "Name": params.name,
-        "FolderID": params.folder_id,
-        "FaceGroupsJSON": params.faceGroupsJSON || '[]',
-        "CreatedAt": new Date().toISOString()
-    }]).select();
-    if (error) throw error;
-    return { ...data[0], id: data[0].ID, name: data[0].Name, folder_id: data[0].FolderID };
-};
-
-export const updateVaultFolder = async (params) => {
-    const { id, ...updates } = params;
-    const dbUpdates = {};
-    if (updates.name) dbUpdates.Name = updates.name;
-    if (updates.folder_id) dbUpdates.FolderID = updates.folder_id;
-    if (updates.faceGroupsJSON) dbUpdates.FaceGroupsJSON = updates.faceGroupsJSON;
-
-    const { data, error } = await supabase.from('vault_folders').update(dbUpdates).eq('ID', id).select();
-    if (error) throw error;
-    return { ...data[0], id: data[0].ID };
-};
-
-export const deleteVaultFolder = async (id) => {
-    const { error } = await supabase.from('vault_folders').delete().eq('ID', id);
-    if (error) throw error;
-};
-
-// Aliases for compatibility
-export const addVaultFolder = createVaultFolder;
-export const removeVaultFolder = deleteVaultFolder;
-
-
-export const getVaultFaces = async () => {
-    const { data, error } = await supabase.from('vault_faces').select('*');
+export const getVaultCollections = async () => {
+    const { data, error } = await supabase.from('vault_collections').select('*').order('created_at', { ascending: true });
     if (error) throw error;
     return data;
 };
 
-export const createVaultFace = async (params) => {
-    const { data, error } = await supabase.from('vault_faces').insert([params]).select();
+export const createVaultCollection = async ({ name, type = 'gallery', key_prefix }) => {
+    const prefix = key_prefix || `${type}-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}/`;
+    
+    // 1. Register in Database
+    const { data, error } = await supabase.from('vault_collections').insert([{
+        name,
+        type,
+        key_prefix: prefix,
+    }]).select();
+    if (error) throw error;
+
+    // 2. Automatically create the visual "folder" in R2 by uploading a 0-byte object
+    try {
+        const { url: putUrl } = await getR2PresignedPut(prefix, 'application/x-directory');
+        await fetch(putUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/x-directory' },
+            body: new Blob([]) // 0-byte file
+        });
+    } catch (e) {
+        console.warn('Failed to auto-create R2 folder marker, but collection was created.', e);
+    }
+
+    return data[0];
+};
+
+export const updateVaultCollection = async (id, updates) => {
+    const { data, error } = await supabase.from('vault_collections').update(updates).eq('id', id).select();
     if (error) throw error;
     return data[0];
 };
 
-export const updateVaultFace = async (params) => {
-    const { id, ...updates } = params;
-    const { data, error } = await supabase.from('vault_faces').update(updates).eq('id', id).select();
+export const deleteVaultCollection = async (id) => {
+    const { error } = await supabase.from('vault_collections').delete().eq('id', id);
+    if (error) throw error;
+};
+
+
+// ─── Vault R2 — Files ────────────────────────────────────────
+
+/**
+ * Paginated file listing for a collection.
+ * @param {string} collectionId
+ * @param {number} page - 1-indexed page number
+ * @param {number} pageSize - items per page (default 50)
+ */
+export const getVaultFiles = async (collectionId, page = 1, pageSize = 50) => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const { data, error, count } = await supabase
+        .from('vault_files')
+        .select('*', { count: 'exact' })
+        .eq('collection_id', collectionId)
+        .order('uploaded_at', { ascending: false })
+        .range(from, to);
+    if (error) throw error;
+    return { files: data, total: count, page, pageSize, hasMore: to < count - 1 };
+};
+
+export const insertVaultFile = async (params) => {
+    const { data, error } = await supabase.from('vault_files').insert([params]).select();
     if (error) throw error;
     return data[0];
 };
 
-export const deleteVaultFace = async (id) => {
-    const { error } = await supabase.from('vault_faces').delete().eq('id', id);
+export const deleteVaultFile = async (id) => {
+    const { error } = await supabase.from('vault_files').delete().eq('id', id);
     if (error) throw error;
 };
 
 
-// ─── Vault Index Functions ───────────────────────────────────
-export const getVaultIndex = async (folderId) => {
-    const { data, error } = await supabase.from('vault_index').select('Data').eq('FolderID', folderId).maybeSingle();
-    if (error) return null;
-    return data?.Data || null;
+// ─── Vault R2 — Presigned URLs (via Edge Function) ───────────
+
+const R2_EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/r2-presign`;
+
+async function r2EdgeFetch(queryParams, body = null) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const qs = new URLSearchParams(queryParams).toString();
+    const res = await fetch(`${R2_EDGE_URL}?${qs}`, {
+        method: body ? 'POST' : 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            ...(body ? { 'Content-Type': 'application/json' } : {})
+        },
+        ...(body ? { body: JSON.stringify(body) } : {})
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `r2-presign edge function error ${res.status}`);
+    }
+    return res.json();
+}
+
+/** Generate a presigned PUT URL for direct client-to-R2 upload. Expires in 5 min. */
+export const getR2PresignedPut = async (key, mimeType = 'application/octet-stream') => {
+    return r2EdgeFetch({ op: 'put', key, content_type: mimeType });
 };
 
-export const saveVaultIndex = async (folderId, indexData) => {
-    const { error } = await supabase.from('vault_index').upsert({
-        FolderID: folderId,
-        Data: indexData,
-        UpdatedAt: new Date().toISOString()
-    }, { onConflict: 'FolderID' });
+/** Generate a presigned GET URL for viewing/downloading a single R2 object. Expires in 15 min. */
+export const getR2PresignedGet = async (key) => {
+    const pubUrl = import.meta.env.VITE_R2_PUBLIC_URL;
+    if (pubUrl && !key.startsWith('private/')) {
+        const encodedKey = key.split('/').map(encodeURIComponent).join('/');
+        return { url: `${pubUrl}/${encodedKey}` };
+    }
+    return r2EdgeFetch({ op: 'get', key });
+};
+
+/** Batch presigned GET URLs — up to 100 keys at once. Returns { urls: { [key]: url } } */
+export const getR2PresignedBatch = async (keys) => {
+    if (!keys || keys.length === 0) return { urls: {} };
+    
+    const pubUrl = import.meta.env.VITE_R2_PUBLIC_URL;
+    if (pubUrl) {
+        const urls = {};
+        const edgeKeys = [];
+        keys.forEach(k => {
+            if (!k.startsWith('private/')) {
+                const encodedKey = k.split('/').map(encodeURIComponent).join('/');
+                urls[k] = `${pubUrl}/${encodedKey}`;
+            } else {
+                edgeKeys.push(k);
+            }
+        });
+        
+        if (edgeKeys.length > 0) {
+            const res = await r2EdgeFetch({ op: 'batch_get' }, { keys: edgeKeys });
+            Object.assign(urls, res.urls);
+        }
+        return { urls };
+    }
+
+    return r2EdgeFetch({ op: 'batch_get' }, { keys });
+};
+
+/** List R2 objects under a prefix (for sync). Returns paginated { objects, nextToken, isTruncated } */
+export const listR2Objects = async (prefix, token = null, pageSize = 200) => {
+    const params = { op: 'list', prefix, page_size: pageSize };
+    if (token) params.token = token;
+    return r2EdgeFetch(params);
+};
+
+
+// ─── Vault R2 — Sync (rclone/bulk upload → index) ───────────
+
+/**
+ * Scans all R2 objects under the collection's key_prefix,
+ * diffs against existing vault_files rows, and inserts new ones.
+ * Supports delta sync — only adds new objects not yet in DB.
+ * Returns { added, skipped, total }.
+ */
+export const syncVaultCollection = async (collectionId) => {
+    // 1. Load collection metadata
+    const { data: col, error: colErr } = await supabase
+        .from('vault_collections').select('*').eq('id', collectionId).single();
+    if (colErr) throw colErr;
+
+    // 2. Get all R2 keys under the prefix (paginated)
+    let allObjects = [];
+    let nextToken = null;
+    do {
+        const res = await listR2Objects(col.key_prefix, nextToken, 200);
+        allObjects = allObjects.concat(res.objects || []);
+        nextToken = res.nextToken || null;
+    } while (nextToken);
+
+    if (allObjects.length === 0) return { added: 0, skipped: 0, total: 0 };
+
+    // 3. Get existing r2_keys in DB for this collection
+    const { data: existingRows } = await supabase
+        .from('vault_files').select('r2_key').eq('collection_id', collectionId);
+    const existingKeys = new Set((existingRows || []).map(r => r.r2_key));
+
+    // 4. Insert only new objects
+    const newObjects = allObjects.filter(obj => !existingKeys.has(obj.key));
+    let added = 0;
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < newObjects.length; i += BATCH_SIZE) {
+        const batch = newObjects.slice(i, i + BATCH_SIZE).map(obj => {
+            const filename = obj.key.split('/').pop() || obj.key;
+            const ext = filename.split('.').pop()?.toLowerCase();
+            const mimeMap = {
+                jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+                gif: 'image/gif', webp: 'image/webp', mp4: 'video/mp4',
+                mov: 'video/quicktime', mp3: 'audio/mpeg', m4a: 'audio/mp4',
+                wav: 'audio/wav', pdf: 'application/pdf',
+                txt: 'text/plain', js: 'text/javascript', ts: 'text/typescript',
+            };
+            return {
+                collection_id: collectionId,
+                r2_key: obj.key,
+                filename,
+                size_bytes: obj.size || 0,
+                mime_type: mimeMap[ext] || 'application/octet-stream',
+                uploaded_at: obj.lastModified || new Date().toISOString()
+            };
+        });
+        const { error: insertErr } = await supabase.from('vault_files').insert(batch);
+        if (insertErr) console.error('Sync insert batch error:', insertErr);
+        else added += batch.length;
+    }
+
+    // 5. Update collection stats
+    const totalSizeBytes = allObjects.reduce((sum, o) => sum + (o.size || 0), 0);
+    await supabase.from('vault_collections').update({
+        file_count: allObjects.length,
+        size_bytes: totalSizeBytes
+    }).eq('id', collectionId);
+
+    // 6. Log sync
+    await supabase.from('vault_sync_log').upsert({
+        collection_id: collectionId,
+        last_synced_at: new Date().toISOString(),
+        files_added: added
+    }, { onConflict: 'collection_id' });
+
+    return { added, skipped: allObjects.length - newObjects.length, total: allObjects.length };
+};
+
+
+// ─── Vault R2 — In-App Upload ────────────────────────────────
+
+/**
+ * Upload a single File object directly to R2 via presigned PUT URL,
+ * then register it in vault_files. Returns the new file row.
+ * @param {File} file - browser File object
+ * @param {string} collectionId
+ * @param {(progress: number) => void} onProgress - progress callback (0-100)
+ */
+export const uploadFileToR2 = async (file, collectionId, onProgress) => {
+    // 1. Get the collection's key prefix
+    const { data: col, error: colErr } = await supabase
+        .from('vault_collections').select('key_prefix').eq('id', collectionId).single();
+    if (colErr) throw colErr;
+
+    // 2. Build a unique R2 key
+    const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const r2Key = `${col.key_prefix}${Date.now()}-${safeFilename}`;
+
+    // 2.5 Generate Thumbnail (if image)
+    let thumbnailB64 = null;
+    if (file.type && file.type.startsWith('image/')) {
+        try {
+            thumbnailB64 = await resizeImageToWebP(file, 400);
+        } catch (e) {
+            console.warn('Failed to generate local thumbnail', e);
+        }
+    }
+
+    // 3. Get presigned PUT URL
+    if (onProgress) onProgress(5);
+    const { url: putUrl } = await getR2PresignedPut(r2Key, file.type || 'application/octet-stream');
+
+    // 4. Upload directly to R2 (XMLHttpRequest for progress)
+    await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', putUrl);
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+        if (onProgress) {
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) onProgress(5 + Math.round((e.loaded / e.total) * 85));
+            };
+        }
+        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`PUT failed: ${xhr.status}`)));
+        xhr.onerror = () => reject(new Error('Upload network error'));
+        xhr.send(file);
+    });
+
+    // 5. Register in vault_files
+    if (onProgress) onProgress(95);
+    const fileRow = await insertVaultFile({
+        collection_id: collectionId,
+        r2_key: r2Key,
+        thumbnail_key: thumbnailB64, // local base64 thumbnail
+        filename: file.name,
+        size_bytes: file.size,
+        mime_type: file.type || 'application/octet-stream',
+    });
+
+    // 6. Update collection stats
+    await supabase.rpc('increment_collection_stats', {
+        p_collection_id: collectionId,
+        p_file_delta: 1,
+        p_size_delta: file.size || 0
+    }).then(() => {}).catch(() => {}); // non-fatal if RPC not deployed yet
+
+    if (onProgress) onProgress(100);
+    return fileRow;
+};
+
+
+// ─── Vault R2 — Liked Files ──────────────────────────────────
+
+export const getLikedVaultFiles = async () => {
+    const { data, error } = await supabase
+        .from('vault_liked_files')
+        .select('*, vault_files(*)')
+        .order('liked_at', { ascending: false });
     if (error) throw error;
-    return true;
+    return data.map(row => ({
+        likeId: row.id,
+        likedAt: row.liked_at,
+        ...row.vault_files
+    }));
+};
+
+export const toggleLikedVaultFile = async (fileId, isLiked) => {
+    if (isLiked) {
+        const { data, error } = await supabase
+            .from('vault_liked_files')
+            .upsert([{ file_id: fileId }], { onConflict: 'file_id' })
+            .select();
+        if (error) throw error;
+        return data[0];
+    } else {
+        const { error } = await supabase
+            .from('vault_liked_files').delete().eq('file_id', fileId);
+        if (error) throw error;
+    }
+};
+
+
+// ─── Vault R2 — Face Groups ──────────────────────────────────
+
+export const getVaultFaceGroups = async (collectionId) => {
+    const { data, error } = await supabase
+        .from('vault_face_groups')
+        .select('*, vault_files(*)') // join to get cover file r2_key
+        .eq('collection_id', collectionId)
+        .order('created_at', { ascending: true });
+    if (error) return [];
+    return data;
+};
+
+export const saveVaultFaceGroup = async (params) => {
+    const { id, ...rest } = params;
+    if (id) {
+        const { data, error } = await supabase
+            .from('vault_face_groups').update(rest).eq('id', id).select();
+        if (error) throw error;
+        return data[0];
+    } else {
+        const { data, error } = await supabase
+            .from('vault_face_groups').insert([rest]).select();
+        if (error) throw error;
+        return data[0];
+    }
+};
+
+export const deleteVaultFaceGroup = async (id) => {
+    const { error } = await supabase.from('vault_face_groups').delete().eq('id', id);
+    if (error) throw error;
+};
+
+
+// ─── Vault R2 — Text Content (R2 objects) ────────────────────
+
+/**
+ * Fetch text content of a file stored in R2.
+ * Gets a presigned GET URL then fetches the body as text.
+ */
+export const getFileTextContent = async (r2Key) => {
+    try {
+        const { url } = await getR2PresignedGet(r2Key);
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+        return { content: await res.text() };
+    } catch (err) {
+        console.error('getFileTextContent error:', err);
+        return { content: `// Could not load content: ${err.message}` };
+    }
 };
 
 
 // ─── Media ───────────────────────────────────────────────────────────────────
-export const uploadMedia = async (params) => {
-    // 1. Upload to Supabase Storage if base64data is provided
+//
+// Storage strategy:
+//   NEW items  → uploaded directly to R2 via presigned PUT URL.
+//               r2_key + r2_public_url are stored in the media row.
+//               drive_link is set to r2_public_url for display (no signed URL needed).
+//               _isR2 = true marks them so renderers skip blob/signed-URL logic.
+//
+//   OLD items  → have storage_path (Supabase Storage bucket) → still get signed URLs.
+//               Backward compatible: injectSignedUrls still runs for these.
+//
+//   LEGACY     → have drive_link already (Google Drive) → left as-is.
+
+// ─── R2 Public Domain ───────────────────────────────────────────────────────
+// Set this to your R2 bucket's public domain once you enable public access
+// in the Cloudflare dashboard (Bucket → Settings → Public Access → Enable).
+// Example: 'https://pub-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.r2.dev'
+// If not set, the code falls back to presigned GET URLs automatically.
+const R2_PUBLIC_DOMAIN = import.meta.env.VITE_R2_PUBLIC_URL || '';
+
+// ─── Helper: resolve drive_link for a batch of media rows ─────────────────
+// - R2 items  → use r2_public_url directly (or fallback to presigned GET)
+// - Supabase Storage items → generate signed URLs (existing path)
+// - Drive/other items → already have drive_link, no-op
+const resolveMediaUrls = async (mediaItems) => {
+    if (!mediaItems) return mediaItems;
+    const isArray = Array.isArray(mediaItems);
+    const items = isArray ? mediaItems : [mediaItems];
+
+    // ── 1. R2 items ─────────────────────────────────────────────────────────
+    const r2Items = items.filter(m => m.r2_key && !m.drive_link);
+    for (const m of r2Items) {
+        if (m.r2_public_url) {
+            // Public URL — no async cost, just attach
+            m.drive_link = m.r2_public_url;
+            m._isR2 = true;
+        } else if (R2_PUBLIC_DOMAIN && m.r2_key) {
+            // Derive from public domain if stored URL is missing
+            m.drive_link = `${R2_PUBLIC_DOMAIN}/${m.r2_key}`;
+            m._isR2 = true;
+        } else if (m.r2_key) {
+            // Fallback: presigned GET (bucket is private)
+            try {
+                const { url } = await getR2PresignedGet(m.r2_key);
+                m.drive_link = url;
+                m._isR2 = true;
+            } catch (e) {
+                console.warn('Failed to get presigned URL for', m.r2_key, e);
+            }
+        }
+    }
+
+    // ── 2. Supabase Storage items (old uploads) ──────────────────────────────
+    const supabasePaths = items.filter(m => m.storage_path && !m.drive_link).map(m => m.storage_path);
+    if (supabasePaths.length > 0) {
+        const cacheBust = Date.now();
+        try {
+            const { data: signedUrls, error } = await supabase.storage
+                .from('media')
+                .createSignedUrls(supabasePaths, 600); // 10 min
+            if (!error && signedUrls) {
+                const urlMap = {};
+                signedUrls.forEach((su, i) => {
+                    if (!su.error) urlMap[supabasePaths[i]] = su.signedUrl + '&_t=' + cacheBust;
+                });
+                items.forEach(m => {
+                    if (m.storage_path && urlMap[m.storage_path]) {
+                        m.drive_link = urlMap[m.storage_path];
+                        m._isSupabaseStorage = true;
+                        m._expiresAt = Date.now() + 600_000;
+                    }
+                });
+            }
+        } catch (err) {
+            console.error('Failed to generate Supabase signed URLs:', err);
+        }
+    }
+
+    return isArray ? items : items[0];
+};
+
+// Kept for backward compatibility — useSecureUrl.js imports this for old items.
+export const getFreshSignedUrl = async (storagePath) => {
+    if (!storagePath) return null;
+    const cacheBust = Date.now();
+    const { data, error } = await supabase.storage
+        .from('media')
+        .createSignedUrl(storagePath, 600);
+    if (error || !data) throw error || new Error('Failed to generate fresh signed URL');
+    return data.signedUrl + '&_t=' + cacheBust;
+};
+
+/**
+ * Upload a file to R2 (new path) or Supabase Storage (legacy base64 path).
+ *
+ * New callers: pass { file: File, media_type, uploaded_from, source_id }, onProgress
+ * Legacy callers (StudyNotes, GridNode, etc.): keep passing { base64data, filename, mime_type, ... }
+ *   — these still go to Supabase Storage, fully backward compatible.
+ */
+export const uploadMedia = async (params, onProgress) => {
+    const mediaId = params.media_id || ('MED-' + Math.random().toString(36).substr(2, 9).toUpperCase());
+
+    // ── NEW PATH: raw File object → R2 ──────────────────────────────────────
+    if (params.file instanceof File) {
+        const file = params.file;
+        const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const r2Key = `media-library/${params.uploaded_from || 'general'}/${Date.now()}-${safeFilename}`;
+
+        // 1. Get presigned PUT URL
+        if (onProgress) onProgress(5);
+        const { url: putUrl } = await getR2PresignedPut(r2Key, file.type || 'application/octet-stream');
+
+        // 2. Upload directly to R2 with real XHR progress
+        await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('PUT', putUrl);
+            xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+            if (onProgress) {
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) onProgress(5 + Math.round((e.loaded / e.total) * 88));
+                };
+            }
+            xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`PUT failed: ${xhr.status}`)));
+            xhr.onerror = () => reject(new Error('Upload network error'));
+            xhr.send(file);
+        });
+
+        // 3. Derive public URL
+        const r2PublicUrl = R2_PUBLIC_DOMAIN ? `${R2_PUBLIC_DOMAIN}/${r2Key}` : '';
+
+        // 4. Insert media row
+        if (onProgress) onProgress(95);
+        const row = {
+            media_id: mediaId,
+            media_type: params.media_type || 'file',
+            mime_type: file.type || 'application/octet-stream',
+            filename: file.name,
+            display_name: params.display_name || file.name,
+            file_size_kb: String(Math.round(file.size / 1024)),
+            date_uploaded: new Date().toISOString().split('T')[0],
+            time_uploaded: new Date().toLocaleTimeString(),
+            uploaded_from: params.uploaded_from || 'media_library',
+            source_id: params.source_id || null,
+            r2_key: r2Key,
+            r2_public_url: r2PublicUrl,
+            // drive_link stays empty — resolveMediaUrls fills it at read time
+            drive_link: r2PublicUrl || '',
+            status: 'active',
+        };
+        const { data, error } = await supabase.from('media').insert([row]).select();
+        if (error) throw error;
+        if (onProgress) onProgress(100);
+
+        // Return with _isR2 flag already set
+        const result = data[0];
+        result.drive_link = r2PublicUrl || result.drive_link;
+        result._isR2 = true;
+        return result;
+    }
+
+    // ── LEGACY PATH: base64data → Supabase Storage ──────────────────────────
+    // Keeps all StudyNotes / GridNode / MediaAttachmentsPanel callers working unchanged.
     if (params.base64data) {
         try {
             const bucketName = 'media';
             const base64Clean = params.base64data.includes(',') ? params.base64data.split(',')[1] : params.base64data;
             const arrayBuffer = decode(base64Clean);
-            
-            const fileExt = params.filename ? params.filename.split('.').pop() : 'bin';
-            const filePath = `${params.uploaded_from || 'misc'}/${Date.now()}-${Math.random().toString(36).substr(2, 5)}.${fileExt}`;
 
-            const { data: storageData, error: storageError } = await supabase.storage
+            const fileExt = params.filename ? params.filename.split('.').pop() : 'bin';
+            const filePath = (params.uploaded_from || 'misc') + '/' + Date.now() + '-' + Math.random().toString(36).substr(2, 5) + '.' + fileExt;
+
+            const { error: storageError } = await supabase.storage
                 .from(bucketName)
                 .upload(filePath, arrayBuffer, {
                     contentType: params.mime_type || 'application/octet-stream',
                     upsert: true
                 });
-
             if (storageError) throw storageError;
 
-            // 2. Get Public URL
-            const { data: { publicUrl } } = supabase.storage
-                .from(bucketName)
-                .getPublicUrl(filePath);
-
-            params.drive_link = publicUrl; // Re-use drive_link field for the URL to avoid schema changes
+            params.drive_link = '';
             params.storage_path = filePath;
-            
-            // Remove base64 payload to save database space
             delete params.base64data;
         } catch (err) {
             console.error('Supabase storage upload failed:', err);
-            throw new Error(`Storage upload failed: ${err.message}. Make sure you have a "media" bucket created in Supabase with public access.`);
+            throw new Error('Storage upload failed: ' + err.message);
         }
     }
 
-    if (!params.media_id) {
-        params.media_id = `MED-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-    }
-
-    console.log('Inserting Media:', params);
+    params.media_id = mediaId;
     const { data, error } = await supabase.from('media').insert([params]).select();
     if (error) throw error;
-    return data[0];
+    return await resolveMediaUrls(data[0]);
 };
 
 export const getMediaById = async (media_id) => {
     const { data, error } = await supabase.from('media').select('*').eq('media_id', media_id).single();
     if (error) throw error;
-    return data;
+    return await resolveMediaUrls(data);
 };
 
 export const getThumbnailBase64 = async (media_id) => {
-    // Legacy call. For now, return placeholder or Drive link.
     return '';
 };
 
 export const getMediaBySource = async (source_id) => {
     const { data, error } = await supabase.from('media').select('*').eq('source_id', source_id);
     if (error) throw error;
-    return data;
+    return await resolveMediaUrls(data);
 };
 
 export const getAllMedia = async (params = {}) => {
-    const { data, error } = await supabase.from('media').select('*');
+    const { data, error } = await supabase.from('media').select('*').order('date_uploaded', { ascending: false });
     if (error) throw error;
-    return data;
+    return await resolveMediaUrls(data);
 };
 
 export const updateMediaRefs = async (params) => {
@@ -410,9 +848,28 @@ export const updateMediaRefs = async (params) => {
     return data[0];
 };
 
+/**
+ * Delete a media record from DB.
+ * Optionally also removes the R2 object if r2_key is present.
+ * Supabase Storage objects are NOT removed (same legacy behavior).
+ */
+export const renameMedia = async (mediaId, newName) => {
+    const { data, error } = await supabase
+        .from('media')
+        .update({ display_name: newName })
+        .eq('media_id', mediaId)
+        .select();
+    if (error) throw error;
+    return data[0];
+};
+
 export const deleteMedia = async (media_id) => {
+    // Fetch row first to grab r2_key if present
+    const { data: row } = await supabase.from('media').select('r2_key').eq('media_id', media_id).maybeSingle();
     const { error } = await supabase.from('media').delete().eq('media_id', media_id);
     if (error) throw error;
+    // Best-effort: delete from R2 via a DELETE presign (not yet supported in r2-presign edge fn)
+    // For now, file stays in R2 (orphaned but harmless). Add DELETE op to edge function later.
 };
 
 export const scanOrphans = async () => {
@@ -552,137 +1009,31 @@ export const deleteWriting = async (id) => {
 };
 
 
-// ─── Vault ────────────────────────────────────────────────────
-// Raw call — returns full response (used for vault endpoints that don't wrap in {success, data})
-// ─── Vault Logic (Native) ───────────────────────────────────
 
 
-export const getVaultMedia = async (folderId, forceResync = false) => {
-    try {
-        let index = null;
-        if (!forceResync) {
-            index = await getVaultIndex(folderId);
-        }
 
-        // If old format (allItems exists), force a fresh migration scan
-        if (index && index.allItems) {
-            index = null; 
-        }
+// ─── App Passwords v2 (salted SHA-256) ──────────────────────
+// Salt is stored alongside the hash so rainbow tables don't work.
+// hash = SHA256(salt + password) — computed client-side in VaultLock.
 
-        let newFiles = [];
-        let fetchedAt = null;
-
-        if (!index) {
-            // 1. Full scan (First time or forced)
-            const res = await scanDriveFolderIdsOnly(folderId, null);
-            newFiles = res.files;
-            fetchedAt = res.fetchedAt;
-        } else {
-            // 2. Delta scan (Only new files since last sync)
-            const res = await scanDriveFolderIdsOnly(folderId, index.lastSyncedAt);
-            newFiles = res.files;
-            fetchedAt = res.fetchedAt;
-        }
-
-        // If we have an existing index, merge the new files
-        let allIds = index ? index.ids || [] : [];
-        let allNames = index ? index.names || [] : [];
-        let allMimes = index ? index.mimeTypes || [] : [];
-
-        if (newFiles.length > 0) {
-            for (const file of newFiles) {
-                allIds.push(file.id);
-                allNames.push(file.name);
-                allMimes.push(file.mimeType);
-            }
-        }
-
-        const newIndex = {
-            ids: allIds,
-            names: allNames,
-            mimeTypes: allMimes,
-            lastSyncedAt: fetchedAt || (index ? index.lastSyncedAt : new Date().toISOString())
-        };
-
-        // Save back to Supabase
-        await saveVaultIndex(folderId, newIndex);
-
-        return { success: true, index: newIndex, newCount: newFiles.length };
-    } catch (err) {
-        console.error('getVaultMedia error:', err);
-        return { success: false, error: err.message };
-    }
-};
-
-export const getLikedImages = async () => {
-    const { data, error } = await supabase.from('vault_liked').select('*');
-    if (error) throw error;
-    // Map capitalized DB columns to camelCase for frontend
-    return data.map(item => ({
-        id: item.ID,
-        title: item.Title,
-        thumbnailLink: item.ThumbnailLink,
-        largeSrc: item.LargeSrc,
-        type: item.Type,
-        likedAt: item.LikedAt
-    }));
-};
-
-export const toggleLikedImage = async (params) => {
-    const { id, liked } = params;
-    if (liked) {
-        const dbParams = {
-            "ID": params.id,
-            "Title": params.title,
-            "ThumbnailLink": params.thumbnailLink,
-            "LargeSrc": params.largeSrc,
-            "Type": params.type,
-            "LikedAt": params.likedAt || new Date().toISOString()
-        };
-        const { data, error } = await supabase.from('vault_liked').upsert([dbParams]).select();
-        if (error) throw error;
-        return data[0];
-    } else {
-        const { error } = await supabase.from('vault_liked').delete().eq('ID', id);
-        if (error) throw error;
-    }
-};
-
-export const getFaceGroups = async (folderId) => {
-    const { data, error } = await supabase.from('vault_folders').select('FaceGroupsJSON').eq('FolderID', folderId).single();
-    if (error) return [];
-    return JSON.parse(data.FaceGroupsJSON || '[]');
-};
-
-export const saveFaceGroups = async (folderId, groups) => {
-    const { data, error } = await supabase.from('vault_folders').update({ FaceGroupsJSON: JSON.stringify(groups) }).eq('FolderID', folderId).select();
-    if (error) throw error;
-    return data[0];
-};
-
-export const getFileTextContent = async (fileId) => {
-    // This requires Drive API to read file content. 
-    // We'll leave it as placeholder for now or use Drive API fetch.
-    return 'Text content scanning requires Drive API integration.';
-};
-
-
-// ─── App Passwords ──────────────────────────────────────────
-export const getAppPassword = async (id) => {
-    const { data, error } = await supabase.from('app_passwords').select('*').eq('id', id).maybeSingle();
+export const getAppPasswordV2 = async (id) => {
+    const { data, error } = await supabase.from('app_passwords_v2').select('*').eq('id', id).maybeSingle();
     if (error) return null;
-    return data;
+    return data; // { id, label, salt, hash, created_at }
 };
 
-export const setAppPassword = async (id, label, hash) => {
-    const { data, error } = await supabase.from('app_passwords').upsert([{ id, label, hash }]).select();
+export const setAppPasswordV2 = async (id, label, salt, hash) => {
+    const { data, error } = await supabase
+        .from('app_passwords_v2')
+        .upsert([{ id, label, salt, hash }], { onConflict: 'id' })
+        .select();
     if (error) throw error;
     return data[0];
 };
 
-export const initAppPasswords = async () => {
-    return { success: true };
-};
+// Legacy stubs — kept so non-vault callers don't crash during transition
+export const getAppPassword = getAppPasswordV2;
+export const initAppPasswords = async () => ({ success: true });
 
 // ─── Life Map ────────────────────────────────────────────────
 export const getLifeMap = async () => {
@@ -781,9 +1132,41 @@ export const getStreakLogs = async (streak_id) => {
     return data;
 };
 
-// ─── Reading List ──────────────────────────────────────────
+// ─── Image Resizer (Browser-side) ─────────────────────────────
+const resizeImageToWebP = (file, maxDimension = 400) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                let { width, height } = img;
+                if (width > maxDimension || height > maxDimension) {
+                    if (width > height) {
+                        height = Math.round((height * maxDimension) / width);
+                        width = maxDimension;
+                    } else {
+                        width = Math.round((width * maxDimension) / height);
+                        height = maxDimension;
+                    }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                const dataUrl = canvas.toDataURL('image/webp', 0.8);
+                resolve(dataUrl);
+            };
+            img.onerror = () => reject(new Error('Image load error'));
+            img.src = e.target.result;
+        };
+        reader.onerror = () => reject(new Error('File read error'));
+        reader.readAsDataURL(file);
+    });
+};
+
 export const getReadingList = async () => {
-    const { data, error } = await supabase.from('reading_list').select('*');
+    const { data, error } = await supabase.from('reading_list').select('*').order('created_at', { ascending: false });
     if (error) throw error;
     return data;
 };
@@ -1331,9 +1714,9 @@ export const getVaultFacesLegacy = () => getVaultFaces();
 
 // --- Password Manager --------------------------------------------------------
 // NOTE: All password data stored here is already encrypted (AES-256-GCM) by the
-// client. The API layer only deals with ciphertext � never plaintext passwords.
+// client. The API layer only deals with ciphertext  never plaintext passwords.
 
-/** Fetch all password entries (ciphertext � decryption is the UI's job). */
+/** Fetch all password entries (ciphertext  decryption is the UI's job). */
 export const getPasswords = async () => {
     const { data, error } = await supabase
         .from('passwords')

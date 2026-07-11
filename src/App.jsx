@@ -137,7 +137,7 @@ export default function App() {
         };
     }, []);
 
-    // ── Guest Session Expiration (30 mins) ──────────────────────────────
+    // ── Guest Session Expiration (6 mins) ──────────────────────────────
     useEffect(() => {
         const isGuest = sessionStorage.getItem('luna_guest_access') === 'true';
         if (!isGuest) return;
@@ -148,7 +148,7 @@ export default function App() {
             sessionStorage.setItem('luna_guest_login_time', loginTime);
         }
 
-        const MAX_SESSION_MS = 30 * 60 * 1000;
+        const MAX_SESSION_MS = 6 * 60 * 1000;
 
         const checkExpiration = () => {
             const elapsed = Date.now() - parseInt(loginTime, 10);
@@ -282,7 +282,7 @@ export default function App() {
                             setAuthError('');
 
                             // ── GUEST CODE FLOW ──
-                            if (pwd.startsWith('guest_')) {
+                            if (pwd.startsWith('guest')) {
                                 const { data: isValid, error } = await supabase
                                     .rpc('verify_guest_code', { input_code: pwd });
                                 

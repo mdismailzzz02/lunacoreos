@@ -1,62 +1,75 @@
 import { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import GooglePhotos from './GooglePhotos';
+import VaultMediaGrid from './GooglePhotos';
 import PeopleView from './PeopleView';
 import VaultLock from './VaultLock';
-import { getVaultFolders, addVaultFolder, removeVaultFolder, getAppPassword, setAppPassword } from '../../services/api';
-import { requestDriveAccess, clearDriveToken } from '../../services/googleAuth';
+import {
+    getVaultCollections,
+    createVaultCollection,
+    deleteVaultCollection,
+} from '../../services/api';
 
-const extractFolderId = (input) => {
-    if (!input) return '';
-    const urlMatch = input.match(/folders\/([a-zA-Z0-9-_]+)/);
-    if (urlMatch) return urlMatch[1];
-    const queryMatch = input.match(/[?&]id=([a-zA-Z0-9-_]+)/);
-    if (queryMatch) return queryMatch[1];
-    return input.trim();
-};
+// ─── Bytes → Human-Readable ────────────────────────────────────
+function fmtBytes(bytes) {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
 
-// ─── Add Folder Modal ────────────────────────────────────────
-function AddFolderModal({ onAdd, onClose }) {
+const TYPE_ICONS = { gallery: '🖼️', documents: '📄', code: '💻' };
+const TOTAL_FREE_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
+
+// ─── Create Collection Modal ────────────────────────────────────
+function CreateCollectionModal({ onAdd, onClose }) {
     const [name, setName] = useState('');
-    const [link, setLink] = useState('');
+    const [type, setType] = useState('gallery');
     const [err, setErr] = useState('');
     const [saving, setSaving] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const folderId = extractFolderId(link);
-        if (!folderId) { setErr('Invalid Drive folder link or ID.'); return; }
-        if (!name.trim()) { setErr('Please enter a name.'); return; }
+        if (!name.trim()) { setErr('Please enter a collection name.'); return; }
         setSaving(true);
         try {
-            const res = await addVaultFolder({ name: name.trim(), folder_id: folderId });
-            // Ensure we map the response correctly for immediate UI update
-            const newFolder = {
-                id: res.id || res.ID,
-                name: res.name || res.Name,
-                folder_id: res.folder_id || res.FolderID
-            };
-            onAdd(newFolder);
+            const col = await createVaultCollection({ name: name.trim(), type });
+            onAdd(col);
             onClose();
-        } catch (err) { 
-            console.error('Add folder error:', err);
-            setErr('Failed to save. Make sure your SQL table is ready!'); 
-        }
-        finally { setSaving(false); }
+        } catch (e) {
+            setErr('Failed to create collection. Check Supabase connection.');
+        } finally { setSaving(false); }
     };
 
     return ReactDOM.createPortal(
         <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 99998, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
             <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-card, #1a1a2e)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '20px', padding: '2rem', width: '100%', maxWidth: '420px', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
-                <h3 style={{ marginBottom: '1.25rem', fontWeight: 700 }}>➕ Add Drive Folder</h3>
+                <h3 style={{ marginBottom: '1.25rem', fontWeight: 700 }}>➕ New Collection</h3>
                 <form onSubmit={handleSubmit}>
-                    <input type="text" placeholder="Folder name" value={name} onChange={e => setName(e.target.value)}
+                    <input type="text" placeholder="Collection name" value={name} onChange={e => setName(e.target.value)}
                         style={{ width: '100%', padding: '0.85rem 1rem', borderRadius: '10px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '0.9rem', outline: 'none', marginBottom: '0.75rem', boxSizing: 'border-box' }} />
-                    <input type="text" placeholder="Google Drive folder link or ID" value={link} onChange={e => setLink(e.target.value)}
-                        style={{ width: '100%', padding: '0.85rem 1rem', borderRadius: '10px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '0.9rem', outline: 'none', marginBottom: '1rem', boxSizing: 'border-box' }} />
+
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem' }}>
+                        {Object.entries(TYPE_ICONS).map(([t, icon]) => (
+                            <button
+                                key={t} type="button"
+                                onClick={() => setType(t)}
+                                style={{
+                                    flex: 1, padding: '0.7rem', borderRadius: '10px', border: '1px solid',
+                                    borderColor: type === t ? '#a78bfa' : 'rgba(255,255,255,0.1)',
+                                    background: type === t ? 'rgba(167,139,250,0.15)' : 'rgba(0,0,0,0.2)',
+                                    color: type === t ? '#a78bfa' : 'rgba(255,255,255,0.5)',
+                                    fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s'
+                                }}
+                            >
+                                {icon} {t}
+                            </button>
+                        ))}
+                    </div>
+
                     {err && <p style={{ color: '#ef4444', fontSize: '0.8rem', marginBottom: '0.75rem' }}>{err}</p>}
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
-                        <button className="btn btn-primary" type="submit" style={{ flex: 1 }} disabled={saving}>{saving ? 'Saving…' : 'Add'}</button>
+                        <button className="btn btn-primary" type="submit" style={{ flex: 1 }} disabled={saving}>{saving ? 'Creating…' : 'Create'}</button>
                         <button className="btn btn-ghost" type="button" onClick={onClose} style={{ flex: 1 }}>Cancel</button>
                     </div>
                 </form>
@@ -66,14 +79,14 @@ function AddFolderModal({ onAdd, onClose }) {
     );
 }
 
-// ─── Sidebar Nav Button ──────────────────────────────────────
-function NavBtn({ active, onClick, icon, label, onRemove }) {
+// ─── Sidebar Nav Button ─────────────────────────────────────────
+function NavBtn({ active, onClick, icon, label, subLabel, onRemove }) {
     return (
         <div className="nav-btn-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
             <style>{`
                 .nav-btn-container { animation: vault-fade-in 0.3s ease-out forwards; }
                 .vault-nav-btn {
-                    flex: 1; display: flex; alignItems: center; gap: 0.75rem;
+                    flex: 1; display: flex; align-items: center; gap: 0.75rem;
                     padding: 0.75rem 1rem; border-radius: 14px; border: 1px solid transparent;
                     text-align: left; cursor: pointer; font-size: 0.88rem; font-weight: 600;
                     background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.6);
@@ -81,15 +94,12 @@ function NavBtn({ active, onClick, icon, label, onRemove }) {
                     backdrop-filter: blur(10px);
                 }
                 .vault-nav-btn:hover {
-                    background: rgba(255,255,255,0.08);
-                    color: white;
-                    border-color: rgba(255,255,255,0.1);
-                    transform: translateX(4px);
+                    background: rgba(255,255,255,0.08); color: white;
+                    border-color: rgba(255,255,255,0.1); transform: translateX(4px);
                 }
                 .vault-nav-btn.active {
                     background: linear-gradient(135deg, #a78bfa, #7c3aed);
-                    color: white;
-                    box-shadow: 0 8px 20px rgba(124, 58, 237, 0.3);
+                    color: white; box-shadow: 0 8px 20px rgba(124, 58, 237, 0.3);
                     border-color: rgba(255,255,255,0.2);
                 }
                 .vault-remove-btn {
@@ -102,98 +112,84 @@ function NavBtn({ active, onClick, icon, label, onRemove }) {
                 .nav-btn-container:hover .vault-remove-btn { opacity: 1; transform: scale(1); }
                 .vault-remove-btn:hover { background: #ef4444; color: white; border-color: transparent; }
             `}</style>
-            <button
-                onClick={onClick}
-                className={`vault-nav-btn ${active ? 'active' : ''}`}
-            >
+            <button onClick={onClick} className={`vault-nav-btn ${active ? 'active' : ''}`}>
                 <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{icon}</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
+                    {subLabel && <div style={{ fontSize: '0.68rem', opacity: 0.55, marginTop: '2px' }}>{subLabel}</div>}
+                </div>
             </button>
             {onRemove && (
-                <button onClick={onRemove} className="vault-remove-btn" title="Remove Folder">
-                    ✕
-                </button>
+                <button onClick={onRemove} className="vault-remove-btn" title="Remove Collection">✕</button>
             )}
         </div>
     );
 }
 
-// ─── Main VaultPage ──────────────────────────────────────────
-function VaultPage() {
-    const [folders, setFolders] = useState([]);
-    const [activeTab, setActiveTab] = useState('liked');
-    const [showAdd, setShowAdd] = useState(false);
-    const [loadingFolders, setLoadingFolders] = useState(true);
-    const [isGoogleAuth, setIsGoogleAuth] = useState(false);
-
-    useEffect(() => {
-        // Monitor our specific GSI token in localStorage
-        const checkAuth = () => {
-            const token = localStorage.getItem('luna_drive_token');
-            const expiry = parseInt(localStorage.getItem('luna_drive_token_expiry') || '0', 10);
-            setIsGoogleAuth(!!token && Date.now() < expiry);
-        };
-        const timer = setInterval(checkAuth, 1000);
-        return () => clearInterval(timer);
-    }, []);
-
-    const handleGoogleLogin = async () => {
-        try {
-            await requestDriveAccess();
-            setIsGoogleAuth(true);
-        } catch (err) {
-            console.error("Google Login Failed:", err);
-        }
-    };
-
-    const loadFolders = () => {
-        setLoadingFolders(true);
-        getVaultFolders()
-            .then(res => {
-                const folderList = Array.isArray(res) ? res : (res.data?.folders || []);
-                setFolders(folderList);
-                localStorage.setItem('vault_folders_cache', JSON.stringify({
-                    folders: folderList,
-                    cachedAt: Date.now()
-                }));
-            })
-            .catch(() => {
-                const cached = localStorage.getItem('vault_folders_cache');
-                if (cached) {
-                    try {
-                        const { folders: cachedFolders } = JSON.parse(cached);
-                        setFolders(cachedFolders);
-                    } catch (e) { }
-                }
-            })
-            .finally(() => setLoadingFolders(false));
-    };
-
-    useEffect(() => {
-        loadFolders();
-    }, []);
-
-    const handleAddFolder = (folder) => {
-        setFolders(prev => [...prev, folder]);
-        setActiveTab(folder.id);
-    };
-
-    const handleRemoveFolder = async (folderId) => {
-        const folder = folders.find(f => f.id === folderId);
-        if (!window.confirm(`Remove "${folder?.name || 'this folder'}" from your Vault?`)) return;
-        try { await removeVaultFolder(folderId); } catch { }
-        setFolders(prev => prev.filter(f => f.id !== folderId));
-        if (activeTab === folderId) setActiveTab('folders_menu');
-    };
-
-    const isFolderActive = folders.some(f => f.id === activeTab);
-    const activeFolder = folders.find(f => f.id === activeTab);
+// ─── Storage Usage Bar ──────────────────────────────────────────
+function StorageBar({ collections }) {
+    const usedBytes = collections.reduce((sum, c) => sum + (c.size_bytes || 0), 0);
+    const pct = Math.min(100, (usedBytes / TOTAL_FREE_BYTES) * 100);
+    const color = pct > 85 ? '#ef4444' : pct > 60 ? '#f59e0b' : '#a78bfa';
 
     return (
-        <div className="vault-layout" style={{ 
+        <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.68rem', color: 'rgba(255,255,255,0.35)', fontWeight: 700 }}>
+                <span>STORAGE</span>
+                <span>{fmtBytes(usedBytes)} / 10 GB</span>
+            </div>
+            <div style={{ height: '4px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '4px', transition: 'width 0.5s ease' }} />
+            </div>
+        </div>
+    );
+}
+
+// ─── Main VaultPage ─────────────────────────────────────────────
+function VaultPage() {
+    const [collections, setCollections] = useState([]);
+    const [activeTab, setActiveTab] = useState('liked');
+    const [showAdd, setShowAdd] = useState(false);
+    const [loading, setLoading] = useState(true);
+
+    const loadCollections = () => {
+        setLoading(true);
+        getVaultCollections()
+            .then(data => {
+                setCollections(Array.isArray(data) ? data : []);
+                localStorage.setItem('vault_collections_cache', JSON.stringify({ data, cachedAt: Date.now() }));
+            })
+            .catch(() => {
+                const cached = localStorage.getItem('vault_collections_cache');
+                if (cached) {
+                    try { setCollections(JSON.parse(cached).data || []); } catch (_) {}
+                }
+            })
+            .finally(() => setLoading(false));
+    };
+
+    useEffect(() => { loadCollections(); }, []);
+
+    const handleAddCollection = (col) => {
+        setCollections(prev => [...prev, col]);
+        setActiveTab(col.id);
+    };
+
+    const handleRemoveCollection = async (colId) => {
+        const col = collections.find(c => c.id === colId);
+        if (!window.confirm(`Remove "${col?.name || 'this collection'}" from your Vault?\n\nFiles in R2 are NOT deleted — only the index is removed.`)) return;
+        try { await deleteVaultCollection(colId); } catch (_) {}
+        setCollections(prev => prev.filter(c => c.id !== colId));
+        if (activeTab === colId) setActiveTab('liked');
+    };
+
+    const isCollectionActive = collections.some(c => c.id === activeTab);
+    const activeCollection = collections.find(c => c.id === activeTab);
+
+    return (
+        <div className="vault-layout" style={{
             display: 'flex', height: '100vh', width: '100%', background: 'transparent', color: 'white',
-            overflow: 'hidden',
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0
+            overflow: 'hidden', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0
         }}>
             <style>{`
                 .vault-sidebar {
@@ -202,40 +198,34 @@ function VaultPage() {
                     display: flex; flex-direction: column; padding: 1.5rem;
                     flex-shrink: 0; height: 100%;
                 }
-                .vault-title { 
-                    font-size: 1.25rem; font-weight: 800; margin-bottom: 2rem; 
+                .vault-title {
+                    font-size: 1.25rem; font-weight: 800; margin-bottom: 2rem;
                     background: linear-gradient(to right, #fff, rgba(255,255,255,0.4));
                     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
                     display: flex; align-items: center; gap: 10px;
                 }
                 .vault-nav-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-                .vault-content { 
+                .vault-content {
                     flex: 1; flex-basis: 0; min-width: 0;
-                    overflow-y: auto; overflow-x: hidden; 
-                    padding: 2rem; position: relative; height: 100%; 
-                    box-sizing: border-box; 
+                    overflow-y: auto; overflow-x: hidden;
+                    padding: 2rem; position: relative; height: 100%;
+                    box-sizing: border-box;
                 }
-                
                 .vault-add-btn {
                     margin-top: 1rem; width: 100%; padding: 0.85rem; border-radius: 14px;
                     border: 1px dashed rgba(167,139,250,0.4); background: rgba(167,139,250,0.05);
                     color: #a78bfa; font-size: 0.85rem; font-weight: 700; cursor: pointer;
-                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                    text-align: center;
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); text-align: center;
                 }
                 .vault-add-btn:hover {
                     background: rgba(167,139,250,0.15); border-color: #a78bfa;
-                    transform: translateY(-2px); box-shadow: 0 10px 20px rgba(167,139,250,0.1);
-                    color: white;
+                    transform: translateY(-2px); box-shadow: 0 10px 20px rgba(167,139,250,0.1); color: white;
                 }
-                
                 @keyframes vault-fade-in {
                     from { opacity: 0; transform: translateY(10px); }
                     to { opacity: 1; transform: translateY(0); }
                 }
                 .vault-content > div { animation: vault-fade-in 0.4s ease-out forwards; }
-                
-                /* Mobile Overrides */
                 @media (max-width: 768px) {
                     .vault-layout { flex-direction: column; }
                     .vault-sidebar { display: none; }
@@ -243,21 +233,21 @@ function VaultPage() {
             `}</style>
 
             {/* ─── Mobile Segmented Control ─── */}
-            <div className={`vault-mobile-nav mobile-only ${isFolderActive ? 'hidden' : ''}`} style={{ padding: '1rem', background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)' }}>
+            <div className={`vault-mobile-nav mobile-only ${isCollectionActive ? 'hidden' : ''}`} style={{ padding: '1rem', background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)' }}>
                 <div className="vault-segments" style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '12px' }}>
                     <button style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'liked' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('liked')}>❤️ Liked</button>
-                    <button style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'folders_menu' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('folders_menu')}>🗂️ Folders</button>
+                    <button style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'folders_menu' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('folders_menu')}>🗂️ Collections</button>
                     <button style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'people' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('people')}>👥 People</button>
                 </div>
             </div>
 
-            {/* ─── Mobile Folder Top Bar ─── */}
-            {isFolderActive && (
+            {/* ─── Mobile Collection Top Bar ─── */}
+            {isCollectionActive && (
                 <div className="vault-mobile-folder-header mobile-only" style={{ padding: '1rem', background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <button className="back-btn" onClick={() => setActiveTab('folders_menu')} style={{ background: 'transparent', border: 'none', color: '#a78bfa', fontSize: '1rem', cursor: 'pointer' }}>
                         ‹ Back
                     </button>
-                    <span className="folder-title" style={{ fontWeight: 700 }}>{activeFolder?.name}</span>
+                    <span style={{ fontWeight: 700 }}>{TYPE_ICONS[activeCollection?.type] || '📁'} {activeCollection?.name}</span>
                 </div>
             )}
 
@@ -265,7 +255,7 @@ function VaultPage() {
             <div className="vault-sidebar desktop-only">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                     <h2 className="vault-title" style={{ margin: 0 }}><span>🔒</span> VAULT_CORE</h2>
-                    <button onClick={loadFolders} className="btn btn-ghost btn-xs" title="Sync Database" style={{ padding: '4px', opacity: 0.5 }}>🔄</button>
+                    <button onClick={loadCollections} className="btn btn-ghost btn-xs" title="Reload collections" style={{ padding: '4px', opacity: 0.5 }}>🔄</button>
                 </div>
 
                 <div className="vault-nav-scroll">
@@ -275,7 +265,6 @@ function VaultPage() {
                         icon="❤️"
                         label="Liked Items"
                     />
-
                     <NavBtn
                         active={activeTab === 'people'}
                         onClick={() => setActiveTab('people')}
@@ -283,86 +272,72 @@ function VaultPage() {
                         label="People & Groups"
                     />
 
-                    {!isGoogleAuth && (
-                        <button 
-                            onClick={handleGoogleLogin}
-                            style={{ 
-                                margin: '1rem 0.5rem', padding: '0.8rem', borderRadius: '14px', 
-                                background: 'linear-gradient(135deg, #4285F4, #34A853)',
-                                border: 'none', color: 'white', fontWeight: 800, fontSize: '0.75rem',
-                                cursor: 'pointer', boxShadow: '0 10px 20px rgba(66,133,244,0.3)',
-                                animation: 'vault-fade-in 0.5s ease-out'
-                            }}
-                        >
-                            🔑 CONNECT_GOOGLE_DRIVE
-                        </button>
-                    )}
-
-                    {folders.length > 0 && (
-                        <div className="vault-divider" style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.25)', padding: '1.25rem 0.9rem 0.5rem', textTransform: 'uppercase', letterSpacing: '0.2em', fontWeight: 800 }}>
-                            Secure Folders
+                    {collections.length > 0 && (
+                        <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.25)', padding: '1.25rem 0.9rem 0.5rem', textTransform: 'uppercase', letterSpacing: '0.2em', fontWeight: 800 }}>
+                            Collections
                         </div>
                     )}
 
-                    {loadingFolders ? (
-                        <div className="vault-loading" style={{ padding: '1rem', color: 'rgba(255,255,255,0.3)', fontSize: '0.8rem' }}>Decrypting...</div>
+                    {loading ? (
+                        <div style={{ padding: '1rem', color: 'rgba(255,255,255,0.3)', fontSize: '0.8rem' }}>Loading...</div>
                     ) : (
-                        folders.map(folder => (
+                        collections.map(col => (
                             <NavBtn
-                                key={folder.id}
-                                active={activeTab === folder.id}
-                                onClick={() => setActiveTab(folder.id)}
-                                icon="📁"
-                                label={folder.name}
-                                onRemove={() => handleRemoveFolder(folder.id)}
+                                key={col.id}
+                                active={activeTab === col.id}
+                                onClick={() => setActiveTab(col.id)}
+                                icon={TYPE_ICONS[col.type] || '📁'}
+                                label={col.name}
+                                subLabel={col.file_count ? `${col.file_count.toLocaleString()} files · ${fmtBytes(col.size_bytes)}` : null}
+                                onRemove={() => handleRemoveCollection(col.id)}
                             />
                         ))
                     )}
 
-                    <button
-                        className="vault-add-btn"
-                        onClick={() => setShowAdd(true)}
-                    >
-                        + Add Folder Link
+                    <button className="vault-add-btn" onClick={() => setShowAdd(true)}>
+                        + New Collection
                     </button>
                 </div>
+
+                <StorageBar collections={collections} />
             </div>
 
             {/* ─── Content Area ─── */}
             <div className={`vault-content ${activeTab === 'folders_menu' ? 'mobile-only' : ''}`}>
                 {activeTab === 'folders_menu' ? (
                     <div className="mobile-folders-grid-view">
-                        <h3 className="mobile-folders-title">My Folders</h3>
+                        <h3 className="mobile-folders-title">My Collections</h3>
                         <div className="mobile-folders-grid">
                             <div className="add-folder-card" onClick={() => setShowAdd(true)}>
                                 <div className="add-icon">+</div>
-                                <span>Add Folder</span>
+                                <span>New Collection</span>
                             </div>
-                            {loadingFolders ? (
-                                <div className="vault-loading" style={{ gridColumn: 'span 2', textAlign: 'center', padding: '2rem' }}>Loading folders...</div>
+                            {loading ? (
+                                <div style={{ gridColumn: 'span 2', textAlign: 'center', padding: '2rem' }}>Loading...</div>
                             ) : (
-                                folders.map(folder => (
-                                    <div key={folder.id} className="folder-card" onClick={() => setActiveTab(folder.id)}>
-                                        <div className="folder-icon-wrapper">📁</div>
-                                        <div className="folder-name">{folder.name}</div>
-                                        <button className="folder-remove" onClick={(e) => { e.stopPropagation(); handleRemoveFolder(folder.id); }}>✕</button>
+                                collections.map(col => (
+                                    <div key={col.id} className="folder-card" onClick={() => setActiveTab(col.id)}>
+                                        <div className="folder-icon-wrapper">{TYPE_ICONS[col.type] || '📁'}</div>
+                                        <div className="folder-name">{col.name}</div>
+                                        {col.file_count > 0 && <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', marginTop: '4px' }}>{col.file_count} files</div>}
+                                        <button className="folder-remove" onClick={(e) => { e.stopPropagation(); handleRemoveCollection(col.id); }}>✕</button>
                                     </div>
                                 ))
                             )}
                         </div>
                     </div>
                 ) : activeTab === 'people' ? (
-                    <PeopleView folders={folders} />
+                    <PeopleView collections={collections} />
                 ) : (
-                    <GooglePhotos
+                    <VaultMediaGrid
                         activeTab={activeTab === 'folders_menu' ? 'liked' : activeTab}
-                        folders={folders}
+                        collections={collections}
                         onTabChange={setActiveTab}
                     />
                 )}
             </div>
 
-            {showAdd && <AddFolderModal onAdd={handleAddFolder} onClose={() => setShowAdd(false)} />}
+            {showAdd && <CreateCollectionModal onAdd={handleAddCollection} onClose={() => setShowAdd(false)} />}
         </div>
     );
 }
