@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     Plus, Search, Key, Eye, EyeOff, Copy, Pencil, Trash2,
     Upload, X, Check, ChevronDown, ExternalLink, ShieldCheck,
-    ShieldAlert, Shield, RefreshCw, Globe, Lock
+    ShieldAlert, Shield, RefreshCw, Globe, Lock, Zap
 } from 'lucide-react';
 import {
     deriveKeyFromMaster, hasSessionKey, encryptPassword,
@@ -598,6 +598,16 @@ export default function PasswordsPage() {
 
     const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
+    const handleQuickGenerate = async () => {
+        const newPwd = generateStrongPassword(20);
+        try {
+            await copyWithAutoClear(newPwd);
+            showToast('Strong password generated & copied!');
+        } catch {
+            showToast('Failed to copy password');
+        }
+    };
+
     const load = useCallback(async () => {
         if (!unlocked) return;
         setLoading(true);
@@ -672,6 +682,9 @@ export default function PasswordsPage() {
                     <p className="pwd-subtitle">AES-256-GCM encrypted · Key lives in memory only</p>
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <button onClick={handleQuickGenerate} className="pwd-secondary-btn" title="Generate a strong password and copy it">
+                        <Zap size={15} style={{ marginRight: '0.3rem', color: '#f97316' }} />Quick Gen
+                    </button>
                     <button onClick={() => setShowCsv(true)} className="pwd-secondary-btn">
                         <Upload size={15} style={{ marginRight: '0.3rem' }} />Import CSV
                     </button>
