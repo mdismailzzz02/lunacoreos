@@ -560,7 +560,8 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
     if (!col) return <div style={{ color: 'rgba(255,255,255,0.2)', padding: '2rem' }}>INITIALIZING_STREAM...</div>;
 
     const colData = collectionCache[col.id] || { files: [], hasMore: false, total: 0 };
-    const items = colData.files;
+    // Exclude liked items so they only appear in the Liked tab
+    const items = colData.files.filter(item => !likedIds.has(item.id));
 
     return (
         <div style={{ animation: 'vault-fade-in 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }}>
