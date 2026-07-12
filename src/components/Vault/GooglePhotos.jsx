@@ -330,7 +330,7 @@ function UploadQueue({ collectionId, onDone }) {
     const [progress, setProgress] = useState({});
     const [running, setRunning] = useState(false);
     const inputRef = useRef(null);
-    const CONCURRENCY = 4;
+    const CONCURRENCY = 10;
 
     const addFiles = (incoming) => {
         setFiles(prev => [...prev, ...Array.from(incoming)]);
