@@ -148,7 +148,7 @@ function StorageBar({ collections }) {
 // ─── Main VaultPage ─────────────────────────────────────────────
 function VaultPage() {
     const [collections, setCollections] = useState([]);
-    const [activeTab, setActiveTab] = useState('liked');
+    const [activeTab, setActiveTab] = useState(window.innerWidth < 768 ? 'folders_menu' : null);
     const [showAdd, setShowAdd] = useState(false);
     const [loading, setLoading] = useState(true);
 
@@ -156,8 +156,12 @@ function VaultPage() {
         setLoading(true);
         getVaultCollections()
             .then(data => {
-                setCollections(Array.isArray(data) ? data : []);
-                localStorage.setItem('vault_collections_cache', JSON.stringify({ data, cachedAt: Date.now() }));
+                const cols = Array.isArray(data) ? data : [];
+                setCollections(cols);
+                if (!activeTab || (activeTab === 'folders_menu' && window.innerWidth >= 768)) {
+                    setActiveTab(cols.length > 0 ? cols[0].id : 'people');
+                }
+                localStorage.setItem('vault_collections_cache', JSON.stringify({ data: cols, cachedAt: Date.now() }));
             })
             .catch(() => {
                 const cached = localStorage.getItem('vault_collections_cache');
@@ -180,7 +184,9 @@ function VaultPage() {
         if (!window.confirm(`Remove "${col?.name || 'this collection'}" from your Vault?\n\nFiles in R2 are NOT deleted — only the index is removed.`)) return;
         try { await deleteVaultCollection(colId); } catch (_) {}
         setCollections(prev => prev.filter(c => c.id !== colId));
-        if (activeTab === colId) setActiveTab('liked');
+        if (activeTab === colId) {
+            setActiveTab(window.innerWidth < 768 ? 'folders_menu' : (collections[0]?.id || 'people'));
+        }
     };
 
     const isCollectionActive = collections.some(c => c.id === activeTab);
@@ -235,7 +241,7 @@ function VaultPage() {
             {/* ─── Mobile Segmented Control ─── */}
             <div className={`vault-mobile-nav mobile-only ${isCollectionActive ? 'hidden' : ''}`} style={{ padding: '1rem', background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)' }}>
                 <div className="vault-segments" style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '12px' }}>
-                    <button style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'liked' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('liked')}>❤️ Liked</button>
+
                     <button style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'folders_menu' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('folders_menu')}>🗂️ Collections</button>
                     <button style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'people' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('people')}>👥 People</button>
                 </div>
@@ -259,12 +265,7 @@ function VaultPage() {
                 </div>
 
                 <div className="vault-nav-scroll">
-                    <NavBtn
-                        active={activeTab === 'liked'}
-                        onClick={() => setActiveTab('liked')}
-                        icon="❤️"
-                        label="Liked Items"
-                    />
+
                     <NavBtn
                         active={activeTab === 'people'}
                         onClick={() => setActiveTab('people')}
@@ -330,7 +331,7 @@ function VaultPage() {
                     <PeopleView collections={collections} />
                 ) : (
                     <VaultMediaGrid
-                        activeTab={activeTab === 'folders_menu' ? 'liked' : activeTab}
+                        activeTab={activeTab}
                         collections={collections}
                         onTabChange={setActiveTab}
                     />

@@ -429,6 +429,7 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
     const [showUpload, setShowUpload] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
     const [scannedGroups, setScannedGroups] = useState(null);
+    const [innerTab, setInnerTab] = useState('all'); // 'all' or 'favorites'
 
     // Load liked items on mount + batch-prefetch their presigned URLs
     useEffect(() => {
@@ -451,7 +452,8 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
 
     // Load collection when active tab changes
     useEffect(() => {
-        if (!activeTab || activeTab === 'liked') return;
+        if (!activeTab) return;
+        setInnerTab('all'); // Reset inner tab when switching collections
         const col = collections?.find(c => String(c.id) === String(activeTab));
         if (col && !collectionCache[col.id]) {
             fetchCollectionPage(col.id, 1);
@@ -535,40 +537,25 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
         </div>
     );
 
-    // ─── LIKED TAB ───────────────────────────────────────────
-    if (activeTab === 'liked') {
-        return (
-            <div style={{ animation: 'vault-fade-in 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                    <p style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 700, margin: 0 }}>{liked.length} SAVED ITEMS</p>
-                </div>
-                {liked.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '5rem', background: 'rgba(255,255,255,0.02)', borderRadius: '30px', border: '1px dashed rgba(255,255,255,0.1)' }}>
-                        <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🤍</div>
-                        <p style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 700 }}>NO LIKED ITEMS YET</p>
-                    </div>
-                ) : (
-                    <MediaGrid items={liked} likedIds={likedIds} onLike={handleLike} onOpen={(i) => { setLightboxItems(liked); setLightboxIndex(i); }} />
-                )}
-                <VaultLightbox items={lightboxItems} index={lightboxIndex} onClose={() => setLightboxIndex(-1)} likedIds={likedIds} onLike={handleLike} />
-            </div>
-        );
-    }
+
 
     // ─── COLLECTION TAB ───────────────────────────────────────
     const col = collections?.find(c => String(c.id) === String(activeTab));
     if (!col) return <div style={{ color: 'rgba(255,255,255,0.2)', padding: '2rem' }}>INITIALIZING_STREAM...</div>;
 
     const colData = collectionCache[col.id] || { files: [], hasMore: false, total: 0 };
-    // Exclude liked items so they only appear in the Liked tab
-    const items = colData.files.filter(item => !likedIds.has(item.id));
+    // Filter items based on innerTab: all files or just favorites for this collection
+    const collectionLiked = liked.filter(f => colData.files.some(cf => cf.id === f.id));
+    const items = innerTab === 'favorites'
+        ? collectionLiked
+        : colData.files.filter(item => !likedIds.has(item.id));
 
     return (
         <div style={{ animation: 'vault-fade-in 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                     <p style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 700, margin: 0 }}>
-                        {items.length}{colData.total > items.length ? ` / ${colData.total}` : ''} FILES · {col.name.toUpperCase()}
+                        {items.length}{innerTab === 'all' && colData.total > items.length ? ` / ${colData.total}` : ''} {innerTab === 'favorites' ? 'FAVORITES' : 'FILES'} · {col.name.toUpperCase()}
                     </p>
                     {syncing && <span style={{ fontSize: '0.65rem', color: '#a78bfa', fontWeight: 800, letterSpacing: '0.1em', animation: 'pulse 1.5s infinite' }}>[ SYNCING_R2 ]</span>}
                     {syncMsg && <span style={{ fontSize: '0.75rem', color: syncMsg.startsWith('✅') ? '#34d399' : '#f87171', fontWeight: 700 }}>{syncMsg}</span>}
@@ -609,6 +596,32 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
                 </div>
             </div>
 
+            {/* ─── Inner Tab Toggle: ALL FILES | FAVORITES ─── */}
+            <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.04)', padding: '4px', borderRadius: '12px', marginBottom: '1.5rem', width: 'fit-content' }}>
+                <button
+                    onClick={() => setInnerTab('all')}
+                    style={{
+                        padding: '8px 18px', borderRadius: '10px', border: 'none', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', letterSpacing: '0.05em', transition: 'all 0.25s',
+                        background: innerTab === 'all' ? 'rgba(167,139,250,0.25)' : 'transparent',
+                        color: innerTab === 'all' ? '#c4b5fd' : 'rgba(255,255,255,0.35)',
+                        boxShadow: innerTab === 'all' ? '0 2px 8px rgba(167,139,250,0.15)' : 'none'
+                    }}
+                >
+                    ALL FILES
+                </button>
+                <button
+                    onClick={() => setInnerTab('favorites')}
+                    style={{
+                        padding: '8px 18px', borderRadius: '10px', border: 'none', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', letterSpacing: '0.05em', transition: 'all 0.25s',
+                        background: innerTab === 'favorites' ? 'rgba(239,68,68,0.2)' : 'transparent',
+                        color: innerTab === 'favorites' ? '#fca5a5' : 'rgba(255,255,255,0.35)',
+                        boxShadow: innerTab === 'favorites' ? '0 2px 8px rgba(239,68,68,0.1)' : 'none'
+                    }}
+                >
+                    ❤️ FAVORITES {collectionLiked.length > 0 ? `(${collectionLiked.length})` : ''}
+                </button>
+            </div>
+
             {showUpload && (
                 <UploadQueue
                     collectionId={col.id}
@@ -642,11 +655,17 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
                     {[...Array(15)].map((_, i) => <SkeletonCard key={i} />)}
                 </div>
+            ) : innerTab === 'favorites' && items.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '5rem', background: 'rgba(255,255,255,0.02)', borderRadius: '30px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                    <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🤍</div>
+                    <p style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 700 }}>NO FAVORITES IN THIS COLLECTION</p>
+                    <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.8rem', marginTop: '0.5rem' }}>Like items to see them here</p>
+                </div>
             ) : (
                 <>
                     <MediaGrid items={items} likedIds={likedIds} onLike={handleLike} onOpen={(i) => { setLightboxItems(items); setLightboxIndex(i); }} />
 
-                    {colData.hasMore && (
+                    {innerTab === 'all' && colData.hasMore && (
                         <div style={{ display: 'flex', justifyContent: 'center', marginTop: '4rem', paddingBottom: '4rem' }}>
                             <button
                                 onClick={() => fetchCollectionPage(col.id, colData.page + 1)}
