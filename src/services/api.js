@@ -243,13 +243,21 @@ export const calculateStreaks = async () => {
 
 // ─── Vault R2 — Collections ─────────────────────────────────
 
-export const getVaultCollections = async () => {
-    const { data, error } = await supabase.from('vault_collections').select('*').order('created_at', { ascending: true });
+export const getVaultCollections = async (mode = 'normal') => {
+    let query = supabase.from('vault_collections').select('*').order('created_at', { ascending: true });
+    if (mode === 'normal') {
+        query = query.eq('is_hidden', false).eq('is_secret', false);
+    } else if (mode === 'hidden') {
+        query = query.eq('is_secret', false); // show normal + hidden
+    } else if (mode === 'secret') {
+        query = query.eq('is_hidden', false); // show normal + secret
+    }
+    const { data, error } = await query;
     if (error) throw error;
     return data;
 };
 
-export const createVaultCollection = async ({ name, type = 'gallery', key_prefix }) => {
+export const createVaultCollection = async ({ name, type = 'gallery', key_prefix, is_hidden = false, is_secret = false }) => {
     const prefix = key_prefix || `${type}-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}/`;
     
     // 1. Register in Database
@@ -257,6 +265,8 @@ export const createVaultCollection = async ({ name, type = 'gallery', key_prefix
         name,
         type,
         key_prefix: prefix,
+        is_hidden,
+        is_secret
     }]).select();
     if (error) throw error;
 

@@ -1,0 +1,2 @@
+ALTER TABLE vault_collections
+ADD COLUMN is_secret BOOLEAN DEFAULT FALSE;

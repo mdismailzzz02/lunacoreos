@@ -277,6 +277,8 @@ CREATE TABLE IF NOT EXISTS vault_collections (
   key_prefix  TEXT NOT NULL,                    -- R2 prefix, e.g. "gallery-personal/"
   file_count  INT DEFAULT 0,
   size_bytes  BIGINT DEFAULT 0,
+  is_hidden   BOOLEAN DEFAULT FALSE,
+  is_secret   BOOLEAN DEFAULT FALSE,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 

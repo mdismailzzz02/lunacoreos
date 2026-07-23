@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import VaultMediaGrid from './GooglePhotos';
 import PeopleView from './PeopleView';
 import VaultLock from './VaultLock';
+import SecondaryVaultLock from './SecondaryVaultLock';
 import {
     getVaultCollections,
     createVaultCollection,
@@ -22,9 +23,10 @@ const TYPE_ICONS = { gallery: '🖼️', documents: '📄', code: '💻' };
 const TOTAL_FREE_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
 
 // ─── Create Collection Modal ────────────────────────────────────
-function CreateCollectionModal({ onAdd, onClose }) {
+function CreateCollectionModal({ onAdd, onClose, vaultMode }) {
     const [name, setName] = useState('');
     const [type, setType] = useState('gallery');
+    const [isSpecial, setIsSpecial] = useState(false);
     const [err, setErr] = useState('');
     const [saving, setSaving] = useState(false);
 
@@ -33,7 +35,9 @@ function CreateCollectionModal({ onAdd, onClose }) {
         if (!name.trim()) { setErr('Please enter a collection name.'); return; }
         setSaving(true);
         try {
-            const col = await createVaultCollection({ name: name.trim(), type });
+            const is_hidden = vaultMode === 'hidden' ? isSpecial : false;
+            const is_secret = vaultMode === 'secret' ? isSpecial : false;
+            const col = await createVaultCollection({ name: name.trim(), type, is_hidden, is_secret });
             onAdd(col);
             onClose();
         } catch (e) {
@@ -66,6 +70,15 @@ function CreateCollectionModal({ onAdd, onClose }) {
                             </button>
                         ))}
                     </div>
+
+                    {vaultMode !== 'normal' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem', background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '10px' }}>
+                            <input type="checkbox" id="special-col" checked={isSpecial} onChange={e => setIsSpecial(e.target.checked)} style={{ cursor: 'pointer' }} />
+                            <label htmlFor="special-col" style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>
+                                {vaultMode === 'secret' ? 'Make this collection secret 🕵️' : 'Make this collection totally hidden 👻'}
+                            </label>
+                        </div>
+                    )}
 
                     {err && <p style={{ color: '#ef4444', fontSize: '0.8rem', marginBottom: '0.75rem' }}>{err}</p>}
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -151,10 +164,13 @@ function VaultPage() {
     const [activeTab, setActiveTab] = useState(window.innerWidth < 768 ? 'folders_menu' : null);
     const [showAdd, setShowAdd] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [vaultMode, setVaultMode] = useState('normal'); // 'normal', 'hidden', 'secret'
+    const [pendingMode, setPendingMode] = useState(null); // mode to unlock
+    const [secretClicks, setSecretClicks] = useState(0);
 
     const loadCollections = () => {
         setLoading(true);
-        getVaultCollections()
+        getVaultCollections(vaultMode)
             .then(data => {
                 const cols = Array.isArray(data) ? data : [];
                 setCollections(cols);
@@ -172,7 +188,23 @@ function VaultPage() {
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { loadCollections(); }, []);
+    useEffect(() => { loadCollections(); }, [vaultMode]);
+
+    const handleSecretClick = (mode) => {
+        if (vaultMode !== 'normal') {
+            setVaultMode('normal');
+            return;
+        }
+        
+        // mode is either 'hidden' or 'secret'
+        const newClicks = secretClicks + 1;
+        setSecretClicks(newClicks);
+        if (newClicks >= 3) {
+            setPendingMode(mode);
+            setSecretClicks(0);
+        }
+        setTimeout(() => setSecretClicks(0), 3000);
+    };
 
     const handleAddCollection = (col) => {
         setCollections(prev => [...prev, col]);
@@ -260,8 +292,29 @@ function VaultPage() {
             {/* ─── Left Sidebar (Desktop Only) ─── */}
             <div className="vault-sidebar desktop-only">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                    <h2 className="vault-title" style={{ margin: 0 }}><span>🔒</span> VAULT_CORE</h2>
-                    <button onClick={loadCollections} className="btn btn-ghost btn-xs" title="Reload collections" style={{ padding: '4px', opacity: 0.5 }}>🔄</button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span 
+                            onClick={() => handleSecretClick('hidden')} 
+                            style={{ cursor: 'pointer', fontSize: '1.5rem', userSelect: 'none' }}
+                            title={vaultMode === 'hidden' ? "Lock Hidden Vault" : "..."}
+                        >
+                            {vaultMode === 'hidden' ? '👻' : vaultMode === 'secret' ? '🕵️' : '🔒'}
+                        </span>
+                        <h2 className="vault-title" style={{ margin: 0 }}>VAULT_CORE</h2>
+                        {vaultMode === 'normal' && (
+                            <span 
+                                onClick={() => handleSecretClick('secret')} 
+                                style={{ cursor: 'pointer', fontSize: '1.2rem', userSelect: 'none', opacity: 0.3, marginLeft: '4px' }}
+                                title="🕵️"
+                            >
+                                ◈
+                            </span>
+                        )}
+                    </div>
+                    
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={loadCollections} className="btn btn-ghost btn-xs" title="Reload collections" style={{ padding: '4px', opacity: 0.5 }}>🔄</button>
+                    </div>
                 </div>
 
                 <div className="vault-nav-scroll">
@@ -338,7 +391,16 @@ function VaultPage() {
                 )}
             </div>
 
-            {showAdd && <CreateCollectionModal onAdd={handleAddCollection} onClose={() => setShowAdd(false)} />}
+            {showAdd && <CreateCollectionModal onAdd={handleAddCollection} onClose={() => setShowAdd(false)} vaultMode={vaultMode} />}
+            {pendingMode && (
+                <SecondaryVaultLock 
+                    lockId={pendingMode === 'hidden' ? 'vault_hidden' : 'vault_secret'} 
+                    title={pendingMode === 'hidden' ? 'Hidden Vault' : 'Secret Vault'}
+                    icon={pendingMode === 'hidden' ? '👻' : '🕵️'}
+                    onSuccess={() => { setVaultMode(pendingMode); setPendingMode(null); }} 
+                    onClose={() => setPendingMode(null)} 
+                />
+            )}
         </div>
     );
 }
