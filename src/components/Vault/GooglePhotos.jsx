@@ -594,7 +594,7 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
 
     const colData = collectionCache[col.id] || { files: [], hasMore: false, total: 0 };
     // Filter items based on innerTab: all files or just favorites for this collection
-    const collectionLiked = liked.filter(f => colData.files.some(cf => cf.id === f.id));
+    const collectionLiked = liked.filter(f => f.collection_id === col.id);
     const items = innerTab === 'favorites'
         ? collectionLiked
         : colData.files.filter(item => !likedIds.has(item.id));
