@@ -431,6 +431,7 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
     const [showScanner, setShowScanner] = useState(false);
     const [scannedGroups, setScannedGroups] = useState(null);
     const [innerTab, setInnerTab] = useState('all'); // 'all' or 'favorites'
+    const [isRandomView, setIsRandomView] = useState(false);
 
     // Load liked items on mount + batch-prefetch their presigned URLs
     useEffect(() => {
@@ -455,9 +456,17 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
     useEffect(() => {
         if (!activeTab) return;
         setInnerTab('all'); // Reset inner tab when switching collections
+        setIsRandomView(false); // Reset to normal view when switching collections
         const col = collections?.find(c => String(c.id) === String(activeTab));
-        if (col && !collectionCache[col.id]) {
-            fetchCollectionPage(col.id, 1);
+        if (col) {
+            // If we don't have the normal cache, fetch it.
+            // We use a functional state update to safely read current cache without adding it to deps
+            setCollectionCache(prev => {
+                if (!prev[col.id] || prev[col.id].isRandom) {
+                    fetchCollectionPage(col.id, 1);
+                }
+                return prev;
+            });
         }
         // Reset scanner states on tab change
         setShowScanner(false);
@@ -487,7 +496,8 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
                         files: page === 1 ? newFiles : [...(existing?.files || []), ...newFiles],
                         page,
                         total: res.total,
-                        hasMore: res.hasMore
+                        hasMore: res.hasMore,
+                        isRandom: false
                     }
                 };
             });
@@ -519,7 +529,8 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
                         files: randomFiles,
                         page: 1,
                         total: existing.total,
-                        hasMore: false // Disable pagination in random view to avoid duplicates
+                        hasMore: false, // Disable pagination in random view to avoid duplicates
+                        isRandom: true
                     }
                 };
             });
@@ -614,11 +625,19 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
                         {showScanner || scannedGroups ? 'CLOSE SCANNER' : 'SCAN FACES'}
                     </button>
                     <button
-                        onClick={() => fetchRandomFiles(col.id)}
+                        onClick={() => {
+                            const nextState = !isRandomView;
+                            setIsRandomView(nextState);
+                            if (nextState) {
+                                fetchRandomFiles(col.id);
+                            } else {
+                                fetchCollectionPage(col.id, 1);
+                            }
+                        }}
                         disabled={loading}
-                        style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.2)', color: '#a78bfa', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}
+                        style={{ background: isRandomView ? 'rgba(52,211,153,0.1)' : 'rgba(167,139,250,0.1)', border: `1px solid ${isRandomView ? 'rgba(52,211,153,0.2)' : 'rgba(167,139,250,0.2)'}`, color: isRandomView ? '#34d399' : '#a78bfa', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}
                     >
-                        {loading ? 'LOADING...' : 'RANDOMIZE (DB)'}
+                        {loading ? 'LOADING...' : isRandomView ? 'NORMAL VIEW' : 'RANDOM VIEW'}
                     </button>
                 </div>
             </div>
