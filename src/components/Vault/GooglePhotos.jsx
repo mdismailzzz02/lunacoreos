@@ -10,6 +10,7 @@ import {
     uploadFileToR2,
     getFileTextContent,
     getRandomVaultFiles,
+    updateVaultCollection,
 } from '../../services/api';
 import { SkeletonCard } from '../Shared/Skeleton';
 import FaceScanner from './FaceScanner';
@@ -456,10 +457,12 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
     useEffect(() => {
         if (!activeTab) return;
         setInnerTab('all'); // Reset inner tab when switching collections
-        const isRand = localStorage.getItem(`vault_random_view_${activeTab}`) === 'true';
+        const col = collections?.find(c => String(c.id) === String(activeTab));
+        
+        // Use the database value (or fallback to false)
+        const isRand = col?.default_random || false;
         setIsRandomView(isRand);
 
-        const col = collections?.find(c => String(c.id) === String(activeTab));
         if (col) {
             // We use a functional state update to safely read current cache without adding it to deps
             setCollectionCache(prev => {
@@ -645,7 +648,16 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
                         onClick={() => {
                             const nextState = !isRandomView;
                             setIsRandomView(nextState);
-                            localStorage.setItem(`vault_random_view_${col.id}`, nextState);
+                            
+                            // Silently update the database so it syncs across devices
+                            updateVaultCollection(col.id, { default_random: nextState }).catch(err => 
+                                console.error('Failed to save random preference', err)
+                            );
+                            
+                            // Update local collections state if possible, though VaultPage holds it
+                            // For now, this local isRandomView state handles the UI immediately
+                            col.default_random = nextState; 
+
                             if (nextState) {
                                 fetchRandomFiles(col.id);
                             } else {
