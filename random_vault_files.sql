@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION get_random_vault_files(p_collection_id UUID, p_limit INT)
+CREATE OR REPLACE FUNCTION get_random_vault_files(p_collection_id TEXT, p_limit INT)
 RETURNS SETOF vault_files AS $$
 BEGIN
   RETURN QUERY
