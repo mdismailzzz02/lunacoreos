@@ -431,7 +431,7 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
     const [showScanner, setShowScanner] = useState(false);
     const [scannedGroups, setScannedGroups] = useState(null);
     const [innerTab, setInnerTab] = useState('all'); // 'all' or 'favorites'
-    const [isRandomView, setIsRandomView] = useState(false);
+    const [isRandomView, setIsRandomView] = useState(() => localStorage.getItem('vault_random_view') === 'true');
 
     // Load liked items on mount + batch-prefetch their presigned URLs
     useEffect(() => {
@@ -456,14 +456,19 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
     useEffect(() => {
         if (!activeTab) return;
         setInnerTab('all'); // Reset inner tab when switching collections
-        setIsRandomView(false); // Reset to normal view when switching collections
         const col = collections?.find(c => String(c.id) === String(activeTab));
         if (col) {
-            // If we don't have the normal cache, fetch it.
             // We use a functional state update to safely read current cache without adding it to deps
             setCollectionCache(prev => {
-                if (!prev[col.id] || prev[col.id].isRandom) {
-                    fetchCollectionPage(col.id, 1);
+                if (isRandomView) {
+                    // Only fetch random if we don't already have random cache for this col
+                    if (!prev[col.id] || !prev[col.id].isRandom) {
+                        setTimeout(() => fetchRandomFiles(col.id), 0);
+                    }
+                } else {
+                    if (!prev[col.id] || prev[col.id].isRandom) {
+                        setTimeout(() => fetchCollectionPage(col.id, 1), 0);
+                    }
                 }
                 return prev;
             });
@@ -471,7 +476,7 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
         // Reset scanner states on tab change
         setShowScanner(false);
         setScannedGroups(null);
-    }, [activeTab, collections]);
+    }, [activeTab, collections]); // We don't add isRandomView here because toggle button handles its own fetch
 
     const fetchCollectionPage = async (collectionId, page) => {
         setLoading(true);
@@ -637,6 +642,7 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
                         onClick={() => {
                             const nextState = !isRandomView;
                             setIsRandomView(nextState);
+                            localStorage.setItem('vault_random_view', nextState);
                             if (nextState) {
                                 fetchRandomFiles(col.id);
                             } else {
