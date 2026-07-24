@@ -431,7 +431,7 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
     const [showScanner, setShowScanner] = useState(false);
     const [scannedGroups, setScannedGroups] = useState(null);
     const [innerTab, setInnerTab] = useState('all'); // 'all' or 'favorites'
-    const [isRandomView, setIsRandomView] = useState(() => localStorage.getItem('vault_random_view') === 'true');
+    const [isRandomView, setIsRandomView] = useState(false);
 
     // Load liked items on mount + batch-prefetch their presigned URLs
     useEffect(() => {
@@ -456,11 +456,14 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
     useEffect(() => {
         if (!activeTab) return;
         setInnerTab('all'); // Reset inner tab when switching collections
+        const isRand = localStorage.getItem(`vault_random_view_${activeTab}`) === 'true';
+        setIsRandomView(isRand);
+
         const col = collections?.find(c => String(c.id) === String(activeTab));
         if (col) {
             // We use a functional state update to safely read current cache without adding it to deps
             setCollectionCache(prev => {
-                if (isRandomView) {
+                if (isRand) {
                     // Only fetch random if we don't already have random cache for this col
                     if (!prev[col.id] || !prev[col.id].isRandom) {
                         setTimeout(() => fetchRandomFiles(col.id), 0);
@@ -642,7 +645,7 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
                         onClick={() => {
                             const nextState = !isRandomView;
                             setIsRandomView(nextState);
-                            localStorage.setItem('vault_random_view', nextState);
+                            localStorage.setItem(`vault_random_view_${col.id}`, nextState);
                             if (nextState) {
                                 fetchRandomFiles(col.id);
                             } else {
