@@ -624,6 +624,15 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
                     >
                         {showScanner || scannedGroups ? 'CLOSE SCANNER' : 'SCAN FACES'}
                     </button>
+                    {isRandomView && (
+                        <button
+                            onClick={() => fetchRandomFiles(col.id)}
+                            disabled={loading}
+                            style={{ background: 'rgba(236,72,153,0.1)', border: '1px solid rgba(236,72,153,0.2)', color: '#f472b6', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}
+                        >
+                            🔄 REROLL
+                        </button>
+                    )}
                     <button
                         onClick={() => {
                             const nextState = !isRandomView;
