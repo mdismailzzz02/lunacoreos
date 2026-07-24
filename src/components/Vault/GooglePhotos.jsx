@@ -9,6 +9,7 @@ import {
     syncVaultCollection,
     uploadFileToR2,
     getFileTextContent,
+    getRandomVaultFiles,
 } from '../../services/api';
 import { SkeletonCard } from '../Shared/Skeleton';
 import FaceScanner from './FaceScanner';
@@ -497,6 +498,38 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
         }
     };
 
+    const fetchRandomFiles = async (collectionId) => {
+        setLoading(true);
+        try {
+            const randomFiles = await getRandomVaultFiles(collectionId, 50);
+            
+            const keys = randomFiles.map(f => f.r2_key).filter(k => !getCachedUrl(k));
+            for (let i = 0; i < keys.length; i += 20) {
+                const batch = keys.slice(i, i + 20);
+                getR2PresignedBatch(batch)
+                    .then(({ urls }) => { Object.entries(urls).forEach(([k, url]) => setCachedUrl(k, url)); })
+                    .catch(console.error);
+            }
+
+            setCollectionCache(prev => {
+                const existing = prev[collectionId] || { total: 0 };
+                return {
+                    ...prev,
+                    [collectionId]: {
+                        files: randomFiles,
+                        page: 1,
+                        total: existing.total,
+                        hasMore: false // Disable pagination in random view to avoid duplicates
+                    }
+                };
+            });
+        } catch (err) {
+            console.error('fetchRandomFiles error:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const likedIds = new Set(liked.map(l => l.id));
 
     const handleLike = async (file) => {
@@ -581,17 +614,11 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
                         {showScanner || scannedGroups ? 'CLOSE SCANNER' : 'SCAN FACES'}
                     </button>
                     <button
-                        onClick={() => {
-                            setCollectionCache(prev => {
-                                const current = prev[col.id];
-                                if (!current) return prev;
-                                const shuffled = [...current.files].sort(() => Math.random() - 0.5);
-                                return { ...prev, [col.id]: { ...current, files: shuffled } };
-                            });
-                        }}
-                        style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.2)', color: '#a78bfa', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                        onClick={() => fetchRandomFiles(col.id)}
+                        disabled={loading}
+                        style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.2)', color: '#a78bfa', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}
                     >
-                        RESHUFFLE
+                        {loading ? 'LOADING...' : 'RANDOMIZE (DB)'}
                     </button>
                 </div>
             </div>

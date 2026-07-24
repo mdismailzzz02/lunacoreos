@@ -318,6 +318,20 @@ export const getVaultFiles = async (collectionId, page = 1, pageSize = 50) => {
     return { files: data, total: count, page, pageSize, hasMore: to < count - 1 };
 };
 
+export const getRandomVaultFiles = async (collectionId, limit = 50) => {
+    const { data, error } = await supabase.rpc('get_random_vault_files', {
+        p_collection_id: collectionId,
+        p_limit: limit
+    });
+
+    if (error) {
+        console.error("Error fetching random files:", error);
+        throw error;
+    }
+    
+    return data; 
+};
+
 export const insertVaultFile = async (params) => {
     const { data, error } = await supabase.from('vault_files').insert([params]).select();
     if (error) throw error;
