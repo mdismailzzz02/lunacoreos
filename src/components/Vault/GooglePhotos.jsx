@@ -270,7 +270,7 @@ function VaultCard({ file, isLiked, onLike, onOpen }) {
             {thumbUrl && fileType === 'video' && (
                 <video
                     className={`vault-thumb ${imgLoaded ? 'vault-thumb--loaded' : ''}`}
-                    src={thumbUrl}
+                    src={`${thumbUrl}#t=8`}
                     preload="metadata"
                     muted
                     onLoadedData={() => setImgLoaded(true)}
