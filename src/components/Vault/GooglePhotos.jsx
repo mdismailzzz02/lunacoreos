@@ -267,6 +267,15 @@ function VaultCard({ file, isLiked, onLike, onOpen }) {
                     onLoad={() => setImgLoaded(true)}
                 />
             )}
+            {thumbUrl && fileType === 'video' && (
+                <video
+                    className={`vault-thumb ${imgLoaded ? 'vault-thumb--loaded' : ''}`}
+                    src={thumbUrl}
+                    preload="metadata"
+                    muted
+                    onLoadedData={() => setImgLoaded(true)}
+                />
+            )}
             <div className="card-overlay" />
             <button
                 onClick={(e) => { e.stopPropagation(); onLike(file); }}
@@ -277,6 +286,11 @@ function VaultCard({ file, isLiked, onLike, onOpen }) {
             {fileType !== 'image' && (
                 <div style={{ position: 'absolute', top: '12px', left: '12px', background: 'rgba(167,139,250,0.2)', padding: '4px 10px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 800, color: 'white', backdropFilter: 'blur(8px)', border: '1px solid rgba(167,139,250,0.3)', zIndex: 5 }}>
                     {fileType.toUpperCase()}
+                </div>
+            )}
+            {(fileType === 'video' || fileType === 'audio') && (
+                <div style={{ position: 'absolute', bottom: '0', left: '0', right: '0', padding: '30px 50px 12px 12px', background: 'linear-gradient(transparent, rgba(0,0,0,0.9))', color: 'rgba(255,255,255,0.85)', fontSize: '0.75rem', fontWeight: 600, zIndex: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', pointerEvents: 'none' }}>
+                    {file.filename}
                 </div>
             )}
         </div>
