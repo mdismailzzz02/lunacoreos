@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as api from '../../services/api';
 
 export default function WritingPage() {
@@ -7,6 +7,8 @@ export default function WritingPage() {
     const [editingId, setEditingId] = useState(null);
     const [editorData, setEditorData] = useState({ title: '', content: '', tags: '' });
     const [saveStatus, setSaveStatus] = useState('');
+    const timeoutRef = useRef(null);
+    const editingIdRef = useRef(null);
 
     useEffect(() => {
         loadDrafts();
@@ -16,12 +18,12 @@ export default function WritingPage() {
         if (!editingId || !editorData.title.trim()) return;
         
         setSaveStatus('Saving...');
-        const timeoutId = setTimeout(() => {
+        timeoutRef.current = setTimeout(() => {
             saveDraft(false);
         }, 1500);
         
-        return () => clearTimeout(timeoutId);
-    }, [editorData]);
+        return () => clearTimeout(timeoutRef.current);
+    }, [editorData, editingId]);
 
     const loadDrafts = async () => {
         try {
@@ -36,14 +38,23 @@ export default function WritingPage() {
 
     const handleNew = () => {
         setEditingId('new');
+        editingIdRef.current = 'new';
         setEditorData({ title: '', content: '', tags: '' });
     };
 
     const saveDraft = async (closeEditor = false) => {
         if (!editorData.title.trim()) return;
 
-        const isNew = editingId === 'new';
-        const generatedId = isNew ? Date.now().toString() : editingId;
+        const currentId = editingIdRef.current;
+        const isNew = currentId === 'new';
+        const generatedId = isNew ? Date.now().toString() : currentId;
+        
+        // Update ref synchronously so overlapping autosaves don't create duplicates
+        if (isNew && !closeEditor) {
+            editingIdRef.current = generatedId;
+            setEditingId(generatedId);
+        }
+
         const newDraft = {
             id: generatedId,
             ...editorData,
@@ -55,37 +66,68 @@ export default function WritingPage() {
         try {
             await api.saveWriting(newDraft);
             if (isNew) {
-                setDrafts([newDraft, ...drafts]);
-                if (!closeEditor) setEditingId(generatedId);
+                setDrafts(prev => [newDraft, ...prev]);
             } else {
-                setDrafts(drafts.map(d => d.id === editingId ? newDraft : d));
+                setDrafts(prev => prev.map(d => d.id === currentId ? newDraft : d));
             }
             
             setSaveStatus('Saved');
             if (closeEditor) {
                 setEditingId(null);
+                editingIdRef.current = null;
             } else {
                 setTimeout(() => setSaveStatus(''), 2000);
             }
         } catch (err) {
             setSaveStatus('Failed to save');
+            // If it failed and was new, revert the ref so we try again next time
+            if (isNew && !closeEditor) {
+                editingIdRef.current = 'new';
+                setEditingId('new');
+            }
         }
     };
 
     const handleEdit = (draft) => {
         setEditingId(draft.id);
+        editingIdRef.current = draft.id;
         setEditorData({ title: draft.title, content: draft.content, tags: draft.tags });
+    };
+
+    const handleDelete = async () => {
+        if (editingId === 'new') {
+            setEditingId(null);
+            editingIdRef.current = null;
+            return;
+        }
+        const confirmText = window.prompt('Type "delete" to confirm removal of this draft:');
+        if (confirmText?.toLowerCase() !== 'delete') return;
+
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
+        try {
+            const idToDelete = editingId;
+            await api.deleteWriting(idToDelete);
+            setDrafts(prev => prev.filter(d => d.id !== idToDelete));
+            setEditingId(null);
+            editingIdRef.current = null;
+        } catch (err) {
+            alert('Failed to delete draft');
+        }
     };
 
     if (editingId) {
         return (
             <div className="fade-in" style={{ height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <button onClick={() => setEditingId(null)} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button onClick={() => { setEditingId(null); editingIdRef.current = null; }} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         ← Back to Drafts
                     </button>
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                         <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{saveStatus}</span>
+                        <button onClick={handleDelete} style={{ background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', padding: '0.6rem 1rem', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'} onMouseOut={e => e.currentTarget.style.background = 'transparent'} title="Delete Draft">
+                            🗑️ Delete
+                        </button>
                         <button onClick={() => saveDraft(true)} style={{ padding: '0.6rem 1.5rem', borderRadius: '10px', background: 'var(--brand-color, #a29bfe)', border: 'none', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
                             Close & Save
                         </button>
