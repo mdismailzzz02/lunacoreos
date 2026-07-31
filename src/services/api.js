@@ -258,7 +258,14 @@ export const getVaultCollections = async (mode = 'normal') => {
 };
 
 export const createVaultCollection = async ({ name, type = 'gallery', key_prefix, is_hidden = false, is_secret = false, parent_id = null }) => {
-    const prefix = key_prefix || `${type}-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}/`;
+    let prefix = key_prefix || `${type}-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}/`;
+    
+    if (parent_id) {
+        const { data: parent } = await supabase.from('vault_collections').select('key_prefix').eq('id', parent_id).single();
+        if (parent?.key_prefix) {
+            prefix = `${parent.key_prefix}${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}/`;
+        }
+    }
     
     // 1. Register in Database
     const { data, error } = await supabase.from('vault_collections').insert([{
