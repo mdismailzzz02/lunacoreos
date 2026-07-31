@@ -293,8 +293,17 @@ export const updateVaultCollection = async (id, updates) => {
 };
 
 export const deleteVaultCollection = async (id) => {
+    // 1. Get the collection to find its prefix
+    const { data: col } = await supabase.from('vault_collections').select('key_prefix').eq('id', id).single();
+    
+    // 2. Delete from DB (cascade deletes files in DB)
     const { error } = await supabase.from('vault_collections').delete().eq('id', id);
     if (error) throw error;
+    
+    // 3. Delete files from R2 asynchronously so UI isn't blocked
+    if (col?.key_prefix) {
+        deleteR2Prefix(col.key_prefix).catch(err => console.error('Failed to delete files in R2:', err));
+    }
 };
 
 
@@ -339,9 +348,19 @@ export const insertVaultFile = async (params) => {
     return data[0];
 };
 
-export const deleteVaultFile = async (id) => {
-    const { error } = await supabase.from('vault_files').delete().eq('id', id);
+// Delete a file from DB and R2
+export const deleteVaultFile = async (fileId) => {
+    // 1. Get R2 key
+    const { data: file } = await supabase.from('vault_files').select('r2_key').eq('id', fileId).single();
+    
+    // 2. Delete from DB
+    const { error } = await supabase.from('vault_files').delete().eq('id', fileId);
     if (error) throw error;
+    
+    // 3. Delete from R2
+    if (file?.r2_key) {
+        deleteR2Object(file.r2_key).catch(err => console.error('Failed to delete file from R2:', err));
+    }
 };
 
 
@@ -416,6 +435,14 @@ export const listR2Objects = async (prefix, token = null, pageSize = 200) => {
     const params = { op: 'list', prefix, page_size: pageSize };
     if (token) params.token = token;
     return r2EdgeFetch(params);
+};
+
+export const deleteR2Object = async (key) => {
+    return r2EdgeFetch({ op: 'delete', key }, { method: 'POST' });
+};
+
+export const deleteR2Prefix = async (prefix) => {
+    return r2EdgeFetch({ op: 'delete_prefix', prefix }, { method: 'POST' });
 };
 
 

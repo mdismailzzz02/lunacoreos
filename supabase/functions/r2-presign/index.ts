@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from "npm:@aws-sdk/client-s3@3";
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from "npm:@aws-sdk/client-s3@3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner@3";
 
 const corsHeaders = {
@@ -98,7 +98,47 @@ Deno.serve(async (req) => {
       });
     }
 
-    throw new Error(`Unknown op: '${op}'. Use 'put', 'get', 'batch_get', or 'list'.`);
+    // DELETE single object
+    if (op === "delete") {
+      const key = url.searchParams.get("key");
+      if (!key) throw new Error("Missing 'key' parameter.");
+      const command = new DeleteObjectCommand({ Bucket: bucket, Key: key });
+      await client.send(command);
+      return new Response(JSON.stringify({ success: true, key }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // DELETE PREFIX (for deleting collections)
+    if (op === "delete_prefix") {
+      const prefix = url.searchParams.get("prefix");
+      if (!prefix) throw new Error("Missing 'prefix' parameter.");
+      
+      // List all objects with this prefix
+      let isTruncated = true;
+      let continuationToken = undefined;
+      let deletedCount = 0;
+
+      while (isTruncated) {
+        const listCommand = new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken: continuationToken });
+        const listRes = await client.send(listCommand);
+        
+        const objects = listRes.Contents || [];
+        if (objects.length > 0) {
+          await Promise.all(objects.map(async (obj) => {
+            if (obj.Key) {
+              await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: obj.Key }));
+              deletedCount++;
+            }
+          }));
+        }
+
+        isTruncated = listRes.IsTruncated || false;
+        continuationToken = listRes.NextContinuationToken;
+      }
+      
+      return new Response(JSON.stringify({ success: true, prefix, deletedCount }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    throw new Error(`Unknown op: '${op}'. Use 'put', 'get', 'batch_get', 'list', 'delete', or 'delete_prefix'.`);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return new Response(JSON.stringify({ error: message }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
