@@ -257,7 +257,7 @@ export const getVaultCollections = async (mode = 'normal') => {
     return data;
 };
 
-export const createVaultCollection = async ({ name, type = 'gallery', key_prefix, is_hidden = false, is_secret = false }) => {
+export const createVaultCollection = async ({ name, type = 'gallery', key_prefix, is_hidden = false, is_secret = false, parent_id = null }) => {
     const prefix = key_prefix || `${type}-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}/`;
     
     // 1. Register in Database
@@ -266,7 +266,8 @@ export const createVaultCollection = async ({ name, type = 'gallery', key_prefix
         type,
         key_prefix: prefix,
         is_hidden,
-        is_secret
+        is_secret,
+        parent_id
     }]).select();
     if (error) throw error;
 

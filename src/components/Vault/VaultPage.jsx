@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import VaultMediaGrid from './GooglePhotos';
 import PeopleView from './PeopleView';
@@ -93,15 +93,15 @@ function CreateCollectionModal({ onAdd, onClose, vaultMode }) {
 }
 
 // ─── Sidebar Nav Button ─────────────────────────────────────────
-function NavBtn({ active, onClick, icon, label, subLabel, onRemove }) {
+function NavBtn({ active, onClick, icon, label, subLabel, onRemove, indent = 0 }) {
     return (
-        <div className="nav-btn-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+        <div className="nav-btn-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', paddingLeft: `${indent * 1.5}rem` }}>
             <style>{`
                 .nav-btn-container { animation: vault-fade-in 0.3s ease-out forwards; }
                 .vault-nav-btn {
-                    flex: 1; display: flex; align-items: center; gap: 0.75rem;
-                    padding: 0.75rem 1rem; border-radius: 14px; border: 1px solid transparent;
-                    text-align: left; cursor: pointer; font-size: 0.88rem; font-weight: 600;
+                    flex: 1; display: flex; align-items: center; gap: 0.5rem;
+                    padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid transparent;
+                    text-align: left; cursor: pointer; font-size: 0.8rem; font-weight: 600;
                     background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.6);
                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
                     backdrop-filter: blur(10px);
@@ -126,10 +126,10 @@ function NavBtn({ active, onClick, icon, label, subLabel, onRemove }) {
                 .vault-remove-btn:hover { background: #ef4444; color: white; border-color: transparent; }
             `}</style>
             <button onClick={onClick} className={`vault-nav-btn ${active ? 'active' : ''}`}>
-                <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{icon}</span>
+                <span style={{ fontSize: '1rem', flexShrink: 0 }}>{icon}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
-                    {subLabel && <div style={{ fontSize: '0.68rem', opacity: 0.55, marginTop: '2px' }}>{subLabel}</div>}
+                    {subLabel && <div style={{ fontSize: '0.6rem', opacity: 0.55, marginTop: '1px' }}>{subLabel}</div>}
                 </div>
             </button>
             {onRemove && (
@@ -167,6 +167,7 @@ function VaultPage() {
     const [vaultMode, setVaultMode] = useState('normal'); // 'normal', 'hidden', 'secret'
     const [pendingMode, setPendingMode] = useState(null); // mode to unlock
     const [secretClicks, setSecretClicks] = useState(0);
+    const [pendingDelete, setPendingDelete] = useState(null);
 
     const loadCollections = () => {
         setLoading(true);
@@ -214,6 +215,12 @@ function VaultPage() {
     const handleRemoveCollection = async (colId) => {
         const col = collections.find(c => c.id === colId);
         if (!window.confirm(`Remove "${col?.name || 'this collection'}" from your Vault?\n\nFiles in R2 are NOT deleted — only the index is removed.`)) return;
+        setPendingDelete(colId);
+    };
+
+    const confirmDelete = async () => {
+        const colId = pendingDelete;
+        setPendingDelete(null);
         try { await deleteVaultCollection(colId); } catch (_) {}
         setCollections(prev => prev.filter(c => c.id !== colId));
         if (activeTab === colId) {
@@ -242,7 +249,7 @@ function VaultPage() {
                     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
                     display: flex; align-items: center; gap: 10px;
                 }
-                .vault-nav-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+                .vault-nav-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
                 .vault-content {
                     flex: 1; flex-basis: 0; min-width: 0;
                     overflow-y: auto; overflow-x: hidden;
@@ -335,7 +342,7 @@ function VaultPage() {
                     {loading ? (
                         <div style={{ padding: '1rem', color: 'rgba(255,255,255,0.3)', fontSize: '0.8rem' }}>Loading...</div>
                     ) : (
-                        collections.map(col => (
+                        collections.filter(c => !c.parent_id).map(col => (
                             <NavBtn
                                 key={col.id}
                                 active={activeTab === col.id}
@@ -369,7 +376,7 @@ function VaultPage() {
                             {loading ? (
                                 <div style={{ gridColumn: 'span 2', textAlign: 'center', padding: '2rem' }}>Loading...</div>
                             ) : (
-                                collections.map(col => (
+                                collections.filter(c => !c.parent_id).map(col => (
                                     <div key={col.id} className="folder-card" onClick={() => setActiveTab(col.id)}>
                                         <div className="folder-icon-wrapper">{TYPE_ICONS[col.type] || '📁'}</div>
                                         <div className="folder-name">{col.name}</div>
@@ -387,6 +394,7 @@ function VaultPage() {
                         activeTab={activeTab}
                         collections={collections}
                         onTabChange={setActiveTab}
+                        onCollectionsChanged={loadCollections}
                     />
                 )}
             </div>
@@ -399,6 +407,15 @@ function VaultPage() {
                     icon={pendingMode === 'hidden' ? '👻' : '🕵️'}
                     onSuccess={() => { setVaultMode(pendingMode); setPendingMode(null); }} 
                     onClose={() => setPendingMode(null)} 
+                />
+            )}
+            {pendingDelete && (
+                <SecondaryVaultLock 
+                    lockId="vault" 
+                    title="Delete Folder"
+                    icon="🗑️"
+                    onSuccess={confirmDelete} 
+                    onClose={() => setPendingDelete(null)} 
                 />
             )}
         </div>

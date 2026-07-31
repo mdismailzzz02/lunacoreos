@@ -11,10 +11,13 @@ import {
     getFileTextContent,
     getRandomVaultFiles,
     updateVaultCollection,
+    createVaultCollection,
+    deleteVaultCollection,
 } from '../../services/api';
 import { SkeletonCard } from '../Shared/Skeleton';
 import FaceScanner from './FaceScanner';
 import FaceGroupsView from './FaceGroupsView';
+import SecondaryVaultLock from './SecondaryVaultLock';
 
 // ─── Mime Type Classifier ─────────────────────────────────────
 function classifyMime(mime) {
@@ -432,7 +435,7 @@ function UploadQueue({ collectionId, onDone }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────
-export default function GooglePhotos({ activeTab, collections, onTabChange }) {
+export default function GooglePhotos({ activeTab, collections, onTabChange, onCollectionsChanged }) {
     const [liked, setLiked] = useState([]);
     const [collectionCache, setCollectionCache] = useState({}); // colId → { files, page, total, hasMore }
     const [loading, setLoading] = useState(false);
@@ -447,6 +450,7 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
     const [scannedGroups, setScannedGroups] = useState(null);
     const [innerTab, setInnerTab] = useState('all'); // 'all' or 'favorites'
     const [isRandomView, setIsRandomView] = useState(false);
+    const [pendingDeleteSub, setPendingDeleteSub] = useState(null);
 
     // Load liked items on mount + batch-prefetch their presigned URLs
     useEffect(() => {
@@ -599,6 +603,34 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
         }
     };
 
+    const handleCreateSubfolder = async () => {
+        const name = window.prompt('Enter subfolder name:');
+        if (!name) return;
+        try {
+            await createVaultCollection({ name, type: 'gallery', parent_id: col.id });
+            if (onCollectionsChanged) onCollectionsChanged();
+        } catch (err) {
+            alert('Failed to create subfolder');
+        }
+    };
+
+    const handleDeleteSubfolder = async (id, name) => {
+        if (!window.confirm(`Remove subfolder "${name}" from your Vault?\n\nFiles in R2 are NOT deleted — only the index is removed.`)) return;
+        setPendingDeleteSub(id);
+    };
+
+    const confirmDeleteSub = async () => {
+        const id = pendingDeleteSub;
+        setPendingDeleteSub(null);
+        try {
+            await deleteVaultCollection(id);
+            if (onCollectionsChanged) onCollectionsChanged();
+        } catch (err) {
+            console.error('Failed to delete subfolder', err);
+            alert('Failed to delete subfolder');
+        }
+    };
+
     if (initLoading) return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '1.5rem', opacity: 0.5 }}>
             <div style={{ width: '40px', height: '40px', border: '3px solid rgba(167,139,250,0.1)', borderTop: '3px solid #a78bfa', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
@@ -619,6 +651,9 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
         ? collectionLiked
         : colData.files.filter(item => !likedIds.has(item.id));
 
+    const subfolders = collections?.filter(c => c.parent_id === col.id) || [];
+    const parentFolder = col.parent_id ? collections?.find(c => c.id === col.parent_id) : null;
+
     return (
         <div style={{ animation: 'vault-fade-in 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '12px' }}>
@@ -630,6 +665,20 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
                     {syncMsg && <span style={{ fontSize: '0.75rem', color: syncMsg.startsWith('✅') ? '#34d399' : '#f87171', fontWeight: 700 }}>{syncMsg}</span>}
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
+                    {parentFolder && (
+                        <button
+                            onClick={() => onTabChange(parentFolder.id)}
+                            style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                            ‹ BACK
+                        </button>
+                    )}
+                    <button
+                        onClick={handleCreateSubfolder}
+                        style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.2)', color: '#38bdf8', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                        + SUBFOLDER
+                    </button>
                     <button
                         onClick={() => setShowUpload(v => !v)}
                         style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.2)', color: '#a78bfa', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
@@ -753,6 +802,31 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
                 </div>
             ) : (
                 <>
+                    {subfolders.length > 0 && innerTab === 'all' && (
+                        <div style={{ marginBottom: '2rem' }}>
+                            <h4 style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', marginBottom: '1rem', marginTop: 0, fontWeight: 800, letterSpacing: '0.1em' }}>SUBFOLDERS</h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '12px' }}>
+                                {subfolders.map(sub => (
+                                    <div key={sub.id} onClick={() => onTabChange(sub.id)} className="vault-subfolder-card" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '1rem', borderRadius: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'all 0.2s', position: 'relative' }} onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
+                                        <span style={{ fontSize: '1.5rem' }}>📁</span>
+                                        <div style={{ minWidth: 0, flex: 1, paddingRight: '20px' }}>
+                                            <div style={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.name}</div>
+                                            {sub.file_count > 0 && <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', marginTop: '2px' }}>{sub.file_count} files</div>}
+                                        </div>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteSubfolder(sub.id, sub.name); }}
+                                            style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '0.7rem', opacity: 0.6, transition: 'all 0.2s' }}
+                                            onMouseOver={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = 'white'; }}
+                                            onMouseOut={e => { e.currentTarget.style.opacity = 0.6; e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = '#ef4444'; }}
+                                            title="Delete Subfolder"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     <MediaGrid items={items} likedIds={likedIds} onLike={handleLike} onOpen={(i) => { setLightboxItems(items); setLightboxIndex(i); }} />
 
                     {innerTab === 'all' && colData.hasMore && (
@@ -772,6 +846,16 @@ export default function GooglePhotos({ activeTab, collections, onTabChange }) {
             )}
 
             <VaultLightbox items={lightboxItems} index={lightboxIndex} onClose={() => setLightboxIndex(-1)} likedIds={likedIds} onLike={handleLike} />
+            
+            {pendingDeleteSub && (
+                <SecondaryVaultLock 
+                    lockId="vault" 
+                    title="Delete Subfolder"
+                    icon="🗑️"
+                    onSuccess={confirmDeleteSub} 
+                    onClose={() => setPendingDeleteSub(null)} 
+                />
+            )}
         </div>
     );
 }
