@@ -6,10 +6,22 @@ export default function WritingPage() {
     const [loading, setLoading] = useState(true);
     const [editingId, setEditingId] = useState(null);
     const [editorData, setEditorData] = useState({ title: '', content: '', tags: '' });
+    const [saveStatus, setSaveStatus] = useState('');
 
     useEffect(() => {
         loadDrafts();
     }, []);
+
+    useEffect(() => {
+        if (!editingId || !editorData.title.trim()) return;
+        
+        setSaveStatus('Saving...');
+        const timeoutId = setTimeout(() => {
+            saveDraft(false);
+        }, 1500);
+        
+        return () => clearTimeout(timeoutId);
+    }, [editorData]);
 
     const loadDrafts = async () => {
         try {
@@ -27,12 +39,13 @@ export default function WritingPage() {
         setEditorData({ title: '', content: '', tags: '' });
     };
 
-    const handleSave = async () => {
+    const saveDraft = async (closeEditor = false) => {
         if (!editorData.title.trim()) return;
 
         const isNew = editingId === 'new';
+        const generatedId = isNew ? Date.now().toString() : editingId;
         const newDraft = {
-            id: isNew ? Date.now().toString() : editingId,
+            id: generatedId,
             ...editorData,
             created_at: isNew ? new Date().toISOString() : undefined,
             updatedAt: new Date().toISOString(),
@@ -43,12 +56,19 @@ export default function WritingPage() {
             await api.saveWriting(newDraft);
             if (isNew) {
                 setDrafts([newDraft, ...drafts]);
+                if (!closeEditor) setEditingId(generatedId);
             } else {
                 setDrafts(drafts.map(d => d.id === editingId ? newDraft : d));
             }
-            setEditingId(null);
+            
+            setSaveStatus('Saved');
+            if (closeEditor) {
+                setEditingId(null);
+            } else {
+                setTimeout(() => setSaveStatus(''), 2000);
+            }
         } catch (err) {
-            alert('Failed to save draft');
+            setSaveStatus('Failed to save');
         }
     };
 
@@ -64,10 +84,10 @@ export default function WritingPage() {
                     <button onClick={() => setEditingId(null)} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         ← Back to Drafts
                     </button>
-                    <div style={{ display: 'flex', gap: '1rem' }}>
-                        <span style={{ fontSize: '0.8rem', opacity: 0.4 }}>Auto-saving... (coming soon)</span>
-                        <button onClick={handleSave} style={{ padding: '0.6rem 1.5rem', borderRadius: '10px', background: 'var(--brand-color, #a29bfe)', border: 'none', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
-                            Save Draft
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{saveStatus}</span>
+                        <button onClick={() => saveDraft(true)} style={{ padding: '0.6rem 1.5rem', borderRadius: '10px', background: 'var(--brand-color, #a29bfe)', border: 'none', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
+                            Close & Save
                         </button>
                     </div>
                 </div>
