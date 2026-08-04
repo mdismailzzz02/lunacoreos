@@ -38,6 +38,7 @@
     "base64-arraybuffer": "^1.0.2",
     "dompurify": "^3.4.0",
     "face-api.js": "^0.22.2",
+    "fflate": "^0.8.3",
     "highlight.js": "^11.9.0",
     "lowlight": "^3.3.0",
     "lucide-react": "^1.17.0",

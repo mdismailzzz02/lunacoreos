@@ -44,6 +44,21 @@ function setCachedUrl(r2Key, url) {
     urlCache.set(r2Key, { url, expiresAt: Date.now() + URL_TTL_MS });
 }
 
+// ─── Download Session Cache ─────────────────────────────────
+const DL_SESSION_KEY = 'vault_dl_unlocked_at';
+const DL_SESSION_TTL = 30 * 60 * 1000; // 30 min
+
+function isDownloadSessionActive() {
+    try {
+        const at = Number(sessionStorage.getItem(DL_SESSION_KEY) || '0');
+        return at > 0 && (Date.now() - at) < DL_SESSION_TTL;
+    } catch { return false; }
+}
+
+function activateDownloadSession() {
+    try { sessionStorage.setItem(DL_SESSION_KEY, String(Date.now())); } catch {}
+}
+
 // ─── VaultLightbox ───────────────────────────────────────────
 function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
     const [current, setCurrent] = useState(index);
@@ -211,11 +226,14 @@ function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
 }
 
 // ─── Lazy Image Card ──────────────────────────────────────────
-function VaultCard({ file, isLiked, onLike, onOpen }) {
+function VaultCard({ file, isLiked, onLike, onOpen, onDownload }) {
     const [thumbUrl, setThumbUrl] = useState(() => getCachedUrl(file.r2_key));
     const [imgLoaded, setImgLoaded] = useState(false);
     const cardRef = useRef(null);
     const retryRef = useRef(null);
+    const nameLabelRef = useRef(null);
+    const nameTextRef = useRef(null);
+    const [scrollDist, setScrollDist] = useState(0);
 
     useEffect(() => {
         // Already in cache — done
@@ -246,67 +264,100 @@ function VaultCard({ file, isLiked, onLike, onOpen }) {
         return () => clearInterval(retryRef.current);
     }, [file.r2_key]);
 
+    // Measure text overflow to power the scroll animation
+    useEffect(() => {
+        if (nameTextRef.current && nameLabelRef.current) {
+            const textW = nameTextRef.current.scrollWidth;
+            const containerW = nameLabelRef.current.clientWidth;
+            setScrollDist(textW > containerW + 2 ? containerW - textW : 0);
+        }
+    }, [file.filename]);
+
     const fileType = classifyMime(file.mime_type);
+    const isScrolling = scrollDist < 0;
 
     return (
-        <div ref={cardRef} onClick={() => onOpen()} className="vault-card">
-            {/* Shimmer placeholder — always present, hidden after image loads */}
-            {!imgLoaded && (
-                <div className="vault-shimmer">
-                    {!thumbUrl && (
-                        <span style={{ fontSize: '2rem', opacity: 0.25 }}>
-                            {fileType === 'video' ? '🎬' : fileType === 'audio' ? '🎵' : fileType === 'pdf' ? '📄' : fileType === 'text' ? '📝' : '🖼️'}
-                        </span>
-                    )}
-                </div>
-            )}
-            {thumbUrl && fileType === 'image' && (
-                <img
-                    className={`vault-thumb ${imgLoaded ? 'vault-thumb--loaded' : ''}`}
-                    src={thumbUrl}
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                    alt=""
-                    onLoad={() => setImgLoaded(true)}
-                />
-            )}
-            {thumbUrl && fileType === 'video' && (
-                <video
-                    className={`vault-thumb ${imgLoaded ? 'vault-thumb--loaded' : ''}`}
-                    src={`${thumbUrl}#t=8`}
-                    preload="metadata"
-                    muted
-                    onLoadedData={() => setImgLoaded(true)}
-                />
-            )}
-            <div className="card-overlay" />
-            <button
-                onClick={(e) => { e.stopPropagation(); onLike(file); }}
-                style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)', transition: 'all 0.2s', zIndex: 5 }}
-            >
-                {isLiked ? '❤️' : '🤍'}
-            </button>
-            {fileType !== 'image' && (
-                <div style={{ position: 'absolute', top: '12px', left: '12px', background: 'rgba(167,139,250,0.2)', padding: '4px 10px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 800, color: 'white', backdropFilter: 'blur(8px)', border: '1px solid rgba(167,139,250,0.3)', zIndex: 5 }}>
-                    {fileType.toUpperCase()}
-                </div>
-            )}
-            {(fileType === 'video' || fileType === 'audio') && (
-                <div style={{ position: 'absolute', bottom: '0', left: '0', right: '0', padding: '30px 50px 12px 12px', background: 'linear-gradient(transparent, rgba(0,0,0,0.9))', color: 'rgba(255,255,255,0.85)', fontSize: '0.75rem', fontWeight: 600, zIndex: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', pointerEvents: 'none' }}>
-                    {file.filename}
-                </div>
-            )}
+        <div className="vault-card-wrapper">
+            <div ref={cardRef} onClick={() => onOpen()} className="vault-card">
+                {/* Shimmer placeholder — always present, hidden after image loads */}
+                {!imgLoaded && (
+                    <div className="vault-shimmer">
+                        {!thumbUrl && (
+                            <span style={{ fontSize: '2rem', opacity: 0.25 }}>
+                                {fileType === 'video' ? '🎬' : fileType === 'audio' ? '🎵' : fileType === 'pdf' ? '📄' : fileType === 'text' ? '📝' : '🖼️'}
+                            </span>
+                        )}
+                    </div>
+                )}
+                {thumbUrl && fileType === 'image' && (
+                    <img
+                        className={`vault-thumb ${imgLoaded ? 'vault-thumb--loaded' : ''}`}
+                        src={thumbUrl}
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        alt=""
+                        onLoad={() => setImgLoaded(true)}
+                    />
+                )}
+                {thumbUrl && fileType === 'video' && (
+                    <video
+                        className={`vault-thumb ${imgLoaded ? 'vault-thumb--loaded' : ''}`}
+                        src={`${thumbUrl}#t=8`}
+                        preload="metadata"
+                        muted
+                        onLoadedData={() => setImgLoaded(true)}
+                    />
+                )}
+                <div className="card-overlay" />
+                {/* Like button */}
+                <button
+                    onClick={(e) => { e.stopPropagation(); onLike(file); }}
+                    style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)', transition: 'all 0.2s', zIndex: 5 }}
+                >
+                    {isLiked ? '❤️' : '🤍'}
+                </button>
+                {/* Download button */}
+                <button
+                    className="vault-dl-btn"
+                    onClick={(e) => { e.stopPropagation(); onDownload(file); }}
+                    title="Download file"
+                >
+                    ⬇
+                </button>
+                {fileType !== 'image' && (
+                    <div style={{ position: 'absolute', top: '12px', left: '12px', background: 'rgba(167,139,250,0.2)', padding: '4px 10px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 800, color: 'white', backdropFilter: 'blur(8px)', border: '1px solid rgba(167,139,250,0.3)', zIndex: 5 }}>
+                        {fileType.toUpperCase()}
+                    </div>
+                )}
+                {(fileType === 'video' || fileType === 'audio') && (
+                    <div style={{ position: 'absolute', bottom: '0', left: '0', right: '0', padding: '30px 50px 12px 12px', background: 'linear-gradient(transparent, rgba(0,0,0,0.9))', color: 'rgba(255,255,255,0.85)', fontSize: '0.75rem', fontWeight: 600, zIndex: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', pointerEvents: 'none' }}>
+                        {file.filename}
+                    </div>
+                )}
+            </div>
+            {/* Filename label with scroll animation on hover */}
+            <div ref={nameLabelRef} className="vault-filename-label">
+                <span
+                    ref={nameTextRef}
+                    className="vault-filename-text"
+                    style={isScrolling ? { '--scroll-dist': `${scrollDist}px` } : {}}
+                    data-animated={isScrolling ? 'true' : 'false'}
+                >
+                    {file.filename || 'ASSET'}
+                </span>
+            </div>
         </div>
     );
 }
 
 // ─── Media Grid ───────────────────────────────────────────────
-function MediaGrid({ items, likedIds, onLike, onOpen }) {
+function MediaGrid({ items, likedIds, onLike, onOpen, onDownload }) {
     return (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px', width: '100%', overflowX: 'hidden', boxSizing: 'border-box', paddingBottom: '40px' }} className="vault-ultimate-grid">
             <style>{`
                 @media (max-width: 767px) { .vault-ultimate-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; } }
                 @media (min-width: 768px) and (max-width: 1023px) { .vault-ultimate-grid { grid-template-columns: repeat(3, 1fr) !important; } }
+                .vault-card-wrapper { display: flex; flex-direction: column; gap: 6px; }
                 .vault-card {
                     position: relative; aspect-ratio: 1/1; border-radius: 24px; overflow: hidden;
                     cursor: pointer; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
@@ -335,9 +386,38 @@ function MediaGrid({ items, likedIds, onLike, onOpen }) {
                     100% { background-position: -200% 0; }
                 }
                 .card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent 70%); opacity: 0.95; pointer-events: none; }
+                /* ── Download button ── */
+                .vault-dl-btn {
+                    position: absolute; top: 10px; right: 10px; z-index: 6;
+                    width: 30px; height: 30px; border-radius: 50%;
+                    background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.18);
+                    color: white; font-size: 0.72rem; cursor: pointer;
+                    display: flex; align-items: center; justify-content: center;
+                    opacity: 0; transform: scale(0.7) translateY(-4px);
+                    transition: opacity 0.2s, transform 0.2s, background 0.2s, border-color 0.2s;
+                    backdrop-filter: blur(10px);
+                }
+                .vault-card:hover .vault-dl-btn { opacity: 1; transform: scale(1) translateY(0); }
+                .vault-dl-btn:hover { background: rgba(167,139,250,0.7) !important; border-color: #a78bfa !important; transform: scale(1.1) !important; }
+                /* ── Filename label ── */
+                .vault-subfolder-card:hover .subfolder-action-btn { opacity: 1 !important; }
+                .vault-filename-label {
+                    width: 100%; overflow: hidden; padding: 0 3px;
+                    font-size: 0.68rem; font-weight: 600;
+                    color: rgba(255,255,255,0.45); line-height: 1.4;
+                    height: 1.4em; user-select: none;
+                }
+                .vault-filename-text { display: inline-block; white-space: nowrap; }
+                .vault-card-wrapper:hover .vault-filename-text[data-animated="true"] {
+                    animation: vault-name-scroll 4s 0.4s linear forwards;
+                }
+                @keyframes vault-name-scroll {
+                    0%   { transform: translateX(0); }
+                    100% { transform: translateX(var(--scroll-dist, 0px)); }
+                }
             `}</style>
             {items.map((file, idx) => (
-                <VaultCard key={file.id || idx} file={file} isLiked={likedIds.has(file.id)} onLike={onLike} onOpen={() => onOpen(idx)} />
+                <VaultCard key={file.id || idx} file={file} isLiked={likedIds.has(file.id)} onLike={onLike} onOpen={() => onOpen(idx)} onDownload={onDownload} />
             ))}
         </div>
     );
@@ -451,6 +531,10 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
     const [innerTab, setInnerTab] = useState('all'); // 'all' or 'favorites'
     const [isRandomView, setIsRandomView] = useState(false);
     const [pendingDeleteSub, setPendingDeleteSub] = useState(null);
+    const [pendingDownload, setPendingDownload] = useState(null);       // file object awaiting password
+    const [pendingFolderDownload, setPendingFolderDownload] = useState(null); // subfolder awaiting password
+    const [folderDownloading, setFolderDownloading] = useState(false);
+    const [folderDownloadMsg, setFolderDownloadMsg] = useState('');
 
     // Load liked items on mount + batch-prefetch their presigned URLs
     useEffect(() => {
@@ -631,6 +715,107 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
         }
     };
 
+    // ─── Download Handlers ────────────────────────────────────────
+    const performFileDownload = async (file) => {
+        try {
+            let url = getCachedUrl(file.r2_key);
+            if (!url) {
+                const res = await getR2PresignedGet(file.r2_key);
+                url = res.url;
+                setCachedUrl(file.r2_key, url);
+            }
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = file.filename || 'vault_file';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+        } catch (err) {
+            console.error('File download failed:', err);
+        }
+    };
+
+    const performFolderDownload = async (subfolder) => {
+        setFolderDownloading(true);
+        setFolderDownloadMsg('Fetching file list...');
+        try {
+            const res = await getVaultFiles(subfolder.id, 1, 500);
+            const files = res.files || [];
+            if (files.length === 0) {
+                setFolderDownloadMsg('No files in this folder.');
+                setTimeout(() => setFolderDownloadMsg(''), 3000);
+                return;
+            }
+            // Batch-fetch presigned URLs
+            setFolderDownloadMsg(`Preparing ${files.length} files...`);
+            const missingKeys = files.map(f => f.r2_key).filter(k => !getCachedUrl(k));
+            for (let i = 0; i < missingKeys.length; i += 20) {
+                const batch = missingKeys.slice(i, i + 20);
+                try {
+                    const { urls } = await getR2PresignedBatch(batch);
+                    Object.entries(urls).forEach(([k, u]) => setCachedUrl(k, u));
+                } catch {}
+            }
+            // Fetch file contents and build zip
+            const { zipSync } = await import('fflate');
+            const fileData = {};
+            const usedNames = new Set();
+            let done = 0;
+            await Promise.all(files.map(async (file) => {
+                try {
+                    const url = getCachedUrl(file.r2_key);
+                    if (!url) return;
+                    const resp = await fetch(url);
+                    const buf = await resp.arrayBuffer();
+                    let name = file.filename || file.r2_key.split('/').pop() || `file_${done}`;
+                    // Deduplicate names
+                    if (usedNames.has(name)) name = `${Date.now()}_${name}`;
+                    usedNames.add(name);
+                    fileData[name] = new Uint8Array(buf);
+                    done++;
+                    setFolderDownloadMsg(`Downloading... ${done}/${files.length}`);
+                } catch {}
+            }));
+            setFolderDownloadMsg('Zipping...');
+            const zipped = zipSync(fileData, { level: 0 }); // level 0 = store (fast)
+            const blob = new Blob([zipped], { type: 'application/zip' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${subfolder.name}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+            setFolderDownloadMsg(`✅ ${done} files downloaded`);
+            setTimeout(() => setFolderDownloadMsg(''), 4000);
+        } catch (err) {
+            console.error('Folder download failed:', err);
+            setFolderDownloadMsg('❌ Download failed');
+            setTimeout(() => setFolderDownloadMsg(''), 4000);
+        } finally {
+            setFolderDownloading(false);
+        }
+    };
+
+    const handleFileDownloadClick = (file) => {
+        if (isDownloadSessionActive()) {
+            performFileDownload(file);
+        } else {
+            setPendingDownload(file);
+        }
+    };
+
+    const handleFolderDownloadClick = (subfolder) => {
+        if (isDownloadSessionActive()) {
+            performFolderDownload(subfolder);
+        } else {
+            setPendingFolderDownload(subfolder);
+        }
+    };
+
     if (initLoading) return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '1.5rem', opacity: 0.5 }}>
             <div style={{ width: '40px', height: '40px', border: '3px solid rgba(167,139,250,0.1)', borderTop: '3px solid #a78bfa', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
@@ -663,6 +848,7 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
                     </p>
                     {syncing && <span style={{ fontSize: '0.65rem', color: '#a78bfa', fontWeight: 800, letterSpacing: '0.1em', animation: 'pulse 1.5s infinite' }}>[ SYNCING_R2 ]</span>}
                     {syncMsg && <span style={{ fontSize: '0.75rem', color: syncMsg.startsWith('✅') ? '#34d399' : '#f87171', fontWeight: 700 }}>{syncMsg}</span>}
+                    {folderDownloadMsg && <span style={{ fontSize: '0.75rem', color: folderDownloading ? '#a78bfa' : folderDownloadMsg.startsWith('✅') ? '#34d399' : folderDownloadMsg.startsWith('❌') ? '#f87171' : '#a78bfa', fontWeight: 700, animation: folderDownloading ? 'pulse 1.5s infinite' : 'none' }}>{folderDownloadMsg}</span>}
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
                     {parentFolder && (
@@ -809,15 +995,28 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
                                 {subfolders.map(sub => (
                                     <div key={sub.id} onClick={() => onTabChange(sub.id)} className="vault-subfolder-card" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '1rem', borderRadius: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'all 0.2s', position: 'relative' }} onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
                                         <span style={{ fontSize: '1.5rem' }}>📁</span>
-                                        <div style={{ minWidth: 0, flex: 1, paddingRight: '20px' }}>
+                                        <div style={{ minWidth: 0, flex: 1, paddingRight: '56px' }}>
                                             <div style={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.name}</div>
                                             {sub.file_count > 0 && <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', marginTop: '2px' }}>{sub.file_count} files</div>}
                                         </div>
+                                        {/* Download folder as ZIP */}
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleFolderDownloadClick(sub); }}
+                                            style={{ position: 'absolute', top: '50%', right: '42px', transform: 'translateY(-50%)', background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.2)', color: '#38bdf8', borderRadius: '50%', width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '0.7rem', opacity: 0, transition: 'all 0.2s' }}
+                                            onMouseOver={e => { e.currentTarget.style.background = '#38bdf8'; e.currentTarget.style.color = 'white'; }}
+                                            onMouseOut={e => { e.currentTarget.style.background = 'rgba(56,189,248,0.1)'; e.currentTarget.style.color = '#38bdf8'; }}
+                                            className="subfolder-action-btn"
+                                            title="Download folder as ZIP"
+                                        >
+                                            ⬇
+                                        </button>
+                                        {/* Delete subfolder */}
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); handleDeleteSubfolder(sub.id, sub.name); }}
-                                            style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '0.7rem', opacity: 0.6, transition: 'all 0.2s' }}
-                                            onMouseOver={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = 'white'; }}
-                                            onMouseOut={e => { e.currentTarget.style.opacity = 0.6; e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = '#ef4444'; }}
+                                            style={{ position: 'absolute', top: '50%', right: '12px', transform: 'translateY(-50%)', background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', borderRadius: '50%', width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '0.7rem', opacity: 0, transition: 'all 0.2s' }}
+                                            onMouseOver={e => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = 'white'; }}
+                                            onMouseOut={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = '#ef4444'; }}
+                                            className="subfolder-action-btn"
                                             title="Delete Subfolder"
                                         >
                                             ✕
@@ -827,7 +1026,7 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
                             </div>
                         </div>
                     )}
-                    <MediaGrid items={items} likedIds={likedIds} onLike={handleLike} onOpen={(i) => { setLightboxItems(items); setLightboxIndex(i); }} />
+                    <MediaGrid items={items} likedIds={likedIds} onLike={handleLike} onOpen={(i) => { setLightboxItems(items); setLightboxIndex(i); }} onDownload={handleFileDownloadClick} />
 
                     {innerTab === 'all' && colData.hasMore && (
                         <div style={{ display: 'flex', justifyContent: 'center', marginTop: '4rem', paddingBottom: '4rem' }}>
@@ -854,6 +1053,35 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
                     icon="🗑️"
                     onSuccess={confirmDeleteSub} 
                     onClose={() => setPendingDeleteSub(null)} 
+                />
+            )}
+            {/* ─── Download password gates ─── */}
+            {pendingDownload && (
+                <SecondaryVaultLock
+                    lockId="vault"
+                    title="Download File"
+                    icon="⬇️"
+                    onSuccess={() => {
+                        activateDownloadSession();
+                        const file = pendingDownload;
+                        setPendingDownload(null);
+                        performFileDownload(file);
+                    }}
+                    onClose={() => setPendingDownload(null)}
+                />
+            )}
+            {pendingFolderDownload && (
+                <SecondaryVaultLock
+                    lockId="vault"
+                    title="Download Folder"
+                    icon="📦"
+                    onSuccess={() => {
+                        activateDownloadSession();
+                        const sub = pendingFolderDownload;
+                        setPendingFolderDownload(null);
+                        performFolderDownload(sub);
+                    }}
+                    onClose={() => setPendingFolderDownload(null)}
                 />
             )}
         </div>
