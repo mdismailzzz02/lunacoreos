@@ -42,9 +42,9 @@ function classifyMime(mime, filename = '') {
     return 'file';
 }
 
-// ─── URL Cache (keyed by r2_key, auto-expires before 15 min) ──
+// ─── URL Cache (keyed by r2_key, auto-expires before 120 min) ──
 const urlCache = new Map(); // r2_key → { url, expiresAt }
-const URL_TTL_MS = 13 * 60 * 1000; // 13 min (presigned GET is 15 min)
+const URL_TTL_MS = 115 * 60 * 1000; // 115 min (presigned GET is 120 min)
 
 function getCachedUrl(r2Key) {
     const entry = urlCache.get(r2Key);

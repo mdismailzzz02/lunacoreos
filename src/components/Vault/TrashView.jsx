@@ -8,7 +8,7 @@ import {
 } from '../../services/api';
 
 const urlCache = new Map();
-const URL_TTL_MS = 13 * 60 * 1000;
+const URL_TTL_MS = 115 * 60 * 1000;
 
 function getCachedUrl(r2Key) {
     const entry = urlCache.get(r2Key);

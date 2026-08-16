@@ -186,9 +186,17 @@ function VaultPage() {
             .then(data => {
                 const cols = Array.isArray(data) ? data : [];
                 setCollections(cols);
-                if (!activeTab || (activeTab === 'folders_menu' && window.innerWidth >= 768)) {
-                    setActiveTab(cols.length > 0 ? cols[0].id : 'people');
-                }
+                setActiveTab(prev => {
+                    if (!prev || (prev === 'folders_menu' && window.innerWidth >= 768)) {
+                        return cols.length > 0 ? cols[0].id : 'people';
+                    }
+                    if (prev !== 'people' && prev !== 'trash' && prev !== 'folders_menu') {
+                        if (!cols.some(c => c.id === prev)) {
+                            return cols.length > 0 ? cols[0].id : 'people';
+                        }
+                    }
+                    return prev;
+                });
                 localStorage.setItem('vault_collections_cache', JSON.stringify({ data: cols, cachedAt: Date.now() }));
             })
             .catch(() => {

@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
       const key = url.searchParams.get("key");
       if (!key) throw new Error("Missing 'key' parameter.");
       const command = new GetObjectCommand({ Bucket: bucket, Key: key });
-      const presignedUrl = await getSignedUrl(client, command, { expiresIn: 900 });
+      const presignedUrl = await getSignedUrl(client, command, { expiresIn: 7200 });
       return new Response(JSON.stringify({ url: presignedUrl, key }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
       const urls: Record<string, string> = {};
       await Promise.all(keys.map(async (key) => {
         const command = new GetObjectCommand({ Bucket: bucket, Key: key });
-        urls[key] = await getSignedUrl(client, command, { expiresIn: 900 });
+        urls[key] = await getSignedUrl(client, command, { expiresIn: 7200 });
       }));
       return new Response(JSON.stringify({ urls }), {
         headers: {
