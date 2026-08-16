@@ -1279,8 +1279,12 @@ export const toggleTwitchLiked = async (params) => {
 };
 
 // ─── Writing ──────────────────────────────────────────────────────────
-export const getWritings = async () => {
-    const { data, error } = await supabase.from('writing').select('*').order('updatedAt', { ascending: false });
+export const getWritings = async (mode = 'normal') => {
+    let query = supabase.from('writing').select('*').order('updatedAt', { ascending: false });
+    if (mode === 'normal') query = query.or('mode.eq.normal,mode.is.null');
+    else query = query.eq('mode', mode);
+    
+    const { data, error } = await query;
     if (error) throw error;
     return data;
 };

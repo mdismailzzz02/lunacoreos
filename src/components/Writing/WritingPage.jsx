@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import * as api from '../../services/api';
+import SecondaryVaultLock from '../Vault/SecondaryVaultLock';
 
 export default function WritingPage() {
     const [drafts, setDrafts] = useState([]);
@@ -9,10 +10,14 @@ export default function WritingPage() {
     const [saveStatus, setSaveStatus] = useState('');
     const timeoutRef = useRef(null);
     const editingIdRef = useRef(null);
+    
+    const [writingMode, setWritingMode] = useState('normal'); // 'normal' | 'secret'
+    const [secretClicks, setSecretClicks] = useState(0);
+    const [pendingUnlock, setPendingUnlock] = useState(false);
 
     useEffect(() => {
-        loadDrafts();
-    }, []);
+        loadDrafts(writingMode);
+    }, [writingMode]);
 
     useEffect(() => {
         if (!editingId || !editorData.title.trim()) return;
@@ -25,15 +30,27 @@ export default function WritingPage() {
         return () => clearTimeout(timeoutRef.current);
     }, [editorData, editingId]);
 
-    const loadDrafts = async () => {
+    const loadDrafts = async (mode = writingMode) => {
         try {
-            const data = await api.getWritings();
+            setLoading(true);
+            const data = await api.getWritings(mode);
             setDrafts(data || []);
         } catch (err) {
             console.error('Failed to load drafts', err);
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSecretClick = () => {
+        if (writingMode === 'secret') return;
+        const newClicks = secretClicks + 1;
+        setSecretClicks(newClicks);
+        if (newClicks >= 3) {
+            setPendingUnlock(true);
+            setSecretClicks(0);
+        }
+        setTimeout(() => setSecretClicks(0), 3000);
     };
 
     const handleNew = () => {
@@ -58,6 +75,7 @@ export default function WritingPage() {
         const newDraft = {
             id: generatedId,
             ...editorData,
+            mode: writingMode,
             created_at: isNew ? new Date().toISOString() : undefined,
             updatedAt: new Date().toISOString(),
             word_count: editorData.content.split(/\s+/).filter(w => w).length.toString()
@@ -164,17 +182,47 @@ export default function WritingPage() {
     return (
         <div className="fade-in" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                    <h1 style={{ margin: 0, fontSize: '2rem' }}>✍️ Long-form Writing</h1>
-                    <p style={{ margin: '5px 0 0 0', opacity: 0.6 }}>Essays, stories, and deep dives. No distractions.</p>
-                </div>
-                <button
-                    onClick={handleNew}
-                    style={{ padding: '0.8rem 1.5rem', borderRadius: '12px', background: 'var(--brand-color, #a29bfe)', border: 'none', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
+                <div 
+                    onClick={handleSecretClick} 
+                    style={{ cursor: writingMode === 'normal' ? 'pointer' : 'default', userSelect: 'none' }}
                 >
-                    + New Piece
-                </button>
+                    <h1 style={{ margin: 0, fontSize: '2rem', transition: 'color 0.3s', color: writingMode === 'secret' ? '#ef4444' : 'inherit' }}>
+                        {writingMode === 'secret' ? '🤫 Secret Writings' : '✍️ Long-form Writing'}
+                    </h1>
+                    <p style={{ margin: '5px 0 0 0', opacity: 0.6, color: writingMode === 'secret' ? '#fca5a5' : 'inherit' }}>
+                        {writingMode === 'secret' ? 'For your eyes only. Fully encrypted.' : 'Essays, stories, and deep dives. No distractions.'}
+                    </p>
+                </div>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                    {writingMode === 'secret' && (
+                        <button
+                            onClick={() => setWritingMode('normal')}
+                            style={{ padding: '0.8rem 1.5rem', borderRadius: '12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
+                        >
+                            Lock & Exit
+                        </button>
+                    )}
+                    <button
+                        onClick={handleNew}
+                        style={{ padding: '0.8rem 1.5rem', borderRadius: '12px', background: writingMode === 'secret' ? '#ef4444' : 'var(--brand-color, #a29bfe)', border: 'none', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                        + New Piece
+                    </button>
+                </div>
             </div>
+
+            {pendingUnlock && (
+                <SecondaryVaultLock 
+                    lockId="writing_secret" 
+                    title="Secret Writing"
+                    icon="🤫"
+                    onSuccess={() => {
+                        setPendingUnlock(false);
+                        setWritingMode('secret');
+                    }}
+                    onClose={() => setPendingUnlock(false)}
+                />
+            )}
 
             {loading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
