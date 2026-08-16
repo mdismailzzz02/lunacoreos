@@ -291,7 +291,11 @@ CREATE TABLE IF NOT EXISTS vault_files (
   size_bytes     BIGINT DEFAULT 0,
   mime_type      TEXT,
   thumbnail_key  TEXT,       -- optional: separate lower-res version in R2
-  uploaded_at    TIMESTAMPTZ DEFAULT NOW()
+  uploaded_at    TIMESTAMPTZ DEFAULT NOW(),
+  is_trashed     BOOLEAN DEFAULT FALSE,
+  trashed_at     TIMESTAMPTZ,
+  original_collection_id TEXT,  -- for restore
+  original_r2_key TEXT           -- for restore
 );
 
 -- Liked Files: replaces vault_liked (heart icon toggles this)

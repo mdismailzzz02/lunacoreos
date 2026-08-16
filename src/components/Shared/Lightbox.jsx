@@ -188,7 +188,9 @@ export default function Lightbox({ images, startIndex = 0, onClose }) {
                         className="lightbox-img"
                         controls
                         autoPlay
+                        muted
                         src={currentItem.drive_link}
+                        ref={el => { if(el) el.volume = 0.1; }}
                     />
                 ) : (
                     <LightboxImage item={currentItem} index={idx} />

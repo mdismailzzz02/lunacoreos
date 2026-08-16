@@ -257,16 +257,27 @@ export const getVaultCollections = async (mode = 'normal') => {
     return data;
 };
 
+const normalizeR2Prefix = (prefix) => {
+    if (prefix === null || prefix === undefined) return '';
+    const cleaned = String(prefix).trim().replace(/\\/g, '/');
+    if (!cleaned || cleaned === '/') return '';
+    return cleaned.endsWith('/') ? cleaned : `${cleaned}/`;
+};
+
 export const createVaultCollection = async ({ name, type = 'gallery', key_prefix, is_hidden = false, is_secret = false, parent_id = null }) => {
-    let prefix = key_prefix || `${type}-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}/`;
-    
-    if (parent_id) {
-        const { data: parent } = await supabase.from('vault_collections').select('key_prefix').eq('id', parent_id).single();
-        if (parent?.key_prefix) {
-            prefix = `${parent.key_prefix}${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}/`;
+    let prefix = normalizeR2Prefix(key_prefix);
+
+    if (!prefix) {
+        prefix = `${type}-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}/`;
+
+        if (parent_id) {
+            const { data: parent } = await supabase.from('vault_collections').select('key_prefix').eq('id', parent_id).single();
+            if (parent?.key_prefix) {
+                prefix = `${normalizeR2Prefix(parent.key_prefix)}${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}/`;
+            }
         }
     }
-    
+
     // 1. Register in Database
     const { data, error } = await supabase.from('vault_collections').insert([{
         name,
@@ -278,16 +289,19 @@ export const createVaultCollection = async ({ name, type = 'gallery', key_prefix
     }]).select();
     if (error) throw error;
 
-    // 2. Automatically create the visual "folder" in R2 by uploading a 0-byte object
-    try {
-        const { url: putUrl } = await getR2PresignedPut(prefix, 'application/x-directory');
-        await fetch(putUrl, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/x-directory' },
-            body: new Blob([]) // 0-byte file
-        });
-    } catch (e) {
-        console.warn('Failed to auto-create R2 folder marker, but collection was created.', e);
+    // 2. Automatically create the visual "folder" in R2 by uploading a 0-byte object.
+    // Skip this when the collection is intentionally rooted at the bucket root.
+    if (prefix) {
+        try {
+            const { url: putUrl } = await getR2PresignedPut(prefix, 'application/x-directory');
+            await fetch(putUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/x-directory' },
+                body: new Blob([]) // 0-byte file
+            });
+        } catch (e) {
+            console.warn('Failed to auto-create R2 folder marker, but collection was created.', e);
+        }
     }
 
     return data[0];
@@ -355,30 +369,250 @@ export const insertVaultFile = async (params) => {
     return data[0];
 };
 
-// Delete a file from DB and R2
+// Delete a file - moves to trash instead of permanent deletion
 export const deleteVaultFile = async (fileId) => {
-    // 1. Get R2 key
-    const { data: file } = await supabase.from('vault_files').select('r2_key').eq('id', fileId).single();
+    // Always move to trash first - never permanently delete without user confirmation
+    return moveFileToTrash(fileId);
+};
+
+
+// ─── Vault Trash System ───────────────────────────────────────
+
+/**
+ * Get or create the trash collection for a vault path
+ * Trash prefix: luna-vault/documents-lunatrash/ (configurable per vault)
+ */
+const getOrCreateTrashCollection = async (vaultPrefix = '') => {
+    // Important: the bucket name is not a folder in R2. The real object prefix is inside the bucket, e.g.
+    // "documents-lunatrash/". Cloudflare shows the bucket name in the UI as a parent path, but the actual
+    // object key should not include the bucket name itself.
+    const canonicalTrashPrefix = 'documents-lunatrash/';
+    const preferredTrashPrefix = vaultPrefix
+        ? `${normalizeR2Prefix(vaultPrefix.replace(/\/$/, ''))}-lunatrash/`
+        : canonicalTrashPrefix;
+
+    const { data: exact } = await supabase
+        .from('vault_collections')
+        .select('*')
+        .eq('key_prefix', preferredTrashPrefix)
+        .limit(1);
+
+    if (exact && exact[0]) return exact[0];
+
+    // Repair legacy nested trash entries created by the earlier bug.
+    const { data: legacy } = await supabase
+        .from('vault_collections')
+        .select('*')
+        .or('key_prefix.like.%documents-lunatrash%,key_prefix.eq.luna-vault/documents-lunatrash/,key_prefix.eq.luna-vault/luna-vault/documents-lunatrash/')
+        .limit(20);
+
+    if (legacy && legacy.length > 0) {
+        const target = legacy.find(r => r.key_prefix === preferredTrashPrefix) || legacy[0];
+        const { data: updated } = await supabase
+            .from('vault_collections')
+            .update({ key_prefix: preferredTrashPrefix, name: '🗑️ Trash' })
+            .eq('id', target.id)
+            .select();
+
+        if (updated && updated[0]) return updated[0];
+    }
+
+    const { data: created } = await supabase
+        .from('vault_collections')
+        .insert([{
+            name: '🗑️ Trash',
+            type: 'gallery',
+            key_prefix: preferredTrashPrefix,
+            is_hidden: false,
+            is_secret: false,
+            parent_id: null
+        }])
+        .select();
+
+    return created ? created[0] : null;
+};
+
+/**
+ * Move a file to trash (soft delete)
+ * Moves R2 object to trash prefix and marks file as trashed in DB
+ */
+export const moveFileToTrash = async (fileId) => {
+    console.log('📦 moveFileToTrash START - fileId:', fileId);
+    const { data: file } = await supabase
+        .from('vault_files')
+        .select('id, r2_key, filename, collection_id')
+        .eq('id', fileId)
+        .single();
     
-    // 2. Delete from DB
+    console.log('📦 File fetched:', { id: file?.id, r2_key: file?.r2_key, filename: file?.filename });
+    if (!file) throw new Error('File not found');
+    
+    const trashCol = await getOrCreateTrashCollection();
+    console.log('📦 Trash collection:', { id: trashCol?.id, key_prefix: trashCol?.key_prefix });
+    if (!trashCol) throw new Error('Could not create trash collection');
+    
+    // Generate trash key by adding timestamp to preserve duplicates
+    const timestamp = Date.now();
+    const ext = file.filename.split('.').pop();
+    const nameWithoutExt = file.filename.slice(0, -(ext.length + 1));
+    const trashedR2Key = `${trashCol.key_prefix}${timestamp}-${nameWithoutExt}.${ext}`;
+    console.log('📦 R2 key paths:', { source: file.r2_key, dest: trashedR2Key });
+    
+    // Move file in R2 first using the Edge Function
+    try {
+        console.log('📦 Calling r2EdgeFetch copy operation...');
+        const moveResult = await r2EdgeFetch({ 
+            op: 'copy', 
+            source_key: file.r2_key, 
+            dest_key: trashedR2Key 
+        });
+        console.log('📦 Copy result:', moveResult);
+        if (!moveResult.success) throw new Error('Copy failed');
+    } catch (e) {
+        console.error('❌ R2 copy failed:', e);
+        throw new Error(`Failed to move file to trash: ${e.message}`);
+    }
+    
+    // Mark as trashed in DB after successful R2 move
+    const { error: updateErr } = await supabase
+        .from('vault_files')
+        .update({
+            is_trashed: true,
+            trashed_at: new Date().toISOString(),
+            original_collection_id: file.collection_id,
+            original_r2_key: file.r2_key,
+            collection_id: trashCol.id,
+            r2_key: trashedR2Key
+        })
+        .eq('id', fileId);
+    
+    if (updateErr) throw updateErr;
+};
+
+/**
+ * Restore a file from trash back to its original location
+ */
+export const restoreFileFromTrash = async (fileId) => {
+    const { data: file } = await supabase
+        .from('vault_files')
+        .select('*')
+        .eq('id', fileId)
+        .single();
+    
+    if (!file || !file.is_trashed) throw new Error('File is not in trash');
+    if (!file.original_collection_id || !file.original_r2_key) throw new Error('Cannot restore: original location unknown');
+    
+    // Move file in R2 first using the Edge Function
+    try {
+        const moveResult = await r2EdgeFetch({ 
+            op: 'copy', 
+            source_key: file.r2_key, 
+            dest_key: file.original_r2_key 
+        });
+        if (!moveResult.success) throw new Error('Copy failed');
+    } catch (e) {
+        console.error('Failed to move file in R2:', e);
+        throw new Error(`Failed to restore file: ${e.message}`);
+    }
+    
+    // Restore in DB after successful R2 move
+    const { error: updateErr } = await supabase
+        .from('vault_files')
+        .update({
+            is_trashed: false,
+            trashed_at: null,
+            collection_id: file.original_collection_id,
+            r2_key: file.original_r2_key,
+            original_collection_id: null,
+            original_r2_key: null
+        })
+        .eq('id', fileId);
+    
+    if (updateErr) throw updateErr;
+};
+
+/**
+ * Permanently delete a file from trash
+ */
+export const permanentlyDeleteFile = async (fileId) => {
+    const { data: file } = await supabase
+        .from('vault_files')
+        .select('r2_key')
+        .eq('id', fileId)
+        .single();
+    
+    if (!file) throw new Error('File not found');
+    
+    // Delete from DB
     const { error } = await supabase.from('vault_files').delete().eq('id', fileId);
     if (error) throw error;
     
-    // 3. Delete from R2
+    // Delete from R2
     if (file?.r2_key) {
         deleteR2Object(file.r2_key).catch(err => console.error('Failed to delete file from R2:', err));
     }
 };
 
+/**
+ * Get all trashed files
+ */
+export const getTrashFiles = async (page = 1, pageSize = 50) => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const { data, error, count } = await supabase
+        .from('vault_files')
+        .select('*', { count: 'exact' })
+        .eq('is_trashed', true)
+        .order('trashed_at', { ascending: false })
+        .range(from, to);
+    
+    if (error) throw error;
+    return { files: data, total: count, page, pageSize, hasMore: to < count - 1 };
+};
 
-// ─── Vault R2 — Presigned URLs (via Edge Function) ───────────
+/**
+ * Empty entire trash (permanent delete all trashed files)
+ */
+export const emptyTrash = async () => {
+    const { data: allTrashed } = await supabase
+        .from('vault_files')
+        .select('r2_key')
+        .eq('is_trashed', true);
+    
+    // Delete all from DB
+    const { error } = await supabase
+        .from('vault_files')
+        .delete()
+        .eq('is_trashed', true);
+    
+    if (error) throw error;
+    
+    // Delete all from R2
+    if (allTrashed) {
+        for (const file of allTrashed) {
+            deleteR2Object(file.r2_key).catch(err => console.error('Failed to delete from R2:', err));
+        }
+    }
+};
+
+
+// ─── Vault R2 — Public bucket URLs (no signed-read URL required) ───────────
 
 const R2_EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/r2-presign`;
+
+const buildPublicR2Url = (key) => {
+    const publicBase = import.meta.env.VITE_R2_PUBLIC_URL;
+    if (!publicBase) return null;
+    const normalizedBase = publicBase.replace(/\/$/, '');
+    const encodedKey = key.split('/').map(encodeURIComponent).join('/');
+    return `${normalizedBase}/${encodedKey}`;
+};
 
 async function r2EdgeFetch(queryParams, body = null) {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY;
     const qs = new URLSearchParams(queryParams).toString();
+    console.log('🌐 r2EdgeFetch:', { op: queryParams.op, qs });
     const res = await fetch(`${R2_EDGE_URL}?${qs}`, {
         method: body ? 'POST' : 'GET',
         headers: {
@@ -388,49 +622,46 @@ async function r2EdgeFetch(queryParams, body = null) {
         },
         ...(body ? { body: JSON.stringify(body) } : {})
     });
+    console.log('🌐 r2EdgeFetch response:', { status: res.status, ok: res.ok });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
+        console.error('🌐 r2EdgeFetch error:', err);
         throw new Error(err.error || `r2-presign edge function error ${res.status}`);
     }
-    return res.json();
+    const result = await res.json();
+    console.log('🌐 r2EdgeFetch success:', result);
+    return result;
 }
 
-/** Generate a presigned PUT URL for direct client-to-R2 upload. Expires in 5 min. */
+/** Public bucket upload/read: if VITE_R2_PUBLIC_URL is configured, use direct public URLs. */
 export const getR2PresignedPut = async (key, mimeType = 'application/octet-stream') => {
+    const publicUrl = buildPublicR2Url(key);
+    if (publicUrl) {
+        return { url: publicUrl, public: true };
+    }
     return r2EdgeFetch({ op: 'put', key, content_type: mimeType });
 };
 
-/** Generate a presigned GET URL for viewing/downloading a single R2 object. Expires in 15 min. */
+/** Direct public GET URL for viewing/downloading a file from a public bucket. */
 export const getR2PresignedGet = async (key) => {
-    const pubUrl = import.meta.env.VITE_R2_PUBLIC_URL;
-    if (pubUrl && !key.startsWith('private/')) {
-        const encodedKey = key.split('/').map(encodeURIComponent).join('/');
-        return { url: `${pubUrl}/${encodedKey}` };
+    const publicUrl = buildPublicR2Url(key);
+    if (publicUrl) {
+        return { url: publicUrl };
     }
-    return r2EdgeFetch({ op: 'get', key });
+    throw new Error('VITE_R2_PUBLIC_URL is not configured. Set it to your public R2 bucket URL.');
 };
 
-/** Batch presigned GET URLs — up to 100 keys at once. Returns { urls: { [key]: url } } */
+/** Batch direct public GET URLs for a public bucket. Returns { urls: { [key]: url } } */
 export const getR2PresignedBatch = async (keys) => {
     if (!keys || keys.length === 0) return { urls: {} };
-    
-    const pubUrl = import.meta.env.VITE_R2_PUBLIC_URL;
-    if (pubUrl) {
+
+    const publicBase = import.meta.env.VITE_R2_PUBLIC_URL;
+    if (publicBase) {
         const urls = {};
-        const edgeKeys = [];
-        keys.forEach(k => {
-            if (!k.startsWith('private/')) {
-                const encodedKey = k.split('/').map(encodeURIComponent).join('/');
-                urls[k] = `${pubUrl}/${encodedKey}`;
-            } else {
-                edgeKeys.push(k);
-            }
+        keys.forEach((k) => {
+            const publicUrl = buildPublicR2Url(k);
+            if (publicUrl) urls[k] = publicUrl;
         });
-        
-        if (edgeKeys.length > 0) {
-            const res = await r2EdgeFetch({ op: 'batch_get' }, { keys: edgeKeys });
-            Object.assign(urls, res.urls);
-        }
         return { urls };
     }
 
@@ -438,9 +669,10 @@ export const getR2PresignedBatch = async (keys) => {
 };
 
 /** List R2 objects under a prefix (for sync). Returns paginated { objects, nextToken, isTruncated } */
-export const listR2Objects = async (prefix, token = null, pageSize = 200) => {
+export const listR2Objects = async (prefix, token = null, pageSize = 200, delimiter = null) => {
     const params = { op: 'list', prefix, page_size: pageSize };
     if (token) params.token = token;
+    if (delimiter) params.delimiter = delimiter;
     return r2EdgeFetch(params);
 };
 
@@ -462,71 +694,139 @@ export const deleteR2Prefix = async (prefix) => {
  * Returns { added, skipped, total }.
  */
 export const syncVaultCollection = async (collectionId) => {
+    const deleteCollectionTree = async (id) => {
+        const { data: children } = await supabase
+            .from('vault_collections')
+            .select('*')
+            .eq('parent_id', id);
+
+        for (const child of (children || [])) {
+            await deleteCollectionTree(child.id);
+        }
+
+        await supabase.from('vault_files').delete().eq('collection_id', id);
+        await supabase.from('vault_collections').delete().eq('id', id);
+    };
+
     // 1. Load collection metadata
     const { data: col, error: colErr } = await supabase
         .from('vault_collections').select('*').eq('id', collectionId).single();
     if (colErr) throw colErr;
 
-    // 2. Get all R2 keys under the prefix (paginated)
+    const basePrefix = normalizeR2Prefix(col.key_prefix);
+
+    // 2. Get the last successful sync marker for this collection. If it exists, only ingest
+    // files newer than that timestamp rather than re-scanning the whole tree every time.
+    const { data: syncState } = await supabase
+        .from('vault_sync_log')
+        .select('last_synced_at')
+        .eq('collection_id', collectionId)
+        .maybeSingle();
+
+    const lastSyncedAt = syncState?.last_synced_at ? new Date(syncState.last_synced_at) : null;
+
+    // 3. Get immediate contents under the prefix (delimiter = "/").
     let allObjects = [];
+    let allPrefixes = [];
     let nextToken = null;
     do {
-        const res = await listR2Objects(col.key_prefix, nextToken, 200);
+        const res = await listR2Objects(basePrefix, nextToken, 200, "/");
         allObjects = allObjects.concat(res.objects || []);
+        allPrefixes = allPrefixes.concat(res.prefixes || []);
         nextToken = res.nextToken || null;
     } while (nextToken);
 
-    if (allObjects.length === 0) return { added: 0, skipped: 0, total: 0 };
+    const currentR2Keys = new Set((allObjects || []).filter(obj => obj && obj.key && obj.size > 0).map(obj => obj.key));
+    const currentR2Prefixes = new Set((allPrefixes || []).filter(p => p && p !== basePrefix));
 
-    // 3. Get existing r2_keys in DB for this collection
-    const { data: existingRows } = await supabase
-        .from('vault_files').select('r2_key').eq('collection_id', collectionId);
-    const existingKeys = new Set((existingRows || []).map(r => r.r2_key));
+    let addedFiles = 0;
+    let addedFolders = 0;
 
-    // 4. Insert only new objects
-    const newObjects = allObjects.filter(obj => !existingKeys.has(obj.key));
-    let added = 0;
-    const BATCH_SIZE = 50;
-    for (let i = 0; i < newObjects.length; i += BATCH_SIZE) {
-        const batch = newObjects.slice(i, i + BATCH_SIZE).map(obj => {
-            const filename = obj.key.split('/').pop() || obj.key;
-            const ext = filename.split('.').pop()?.toLowerCase();
-            const mimeMap = {
-                jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-                gif: 'image/gif', webp: 'image/webp', mp4: 'video/mp4',
-                mov: 'video/quicktime', mp3: 'audio/mpeg', m4a: 'audio/mp4',
-                wav: 'audio/wav', pdf: 'application/pdf',
-                txt: 'text/plain', js: 'text/javascript', ts: 'text/typescript',
-            };
-            return {
-                collection_id: collectionId,
-                r2_key: obj.key,
-                filename,
-                size_bytes: obj.size || 0,
-                mime_type: mimeMap[ext] || 'application/octet-stream',
-                uploaded_at: obj.lastModified || new Date().toISOString()
-            };
-        });
-        const { error: insertErr } = await supabase.from('vault_files').insert(batch);
-        if (insertErr) console.error('Sync insert batch error:', insertErr);
-        else added += batch.length;
+    // Delta-sync: if a sync marker exists, only consider objects newer than that timestamp.
+    const rawObjects = (allObjects || []).filter(obj => {
+        if (!obj || !obj.key || obj.size <= 0 || obj.key === basePrefix) return false;
+        if (!lastSyncedAt || !obj.lastModified) return true;
+        const modifiedAt = new Date(obj.lastModified);
+        return modifiedAt > lastSyncedAt;
+    });
+
+    const { data: existingFiles } = await supabase
+        .from('vault_files')
+        .select('id, r2_key, is_trashed')
+        .eq('collection_id', collectionId);
+    const existingKeys = new Set((existingFiles || []).map(f => f.r2_key));
+
+    const missingActiveKeys = (existingFiles || [])
+        .filter(file => !file.is_trashed && !currentR2Keys.has(file.r2_key))
+        .map(file => file.r2_key);
+
+    if (missingActiveKeys.length > 0) {
+        console.log('[syncVaultCollection] removing stale active files from Supabase:', missingActiveKeys.length, missingActiveKeys.slice(0, 10));
+        const { error: deleteErr } = await supabase
+            .from('vault_files')
+            .delete()
+            .eq('collection_id', collectionId)
+            .in('r2_key', missingActiveKeys);
+
+        if (deleteErr) throw deleteErr;
     }
 
-    // 5. Update collection stats
-    const totalSizeBytes = allObjects.reduce((sum, o) => sum + (o.size || 0), 0);
-    await supabase.from('vault_collections').update({
-        file_count: allObjects.length,
-        size_bytes: totalSizeBytes
-    }).eq('id', collectionId);
+    const seen = new Set();
+    const fileRows = [];
 
-    // 6. Log sync
-    await supabase.from('vault_sync_log').upsert({
-        collection_id: collectionId,
-        last_synced_at: new Date().toISOString(),
-        files_added: added
-    }, { onConflict: 'collection_id' });
+    for (const obj of rawObjects) {
+        if (seen.has(obj.key)) continue;
+        seen.add(obj.key);
 
-    return { added, skipped: allObjects.length - newObjects.length, total: allObjects.length };
+        const filename = obj.key.split('/').pop() || obj.key;
+        const ext = filename.split('.').pop()?.toLowerCase();
+        const mimeMap = {
+            jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+            gif: 'image/gif', webp: 'image/webp', mp4: 'video/mp4',
+            mov: 'video/quicktime', mp3: 'audio/mpeg', m4a: 'audio/mp4',
+            wav: 'audio/wav', pdf: 'application/pdf',
+            txt: 'text/plain', js: 'text/javascript', ts: 'text/typescript',
+        };
+        const mime = mimeMap[ext] || 'application/octet-stream';
+
+        fileRows.push({
+            collection_id: collectionId,
+            filename,
+            r2_key: obj.key,
+            size_bytes: obj.size,
+            mime_type: mime,
+            uploaded_at: obj.lastModified || new Date().toISOString()
+        });
+    }
+
+    if (fileRows.length > 0) {
+        const BATCH_SIZE = 50;
+        for (let i = 0; i < fileRows.length; i += BATCH_SIZE) {
+            const slice = fileRows.slice(i, i + BATCH_SIZE);
+            const { error: insErr } = await supabase
+                .from('vault_files')
+                .upsert(slice, { onConflict: 'r2_key' });
+
+            if (insErr) throw insErr;
+            addedFiles += slice.length;
+        }
+    }
+
+    await supabase
+        .from('vault_sync_log')
+        .upsert({
+            collection_id: collectionId,
+            last_synced_at: new Date().toISOString()
+        }, { onConflict: 'collection_id' });
+
+    return {
+        added: addedFiles,
+        addedFolders: 0,
+        removed: missingActiveKeys.length,
+        removedKeys: missingActiveKeys,
+        skipped: Math.max(0, rawObjects.length - addedFiles),
+        total: rawObjects.length
+    };
 };
 
 
@@ -736,146 +1036,76 @@ const resolveMediaUrls = async (mediaItems) => {
         }
     }
 
-    // ── 2. Supabase Storage items (old uploads) ──────────────────────────────
-    const supabasePaths = items.filter(m => m.storage_path && !m.drive_link).map(m => m.storage_path);
-    if (supabasePaths.length > 0) {
-        const cacheBust = Date.now();
-        try {
-            const { data: signedUrls, error } = await supabase.storage
-                .from('media')
-                .createSignedUrls(supabasePaths, 600); // 10 min
-            if (!error && signedUrls) {
-                const urlMap = {};
-                signedUrls.forEach((su, i) => {
-                    if (!su.error) urlMap[supabasePaths[i]] = su.signedUrl + '&_t=' + cacheBust;
-                });
-                items.forEach(m => {
-                    if (m.storage_path && urlMap[m.storage_path]) {
-                        m.drive_link = urlMap[m.storage_path];
-                        m._isSupabaseStorage = true;
-                        m._expiresAt = Date.now() + 600_000;
-                    }
-                });
-            }
-        } catch (err) {
-            console.error('Failed to generate Supabase signed URLs:', err);
-        }
-    }
 
     return isArray ? items : items[0];
 };
 
-// Kept for backward compatibility — useSecureUrl.js imports this for old items.
-export const getFreshSignedUrl = async (storagePath) => {
-    if (!storagePath) return null;
-    const cacheBust = Date.now();
-    const { data, error } = await supabase.storage
-        .from('media')
-        .createSignedUrl(storagePath, 600);
-    if (error || !data) throw error || new Error('Failed to generate fresh signed URL');
-    return data.signedUrl + '&_t=' + cacheBust;
-};
+
 
 /**
- * Upload a file to R2 (new path) or Supabase Storage (legacy base64 path).
- *
- * New callers: pass { file: File, media_type, uploaded_from, source_id }, onProgress
- * Legacy callers (StudyNotes, GridNode, etc.): keep passing { base64data, filename, mime_type, ... }
- *   — these still go to Supabase Storage, fully backward compatible.
+ * Upload a file to R2.
+ * Pass { file: File, media_type, uploaded_from, source_id } and an optional onProgress callback.
  */
 export const uploadMedia = async (params, onProgress) => {
     const mediaId = params.media_id || ('MED-' + Math.random().toString(36).substr(2, 9).toUpperCase());
 
-    // ── NEW PATH: raw File object → R2 ──────────────────────────────────────
-    if (params.file instanceof File) {
-        const file = params.file;
-        const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const r2Key = `media-library/${params.uploaded_from || 'general'}/${Date.now()}-${safeFilename}`;
-
-        // 1. Get presigned PUT URL
-        if (onProgress) onProgress(5);
-        const { url: putUrl } = await getR2PresignedPut(r2Key, file.type || 'application/octet-stream');
-
-        // 2. Upload directly to R2 with real XHR progress
-        await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('PUT', putUrl);
-            xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-            if (onProgress) {
-                xhr.upload.onprogress = (e) => {
-                    if (e.lengthComputable) onProgress(5 + Math.round((e.loaded / e.total) * 88));
-                };
-            }
-            xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`PUT failed: ${xhr.status}`)));
-            xhr.onerror = () => reject(new Error('Upload network error'));
-            xhr.send(file);
-        });
-
-        // 3. Derive public URL
-        const r2PublicUrl = R2_PUBLIC_DOMAIN ? `${R2_PUBLIC_DOMAIN}/${r2Key}` : '';
-
-        // 4. Insert media row
-        if (onProgress) onProgress(95);
-        const row = {
-            media_id: mediaId,
-            media_type: params.media_type || 'file',
-            mime_type: file.type || 'application/octet-stream',
-            filename: file.name,
-            display_name: params.display_name || file.name,
-            file_size_kb: String(Math.round(file.size / 1024)),
-            date_uploaded: new Date().toISOString().split('T')[0],
-            time_uploaded: new Date().toLocaleTimeString(),
-            uploaded_from: params.uploaded_from || 'media_library',
-            source_id: params.source_id || null,
-            r2_key: r2Key,
-            r2_public_url: r2PublicUrl,
-            // drive_link stays empty — resolveMediaUrls fills it at read time
-            drive_link: r2PublicUrl || '',
-            status: 'active',
-        };
-        const { data, error } = await supabase.from('media').insert([row]).select();
-        if (error) throw error;
-        if (onProgress) onProgress(100);
-
-        // Return with _isR2 flag already set
-        const result = data[0];
-        result.drive_link = r2PublicUrl || result.drive_link;
-        result._isR2 = true;
-        return result;
+    if (!(params.file instanceof File)) {
+        throw new Error('uploadMedia: params.file must be a File object. Supabase Storage (base64) path has been removed.');
     }
 
-    // ── LEGACY PATH: base64data → Supabase Storage ──────────────────────────
-    // Keeps all StudyNotes / GridNode / MediaAttachmentsPanel callers working unchanged.
-    if (params.base64data) {
-        try {
-            const bucketName = 'media';
-            const base64Clean = params.base64data.includes(',') ? params.base64data.split(',')[1] : params.base64data;
-            const arrayBuffer = decode(base64Clean);
+    const file = params.file;
+    const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const r2Key = `media-library/${params.uploaded_from || 'general'}/${Date.now()}-${safeFilename}`;
 
-            const fileExt = params.filename ? params.filename.split('.').pop() : 'bin';
-            const filePath = (params.uploaded_from || 'misc') + '/' + Date.now() + '-' + Math.random().toString(36).substr(2, 5) + '.' + fileExt;
+    // 1. Get presigned PUT URL
+    if (onProgress) onProgress(5);
+    const { url: putUrl } = await getR2PresignedPut(r2Key, file.type || 'application/octet-stream');
 
-            const { error: storageError } = await supabase.storage
-                .from(bucketName)
-                .upload(filePath, arrayBuffer, {
-                    contentType: params.mime_type || 'application/octet-stream',
-                    upsert: true
-                });
-            if (storageError) throw storageError;
-
-            params.drive_link = '';
-            params.storage_path = filePath;
-            delete params.base64data;
-        } catch (err) {
-            console.error('Supabase storage upload failed:', err);
-            throw new Error('Storage upload failed: ' + err.message);
+    // 2. Upload directly to R2 with real XHR progress
+    await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', putUrl);
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+        if (onProgress) {
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) onProgress(5 + Math.round((e.loaded / e.total) * 88));
+            };
         }
-    }
+        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`PUT failed: ${xhr.status}`)));
+        xhr.onerror = () => reject(new Error('Upload network error'));
+        xhr.send(file);
+    });
 
-    params.media_id = mediaId;
-    const { data, error } = await supabase.from('media').insert([params]).select();
+    // 3. Derive public URL
+    const r2PublicUrl = R2_PUBLIC_DOMAIN ? `${R2_PUBLIC_DOMAIN}/${r2Key}` : '';
+
+    // 4. Insert media row
+    if (onProgress) onProgress(95);
+    const row = {
+        media_id: mediaId,
+        media_type: params.media_type || 'file',
+        mime_type: file.type || 'application/octet-stream',
+        filename: file.name,
+        display_name: params.display_name || file.name,
+        file_size_kb: String(Math.round(file.size / 1024)),
+        date_uploaded: new Date().toISOString().split('T')[0],
+        time_uploaded: new Date().toLocaleTimeString(),
+        uploaded_from: params.uploaded_from || 'media_library',
+        source_id: params.source_id || null,
+        r2_key: r2Key,
+        r2_public_url: r2PublicUrl,
+        drive_link: r2PublicUrl || '',
+        status: 'active',
+    };
+    const { data, error } = await supabase.from('media').insert([row]).select();
     if (error) throw error;
-    return await resolveMediaUrls(data[0]);
+    if (onProgress) onProgress(100);
+
+    // Return with _isR2 flag already set
+    const result = data[0];
+    result.drive_link = r2PublicUrl || result.drive_link;
+    result._isR2 = true;
+    return result;
 };
 
 export const getMediaById = async (media_id) => {

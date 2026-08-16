@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { getFreshSignedUrl } from '../services/api';
 
 /**
  * useSecureUrl — converts a Supabase signed URL into a local blob: URL
@@ -97,11 +96,6 @@ export function useSecureUrl(signedUrl, skip = false, item = null) {
         // Initial fetch
         fetchBlob(signedUrl);
 
-        // Schedule auto-refresh if this is a Supabase item with expiry info
-        if (item && item._isSupabaseStorage && item._expiresAt && item.storage_path) {
-            scheduleRefresh(item._expiresAt, item.storage_path);
-        }
-
         return () => {
             cancelled = true;
             if (abortRef.current) abortRef.current.abort();
@@ -111,7 +105,7 @@ export function useSecureUrl(signedUrl, skip = false, item = null) {
                 prevBlobUrl.current = null;
             }
         };
-    }, [signedUrl, skip, item?.media_id]); // Trigger if the source URL or media item changes
+    }, [signedUrl, skip]); // Trigger if the source URL changes
 
     return { blobUrl, loading, error };
 }

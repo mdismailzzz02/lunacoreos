@@ -78,7 +78,7 @@ export default function FileViewerModal({ item, onClose }) {
         }
 
         if (isVideo) {
-            return <video controls autoPlay src={resolvedUrl} style={{ maxWidth: '100%', maxHeight: '80vh', outline: 'none' }} />;
+            return <video controls autoPlay muted src={resolvedUrl} ref={el => { if(el) el.volume = 0.1; }} style={{ maxWidth: '100%', maxHeight: '80vh', outline: 'none' }} />;
         }
 
         if (isAudio) {

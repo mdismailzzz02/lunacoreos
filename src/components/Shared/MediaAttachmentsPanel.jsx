@@ -71,7 +71,6 @@ export default function MediaAttachmentsPanel({ sourceId, onMediaChange, refresh
         setProgress(10);
         let timer;
         try {
-            const base64data = await api.fileToBase64(file);
             setProgress(30);
 
             timer = setInterval(() => {
@@ -84,11 +83,10 @@ export default function MediaAttachmentsPanel({ sourceId, onMediaChange, refresh
             }, 500);
 
             const res = await api.uploadMedia({
-                base64data,
-                filename: file.name,
+                file,
                 mime_type: file.type,
                 media_type: mediaType,
-                uploaded_from: 'studynotes', // or keep as generic
+                uploaded_from: 'studynotes',
                 source_id: sourceId,
             });
 

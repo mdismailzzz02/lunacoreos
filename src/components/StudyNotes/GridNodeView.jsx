@@ -108,9 +108,9 @@ export default function GridNodeView({ node, updateAttributes, deleteNode, selec
         const file = e.target.files?.[0];
         if (!file || selectedCellIdx === null) return;
         try {
-            const base64data = await api.fileToBase64(file);
             const res = await api.uploadMedia({
-                base64data, filename: file.name, mime_type: file.type,
+                file,
+                mime_type: file.type,
                 media_type: 'image', uploaded_from: 'studynotes_grid', source_id: 'grid'
             });
             if (res.drive_link) {
@@ -127,9 +127,9 @@ export default function GridNodeView({ node, updateAttributes, deleteNode, selec
         const file = e.target.files?.[0];
         if (!file || selectedCellIdx === null) return;
         try {
-            const base64data = await api.fileToBase64(file);
             const res = await api.uploadMedia({
-                base64data, filename: file.name, mime_type: file.type,
+                file,
+                mime_type: file.type,
                 media_type: 'video', uploaded_from: 'studynotes_grid', source_id: 'grid'
             });
             if (res.drive_link) {

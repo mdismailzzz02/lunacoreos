@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import VaultMediaGrid from './GooglePhotos';
 import PeopleView from './PeopleView';
+import TrashView from './TrashView';
 import VaultLock from './VaultLock';
 import SecondaryVaultLock from './SecondaryVaultLock';
 import {
@@ -97,39 +98,49 @@ function NavBtn({ active, onClick, icon, label, subLabel, onRemove, indent = 0 }
     return (
         <div className="nav-btn-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', paddingLeft: `${indent * 1.5}rem` }}>
             <style>{`
-                .nav-btn-container { animation: vault-fade-in 0.3s ease-out forwards; }
+                .nav-btn-container { animation: none; }
                 .vault-nav-btn {
-                    flex: 1; display: flex; align-items: center; gap: 0.5rem;
+                    flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.5rem;
                     padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid transparent;
-                    text-align: left; cursor: pointer; font-size: 0.8rem; font-weight: 600;
-                    background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.6);
-                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                    text-align: left; cursor: pointer; font-size: 0.75rem; font-weight: 500;
+                    background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.7);
+                    transition: none;
                     backdrop-filter: blur(10px);
                 }
                 .vault-nav-btn:hover {
-                    background: rgba(255,255,255,0.08); color: white;
-                    border-color: rgba(255,255,255,0.1); transform: translateX(4px);
+                    background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.7);
+                    border-color: transparent; transform: none;
                 }
                 .vault-nav-btn.active {
                     background: linear-gradient(135deg, #a78bfa, #7c3aed);
                     color: white; box-shadow: 0 8px 20px rgba(124, 58, 237, 0.3);
-                    border-color: rgba(255,255,255,0.2);
+                    border-color: rgba(255,255,255,0.2); font-weight: 600;
                 }
                 .vault-remove-btn {
                     background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2);
                     color: #f87171; border-radius: 10px; width: 28px; height: 28px;
                     cursor: pointer; font-size: 10px; display: flex; align-items: center;
-                    justify-content: center; transition: all 0.2s;
-                    opacity: 0; transform: scale(0.8);
+                    justify-content: center; transition: none;
+                    opacity: 1; transform: none;
                 }
-                .nav-btn-container:hover .vault-remove-btn { opacity: 1; transform: scale(1); }
+                .nav-btn-container:hover .vault-remove-btn { opacity: 1; transform: none; }
                 .vault-remove-btn:hover { background: #ef4444; color: white; border-color: transparent; }
+                
+                .nav-text-container { flex: 1; min-width: 0; overflow: hidden; }
+                .nav-text-static {
+                    white-space: nowrap; width: 100%;
+                    overflow: hidden; text-overflow: ellipsis; vertical-align: bottom;
+                }
             `}</style>
-            <button onClick={onClick} className={`vault-nav-btn ${active ? 'active' : ''}`}>
-                <span style={{ fontSize: '1rem', flexShrink: 0 }}>{icon}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
-                    {subLabel && <div style={{ fontSize: '0.6rem', opacity: 0.55, marginTop: '1px' }}>{subLabel}</div>}
+            <button 
+                onClick={onClick} 
+                className={`vault-nav-btn ${active ? 'active' : ''}`}
+                title={label}
+            >
+                <span style={{ fontSize: '0.9rem', flexShrink: 0 }}>{icon}</span>
+                <div className="nav-text-container">
+                    <div className="nav-text-static">{label}</div>
+                    {subLabel && <div style={{ fontSize: '0.55rem', opacity: 0.55, marginTop: '2px' }}>{subLabel}</div>}
                 </div>
             </button>
             {onRemove && (
@@ -152,7 +163,7 @@ function StorageBar({ collections }) {
                 <span>{fmtBytes(usedBytes)} / 10 GB</span>
             </div>
             <div style={{ height: '4px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '4px', transition: 'width 0.5s ease' }} />
+                <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '4px', transition: 'none' }} />
             </div>
         </div>
     );
@@ -260,17 +271,17 @@ function VaultPage() {
                     margin-top: 1rem; width: 100%; padding: 0.85rem; border-radius: 14px;
                     border: 1px dashed rgba(167,139,250,0.4); background: rgba(167,139,250,0.05);
                     color: #a78bfa; font-size: 0.85rem; font-weight: 700; cursor: pointer;
-                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); text-align: center;
+                    transition: none; text-align: center;
                 }
                 .vault-add-btn:hover {
                     background: rgba(167,139,250,0.15); border-color: #a78bfa;
-                    transform: translateY(-2px); box-shadow: 0 10px 20px rgba(167,139,250,0.1); color: white;
+                    transform: none; box-shadow: 0 10px 20px rgba(167,139,250,0.1); color: white;
                 }
                 @keyframes vault-fade-in {
                     from { opacity: 0; transform: translateY(10px); }
                     to { opacity: 1; transform: translateY(0); }
                 }
-                .vault-content > div { animation: vault-fade-in 0.4s ease-out forwards; }
+                .vault-content > div { animation: none; }
                 @media (max-width: 768px) {
                     .vault-layout { flex-direction: column; }
                     .vault-sidebar { display: none; }
@@ -283,6 +294,7 @@ function VaultPage() {
 
                     <button style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'folders_menu' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('folders_menu')}>🗂️ Collections</button>
                     <button style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'people' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('people')}>👥 People</button>
+                    <button style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'trash' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('trash')}>🗑️ Trash</button>
                 </div>
             </div>
 
@@ -331,6 +343,13 @@ function VaultPage() {
                         onClick={() => setActiveTab('people')}
                         icon="👥"
                         label="People & Groups"
+                    />
+
+                    <NavBtn
+                        active={activeTab === 'trash'}
+                        onClick={() => setActiveTab('trash')}
+                        icon="🗑️"
+                        label="Trash"
                     />
 
                     {collections.length > 0 && (
@@ -389,6 +408,8 @@ function VaultPage() {
                     </div>
                 ) : activeTab === 'people' ? (
                     <PeopleView collections={collections} />
+                ) : activeTab === 'trash' ? (
+                    <TrashView />
                 ) : (
                     <VaultMediaGrid
                         activeTab={activeTab}
