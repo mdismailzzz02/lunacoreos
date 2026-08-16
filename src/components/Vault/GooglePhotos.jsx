@@ -1158,7 +1158,7 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
 
             {loading && items.length === 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
-                    {[...Array(15)].map((_, i) => <SkeletonCard key={i} />)}
+                    {[...Array(15)].map((_, i) => <SkeletonCard key={i} type="vault" />)}
                 </div>
             ) : innerTab === 'favorites' && items.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '5rem', background: 'rgba(255,255,255,0.02)', borderRadius: '30px', border: '1px dashed rgba(255,255,255,0.1)' }}>

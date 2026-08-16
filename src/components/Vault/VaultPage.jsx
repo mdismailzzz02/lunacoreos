@@ -361,7 +361,7 @@ function VaultPage() {
                     {loading ? (
                         <div style={{ padding: '1rem', color: 'rgba(255,255,255,0.3)', fontSize: '0.8rem' }}>Loading...</div>
                     ) : (
-                        collections.filter(c => !c.parent_id).map(col => (
+                        collections.filter(c => !c.parent_id && !c.name?.toLowerCase().includes('trash')).map(col => (
                             <NavBtn
                                 key={col.id}
                                 active={activeTab === col.id}
@@ -395,7 +395,7 @@ function VaultPage() {
                             {loading ? (
                                 <div style={{ gridColumn: 'span 2', textAlign: 'center', padding: '2rem' }}>Loading...</div>
                             ) : (
-                                collections.filter(c => !c.parent_id).map(col => (
+                                collections.filter(c => !c.parent_id && !c.name?.toLowerCase().includes('trash')).map(col => (
                                     <div key={col.id} className="folder-card" onClick={() => setActiveTab(col.id)}>
                                         <div className="folder-icon-wrapper">{TYPE_ICONS[col.type] || '📁'}</div>
                                         <div className="folder-name">{col.name}</div>
