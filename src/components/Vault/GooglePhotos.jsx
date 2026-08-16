@@ -294,13 +294,18 @@ function VaultCard({ file, isLiked, onLike, onOpen, onDownload, onDelete }) {
         return () => clearInterval(retryRef.current);
     }, [file.r2_key]);
 
-    // Measure text overflow to power the scroll animation
+    // Measure text overflow to power the scroll animation without layout thrashing
     useEffect(() => {
+        let frameId;
         if (nameTextRef.current && nameLabelRef.current) {
-            const textW = nameTextRef.current.scrollWidth;
-            const containerW = nameLabelRef.current.clientWidth;
-            setScrollDist(textW > containerW + 2 ? containerW - textW : 0);
+            frameId = requestAnimationFrame(() => {
+                if (!nameTextRef.current || !nameLabelRef.current) return;
+                const textW = nameTextRef.current.scrollWidth;
+                const containerW = nameLabelRef.current.clientWidth;
+                setScrollDist(textW > containerW + 2 ? containerW - textW : 0);
+            });
         }
+        return () => { if (frameId) cancelAnimationFrame(frameId); };
     }, [file.filename]);
 
     const fileType = classifyMime(file.mime_type, file.filename);
@@ -341,7 +346,6 @@ function VaultCard({ file, isLiked, onLike, onOpen, onDownload, onDelete }) {
                     <img
                         className={`vault-thumb ${imgLoaded ? 'vault-thumb--loaded' : ''}`}
                         src={thumbUrl}
-                        loading="lazy"
                         referrerPolicy="no-referrer"
                         alt=""
                         onLoad={() => setImgLoaded(true)}
@@ -416,15 +420,13 @@ function MediaGrid({ items, likedIds, onLike, onOpen, onDownload, onDelete }) {
                 @media (max-width: 767px) { .vault-ultimate-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; } }
                 @media (min-width: 768px) and (max-width: 1023px) { .vault-ultimate-grid { grid-template-columns: repeat(3, 1fr) !important; } }
                 @media (min-width: 1400px) { .vault-ultimate-grid { grid-template-columns: repeat(5, 1fr) !important; } }
-                .vault-card-wrapper { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; }
+                .vault-card-wrapper { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; transform: translateZ(0); }
                 .vault-card-wrapper > .vault-card { flex-shrink: 0; }
                 .vault-card {
                     position: relative; aspect-ratio: 1/1; width: 100%;
                     border-radius: 24px; overflow: hidden;
                     cursor: pointer; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
                     transition: none;
-                    will-change: auto;
-                    contain: layout style paint;
                 }
                 .vault-card:hover { transform: none; border-color: rgba(167,139,250,0.6); box-shadow: 0 20px 40px rgba(0,0,0,0.6), 0 0 15px rgba(167,139,250,0.15); }
                 .vault-thumb {
