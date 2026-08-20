@@ -635,10 +635,6 @@ async function r2EdgeFetch(queryParams, body = null) {
 
 /** Public bucket upload/read: if VITE_R2_PUBLIC_URL is configured, use direct public URLs. */
 export const getR2PresignedPut = async (key, mimeType = 'application/octet-stream') => {
-    const publicUrl = buildPublicR2Url(key);
-    if (publicUrl) {
-        return { url: publicUrl, public: true };
-    }
     return r2EdgeFetch({ op: 'put', key, content_type: mimeType });
 };
 
@@ -1153,12 +1149,14 @@ export const renameMedia = async (mediaId, newName) => {
 };
 
 export const deleteMedia = async (media_id) => {
-    // Fetch row first to grab r2_key if present
+    // Fetch row first to grab r2_key before deleting
     const { data: row } = await supabase.from('media').select('r2_key').eq('media_id', media_id).maybeSingle();
     const { error } = await supabase.from('media').delete().eq('media_id', media_id);
     if (error) throw error;
-    // Best-effort: delete from R2 via a DELETE presign (not yet supported in r2-presign edge fn)
-    // For now, file stays in R2 (orphaned but harmless). Add DELETE op to edge function later.
+    // Best-effort: delete the actual file from R2 so nothing is orphaned
+    if (row?.r2_key) {
+        deleteR2Object(row.r2_key).catch(err => console.warn('[deleteMedia] R2 cleanup failed (non-fatal):', err));
+    }
 };
 
 export const scanOrphans = async () => {
@@ -1572,10 +1570,21 @@ export const deleteStudyFolder = async (id) => {
 export const getStudyNotes = async (params = {}) => {
     let query = supabase
         .from('study_notes')
-        .select('*')
+        .select('note_id, title, folder_id, tags, linked_notes, audio_urls, image_urls, file_urls, created_at, updated_at, delete_status')
+        .or('delete_status.neq.yes,delete_status.is.null') // exclude soft-deleted notes, preserving nulls
         .order('updated_at', { ascending: false }); // always freshest first
     if (params.folder_id) query = query.eq('folder_id', params.folder_id);
     const { data, error } = await query;
+    if (error) throw error;
+    return data;
+};
+
+export const getStudyNoteContent = async (note_id) => {
+    const { data, error } = await supabase
+        .from('study_notes')
+        .select('content')
+        .eq('note_id', note_id)
+        .single();
     if (error) throw error;
     return data;
 };
@@ -1591,7 +1600,7 @@ export const createStudyNote = async (params) => {
     const now = new Date().toISOString();
     const { data, error } = await supabase.from('study_notes').insert([{
         note_id: `SN-${Math.random().toString(36).substr(2, 8)}`,
-        title: params.title || 'Untitled Note',
+        title: params.title || '',
         folder_id: params.folder_id,
         content: params.content || '',
         tags: params.tags || '',
@@ -1962,6 +1971,10 @@ export const todayStr = () => getLocalDate();
 
 export async function getStreamableUrl(url, mode = 'stream') {
     if (!url) return '';
+    // R2, Supabase Storage, or any non-Drive URL → return as-is, no auth needed
+    const isDrive = url.includes('drive.google.com') || url.includes('docs.google.com');
+    if (!isDrive) return url;
+
     const match = url.match(/\/d\/([^/?]+)/) || url.match(/id=([^&/]+)/);
     if (!match) return url;
     const id = match[1];
@@ -1969,13 +1982,9 @@ export async function getStreamableUrl(url, mode = 'stream') {
     if (mode === 'preview') return `https://drive.google.com/thumbnail?id=${id}&sz=w1000`;
     if (mode === 'large' || mode === 'view') return `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
 
-    // For playback, we now use the native Drive API if possible to avoid CORS/Auth issues
+    // For Drive playback, use uc?export=open pattern
     try {
-        const token = await requestDriveAccess();
-        const driveApiUrl = `https://www.googleapis.com/drive/v3/files/${id}?alt=media`;
-        
-        // We can't return this URL directly to an <audio> tag because it needs the Auth header.
-        // So we return the direct uc?pattern as a fallback, or better yet, the caller should use getMusicBytes.
+        await requestDriveAccess();
         return `https://drive.google.com/uc?export=open&id=${id}`;
     } catch (err) {
         return `https://drive.google.com/uc?export=open&id=${id}`;

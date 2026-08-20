@@ -40,7 +40,7 @@ export default function FaceScanner({ collectionId, images, onComplete, onCancel
     }, []);
 
     const startQuickScan = () => {
-        // images passed from GooglePhotos (only current page, usually up to 50)
+        // images passed from VaultMediaGrid (only current page, usually up to 50)
         startScan(images.filter(img => img.mime_type?.startsWith('image/')));
     };
 

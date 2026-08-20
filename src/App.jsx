@@ -206,13 +206,11 @@ export default function App() {
     }, []);
 
     const navigate = (tabId) => {
-        console.log('[App] Navigating to:', tabId);
         setTab(tabId);
         localStorage.setItem('luna_active_tab', tabId);
     };
 
     const renderTab = () => {
-        console.log('[App] Rendering tab:', tab);
         switch (tab) {
             case 'system-settings': return <SettingsPage />;
             case 'dashboard': return <Dashboard onNavigate={navigate} />;
@@ -243,7 +241,6 @@ export default function App() {
             case 'information': return <InformationPage />;
             case 'musicplayer': return <MusicPlayerPage />;
             default: 
-                console.warn('[App] Unknown tab, falling back to dashboard:', tab);
                 return <Dashboard onNavigate={navigate} />;
         }
     };
@@ -533,20 +530,25 @@ export default function App() {
         );
     };
 
+    const isGuest = typeof window !== 'undefined' && sessionStorage.getItem('luna_guest_access') === 'true';
+    const showDither = !user && !isGuest;
+
     return (
         <>
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none' }}>
-                <Dither 
-                    waveColor={lockScreenColor}
-                    disableAnimation={false}
-                    enableMouseInteraction={true}
-                    mouseRadius={0.3}
-                    colorNum={4.3}
-                    waveAmplitude={0.3}
-                    waveFrequency={3}
-                    waveSpeed={0.05}
-                />
-            </div>
+            {showDither && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none' }}>
+                    <Dither 
+                        waveColor={lockScreenColor}
+                        disableAnimation={false}
+                        enableMouseInteraction={true}
+                        mouseRadius={0.3}
+                        colorNum={4.3}
+                        waveAmplitude={0.3}
+                        waveFrequency={3}
+                        waveSpeed={0.05}
+                    />
+                </div>
+            )}
             {renderContent()}
         </>
     );

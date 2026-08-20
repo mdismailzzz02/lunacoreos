@@ -104,7 +104,7 @@ export default function StudyNotesPage() {
     const filteredNotes = useMemo(() => {
         return notes.filter(n => {
             const matchesSearch = n.title?.toLowerCase().includes(search.toLowerCase()) || 
-                                n.content?.toLowerCase().includes(search.toLowerCase());
+                                n.tags?.toLowerCase().includes(search.toLowerCase());
             const matchesFolder = !activeFolderId || n.folder_id === activeFolderId;
             return matchesSearch && matchesFolder;
         });
@@ -179,17 +179,14 @@ export default function StudyNotesPage() {
                         file_urls:  updates.file_urls  !== undefined ? updates.file_urls  : currentNote.file_urls,
                     };
 
-                    // ✅ Fire-and-forget — don't replace local state with server response
-                    // The optimistic update (mergedNote) is the source of truth.
-                    // We only patch `updated_at` from the server to keep timestamps accurate.
-                    api.updateStudyNote(mergedNote).then(serverNote => {
-                        if (serverNote?.updated_at) {
-                            setNotes(latest => latest.map(n =>
-                                n.note_id === activeNoteId
-                                    ? { ...n, updated_at: serverNote.updated_at }
-                                    : n
-                            ));
-                        }
+                    const serverPayload = {
+                        note_id: activeNoteId,
+                        ...updates
+                    };
+
+                    // Fire-and-forget — optimistic update is the source of truth.
+                    // Skip the second setNotes for updated_at to avoid double re-renders.
+                    api.updateStudyNote(serverPayload).then(() => {
                         setAutoSaveStatus('saved');
                         setPendingSaves(prev => Math.max(0, prev - 1));
                         resolve();
@@ -224,12 +221,8 @@ export default function StudyNotesPage() {
 
     const handleCreateFolder = async (folder) => {
         try {
-            const newFolder = {
-                ...folder,
-                folder_id: `folder_${Date.now()}`
-            };
-            await api.createStudyFolder(newFolder);
-            setFolders([...folders, newFolder]);
+            const created = await api.createStudyFolder(folder);
+            setFolders([...folders, created]);
         } catch (err) {
             console.error('Create folder failed:', err);
         }

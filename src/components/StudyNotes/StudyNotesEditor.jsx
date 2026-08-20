@@ -13,6 +13,7 @@ import Blockquote from '@tiptap/extension-blockquote';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Image from '@tiptap/extension-image';
+import TextareaAutosize from 'react-textarea-autosize';
 
 import { 
     Bold, 
@@ -157,6 +158,7 @@ export default function StudyNotesEditor({
     const [tags, setTags] = useState(note.tags ? note.tags.split('|').filter(Boolean) : []);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isReadOnlyFullscreen, setIsReadOnlyFullscreen] = useState(false);
+    const [isContentLoading, setIsContentLoading] = useState(true);
     const editorSurfaceRef = useRef(null);
 
     useEffect(() => {
@@ -292,43 +294,55 @@ export default function StudyNotesEditor({
             },
             handlePaste: (view, event) => {
                 const items = Array.from(event.clipboardData?.items || []);
-                const imageItem = items.find(item => item.type.startsWith('image'));
+                const fileItem = items.find(item => item.kind === 'file');
                 
-                if (imageItem) {
-                    const file = imageItem.getAsFile();
+                if (fileItem) {
+                    const file = fileItem.getAsFile();
                     if (file) {
-                        // Create a temporary base64 to show immediate feedback
-                        const reader = new FileReader();
-                        reader.onload = async (e) => {
-                            const base64data = e.target.result;
-                            
-                            // Insert a placeholder/temp image
-                            view.dispatch(view.state.tr.replaceSelectionWith(
-                                view.state.schema.nodes.image.create({ src: base64data })
-                            ));
+                        const isImage = file.type.startsWith('image/');
+                        const isAudio = file.type.startsWith('audio/');
+                        
+                        const mediaType = isImage ? 'image' : (isAudio ? 'audio' : 'file');
+                        const nodeType = isImage ? 'image' : (isAudio ? 'audio' : 'file');
+                        const tempId = `temp_${Date.now()}`;
 
-                            // Trigger the real upload logic
+                        const processUpload = async () => {
                             try {
                                 const res = await api.uploadMedia({
                                     file: file,
-                                    filename: `pasted_image_${Date.now()}.png`,
-                                    mime_type: file.type,
-                                    media_type: 'image',
+                                    filename: file.name || `pasted_${mediaType}_${Date.now()}`,
+                                    mime_type: file.type || 'application/octet-stream',
+                                    media_type: mediaType,
                                     uploaded_from: 'studynotes_paste',
                                     source_id: note.note_id,
                                 });
 
                                 if (res.drive_link) {
-                                    const driveUrl = await api.getStreamableUrl(res.drive_link, 'large');
-                                    
-                                    // Update the editor: replace the base64 with the Drive URL
+                                    // Update the editor: replace the placeholder with the actual R2 URL
                                     const { tr } = view.state;
                                     view.state.doc.descendants((node, pos) => {
-                                        if (node.type.name === 'image' && node.attrs.src === base64data) {
-                                            tr.setNodeMarkup(pos, null, { ...node.attrs, src: driveUrl, media_id: res.media_id });
+                                        if (node.type.name === nodeType && node.attrs.media_id === tempId) {
+                                            const newAttrs = { ...node.attrs, media_id: res.media_id };
+                                            if (nodeType === 'image') newAttrs.src = res.drive_link;
+                                            if (nodeType === 'audio') newAttrs.src = res.drive_link;
+                                            if (nodeType === 'file') {
+                                                newAttrs.href = res.drive_link;
+                                                newAttrs.filename = file.name;
+                                            }
+                                            tr.setNodeMarkup(pos, null, newAttrs);
                                         }
                                     });
                                     view.dispatch(tr);
+
+                                    // Update the note's media array so it appears in the media shelf
+                                    const latestNote = noteRef.current;
+                                    const urlField = mediaType === 'image' ? 'image_urls' : (mediaType === 'audio' ? 'audio_urls' : 'file_urls');
+                                    const currentUrls = latestNote[urlField] ? latestNote[urlField].split(',').filter(Boolean) : [];
+                                    const newUrls = currentUrls.includes(res.media_id)
+                                        ? currentUrls.join(',')
+                                        : [...currentUrls, res.media_id].join(',');
+
+                                    onSave({ [urlField]: newUrls });
 
                                     // Refresh the media panel
                                     setTimeout(() => setRefreshMedia(Date.now()), 500);
@@ -337,7 +351,28 @@ export default function StudyNotesEditor({
                                 console.error('Paste upload failed:', err);
                             }
                         };
-                        reader.readAsDataURL(file);
+
+                        if (isImage) {
+                            const reader = new FileReader();
+                            reader.onload = async (e) => {
+                                view.dispatch(view.state.tr.replaceSelectionWith(
+                                    view.state.schema.nodes.image.create({ src: e.target.result, media_id: tempId })
+                                ));
+                                processUpload();
+                            };
+                            reader.readAsDataURL(file);
+                        } else if (isAudio) {
+                            view.dispatch(view.state.tr.replaceSelectionWith(
+                                view.state.schema.nodes.audio.create({ src: '', media_id: tempId })
+                            ));
+                            processUpload();
+                        } else {
+                            view.dispatch(view.state.tr.replaceSelectionWith(
+                                view.state.schema.nodes.file.create({ href: '', filename: (file.name || 'File') + ' (Uploading...)', media_id: tempId })
+                            ));
+                            processUpload();
+                        }
+                        
                         return true; // Handled
                     }
                 }
@@ -365,6 +400,32 @@ export default function StudyNotesEditor({
             editor.setEditable(!isReadOnlyFullscreen);
         }
     }, [editor, isReadOnlyFullscreen]);
+
+    useEffect(() => {
+        if (!editor) return;
+        let isMounted = true;
+        const loadContent = async () => {
+            try {
+                if (note.content !== undefined) {
+                    if (isMounted) {
+                        editor.commands.setContent(note.content, false);
+                        setIsContentLoading(false);
+                    }
+                    return;
+                }
+                const contentData = await api.getStudyNoteContent(note.note_id);
+                if (isMounted) {
+                    editor.commands.setContent(contentData.content || '', false);
+                    setIsContentLoading(false);
+                }
+            } catch (err) {
+                console.error('Failed to load note content:', err);
+                if (isMounted) setIsContentLoading(false);
+            }
+        };
+        loadContent();
+        return () => { isMounted = false; };
+    }, [note.note_id, editor]);
 
     function updatePopup(props, popup) {
         if (!props.items || props.items.length === 0) {
@@ -513,11 +574,11 @@ export default function StudyNotesEditor({
                     });
 
                     if (res.drive_link) {
-                        const isSupabase = res.drive_link.includes('supabase.co');
-                        let audioSrc = res.drive_link;
-
-                        if (!isSupabase) {
-                            // Legacy Drive logic
+                        // R2 / Supabase URLs → use directly as <audio src>
+                        // Legacy Google Drive URLs → convert to /preview iframe
+                        const isDrive = res.drive_link.includes('drive.google.com') || res.drive_link.includes('docs.google.com');
+                        let audioSrc = res.drive_link; // R2: use public URL as-is
+                        if (isDrive) {
                             const driveFileId = res.drive_link.match(/\/d\/([^/]+)/)?.[1];
                             audioSrc = `https://drive.google.com/file/d/${driveFileId}/preview`;
                         }
@@ -645,7 +706,7 @@ export default function StudyNotesEditor({
                 title: file.name
             }).run();
 
-            // Step 2: Upload to Drive in background
+            // Step 2: Upload to R2 in background
             const res = await api.uploadMedia({
                 file: file,
                 filename: file.name,
@@ -656,17 +717,16 @@ export default function StudyNotesEditor({
             });
 
             if (res.drive_link) {
-                // Step 3: Replace base64 in editor with persistent Drive URL
-                // This is critical — base64 is too large for Google Sheets cells
-                const driveUrl = await api.getStreamableUrl(res.drive_link, 'large');
+                // Step 3: Replace base64 in editor with the R2 public URL
+                // res.drive_link is already the direct R2 URL — no conversion needed
                 const json = editor.getJSON();
                 
                 const replaceBase64 = (nodes) => {
                     if (!nodes) return;
                     for (const node of nodes) {
                         if (node.type === 'image' && node.attrs?.src === dataUri) {
-                            node.attrs.src = driveUrl;
-                            node.attrs.media_id = res.media_id; // store for delete sync
+                            node.attrs.src = res.drive_link; // R2 public URL
+                            node.attrs.media_id = res.media_id;
                         }
                         replaceBase64(node.content);
                     }
@@ -674,7 +734,7 @@ export default function StudyNotesEditor({
                 replaceBase64(json.content);
                 editor.commands.setContent(json, false);
 
-                // Step 4: Save with the Drive URL content (not base64)
+                // Step 4: Save with the R2 URL in content (not base64)
                 const currentImages = note.image_urls ? note.image_urls.split(',').filter(Boolean) : [];
                 const newImageUrls = currentImages.includes(res.media_id) 
                     ? currentImages.join(',') 
@@ -684,7 +744,7 @@ export default function StudyNotesEditor({
                 onSave({ 
                     ...note,
                     image_urls: newImageUrls,
-                    content: editor.getHTML()  // Now contains Drive URL, not base64
+                    content: editor.getHTML()  // Now contains R2 URL, not base64
                 });
 
                 // Small delay to ensure DB consistency before refresh
@@ -699,31 +759,21 @@ export default function StudyNotesEditor({
     };
 
     return (
-        <div className={`sn-editor-surface ${isReadOnlyFullscreen ? 'sn-readonly-mode' : ''}`} ref={editorSurfaceRef}>
-            <div className="sn-editor-title-row">
-                <input
-                    className="sn-title-h1"
-                    value={title}
-                    onChange={e => {
-                        setTitle(e.target.value);
-                        onTriggerAutoSave({ content: editor?.getHTML(), title: e.target.value, folder_id: folderId, tags: tags.join('|') });
-                    }}
-                    onBlur={flushMeta}
-                    placeholder="Untitled"
-                    readOnly={isReadOnlyFullscreen}
-                />
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                    <div className="sn-save-indicator" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px', borderRadius: '20px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        <div style={{ 
-                            width: '8px', 
-                            height: '8px', 
-                            borderRadius: '50%', 
-                            background: autoSaveStatus === 'saving' ? '#10b981' : (autoSaveStatus === 'saved' ? '#ef4444' : '#f59e0b'),
-                            boxShadow: autoSaveStatus === 'saving' ? '0 0 12px #10b981' : 'none',
-                            animation: autoSaveStatus === 'saving' ? 'sn-pulse-save 1.5s infinite' : 'none',
-                            transition: 'all 0.3s ease'
-                        }} />
-                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+        <div className={`sn-editor-surface ${isReadOnlyFullscreen ? 'sn-readonly-mode' : ''} ${isFullscreen ? 'sn-is-fullscreen' : ''}`} ref={editorSurfaceRef}>
+            
+            {/* 1. TOP NAV: Minimalist transparent header for status and controls */}
+            <div className="sn-editor-top-nav">
+                <div className="sn-editor-breadcrumbs">
+                    <FolderIcon size={14} color="#6b6882" />
+                    <span className="sn-breadcrumb-text">
+                        {folderId ? (folders.find(f => f.folder_id === folderId)?.folder_name || 'Unfoldered') : 'Unfoldered'}
+                    </span>
+                </div>
+                
+                <div className="sn-editor-top-actions">
+                    <div className="sn-save-indicator">
+                        <div className={`sn-status-dot ${autoSaveStatus}`} />
+                        <span className="sn-status-text">
                             {autoSaveStatus === 'saving' ? 'Syncing' : (autoSaveStatus === 'saved' ? 'Saved' : 'Waiting')}
                         </span>
                     </div>
@@ -732,145 +782,132 @@ export default function StudyNotesEditor({
                             ? new Date(note.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
                             : new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </span>
-                    <button 
-                        onClick={toggleReadOnlyFullscreen} 
-                        className="sn-toolbar-btn" 
-                        style={{ padding: '4px', opacity: 0.7 }}
-                        title={isReadOnlyFullscreen ? 'Exit Read Mode' : 'Read Mode'}
-                    >
+                    <button onClick={toggleReadOnlyFullscreen} className="sn-nav-icon-btn" title={isReadOnlyFullscreen ? 'Exit Read Mode' : 'Read Mode'}>
                         {isReadOnlyFullscreen ? <Minimize size={16} /> : <BookOpen size={16} />}
                     </button>
-                    <button 
-                        onClick={toggleFullscreen} 
-                        className="sn-toolbar-btn" 
-                        style={{ padding: '4px', marginLeft: '-0.5rem', opacity: 0.7 }}
-                        title={isFullscreen && !isReadOnlyFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-                    >
+                    <button onClick={toggleFullscreen} className="sn-nav-icon-btn" title={isFullscreen && !isReadOnlyFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
                         {isFullscreen && !isReadOnlyFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
                     </button>
                 </div>
-                <style>{`
-                    @keyframes sn-pulse-save {
-                        0% { opacity: 1; transform: scale(1); }
-                        50% { opacity: 0.4; transform: scale(1.3); }
-                        100% { opacity: 1; transform: scale(1); }
-                    }
-                `}</style>
             </div>
 
-            <div className="sn-editor-meta-row">
-                <div className="sn-meta-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <FolderIcon size={14} color="#6b6882" />
-                    <select 
-                        className="sn-custom-select-dark"
-                        value={folderId}
-                        onChange={e => {
-                            setFolderId(e.target.value);
-                            onTriggerAutoSave({ content: editor?.getHTML(), title, folder_id: e.target.value, tags: tags.join('|') });
-                        }}
-                    >
-                        <option value="">Unfoldered</option>
-                        {folders.map(f => <option key={f.folder_id} value={f.folder_id}>{f.folder_name}</option>)}
-                    </select>
-                </div>
-                <div className="sn-meta-divider" />
-                <div className="sn-meta-item" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Hash size={14} color="#6b6882" />
-                    <TagsInput tags={tags} onChange={t => {
-                        setTags(t);
-                        onTriggerAutoSave({ content: editor?.getHTML(), title, folder_id: folderId, tags: t.join('|') });
-                    }} />
-                </div>
-            </div>
-
-            <div className="sn-editor-toolbar-row">
-                <select 
-                    className="sn-custom-select-dark" 
-                    style={{ width: '80px' }}
-                    value={currentHeading}
-                    onChange={e => handleHeadingChange(e.target.value)}
-                >
-                    <option value="Body">Body</option>
-                    <option value="H1">H1</option>
-                    <option value="H2">H2</option>
-                    <option value="H3">H3</option>
-                </select>
-                <div className="sn-toolbar-sep" />
-                <button className={`sn-toolbar-btn ${editor?.isActive('bold') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleBold().run()}><Bold size={16} /></button>
-                <button className={`sn-toolbar-btn ${editor?.isActive('italic') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic size={16} /></button>
-                <button className={`sn-toolbar-btn ${editor?.isActive('underline') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleUnderline().run()}><UnderlineIcon size={16} /></button>
-                <button className={`sn-toolbar-btn ${editor?.isActive('strike') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleStrike().run()}><Strikethrough size={16} /></button>
-                <button 
-                    className={`sn-toolbar-btn ${editor?.isActive('taskList') ? 'active' : ''}`}
-                    onClick={() => editor?.chain().focus().toggleTaskList().run()}
-                    title="Task List"
-                >
-                    <List size={18} />
-                </button>
-                <button className="sn-toolbar-btn" onClick={triggerImageInput} title="Embed Image">
-                    <ImageIcon size={18} />
-                </button>
-                <button className="sn-toolbar-btn" onClick={() => editor?.chain().focus().insertContent({ type: 'grid', attrs: { rows: 1, columns: 3, cells: [] } }).run()} title="Insert Grid">
-                    <Grid3x3 size={18} />
-                </button>
-                <button 
-                    className={`sn-toolbar-btn ${isRecording ? 'active sn-recording-btn' : ''}`} 
-                    onClick={startStopRecording} 
-                    title={isRecording ? 'Stop Recording' : 'Record Audio'}
-                >
-                    <Mic size={18} />
-                    {isRecording && <span className="sn-rec-dot" />}
-                </button>
-                <button className="sn-toolbar-btn" onClick={triggerCodeInput} title="Embed Code File">
-                    <FileCode size={18} />
-                </button>
-                <input 
-                    type="file"
-                    ref={fileInputRef}
-                    style={{ display: 'none' }}
-                    accept="image/*"
-                    onChange={handleFileInsert}
-                />
-                <input 
-                    type="file"
-                    ref={codeInputRef}
-                    style={{ display: 'none' }}
-                    accept=".js,.ts,.tsx,.jsx,.py,.css,.html,.json,.txt,.md,.sh,.env"
-                    onChange={handleCodeFileInsert}
-                />
-                <div className="sn-toolbar-divider" />
-                <button 
-                    className={`sn-toolbar-btn ${editor?.isActive('codeBlock') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}><Code size={16} /></button>
-                <button className={`sn-toolbar-btn ${editor?.isActive('blockquote') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleBlockquote().run()}><Quote size={16} /></button>
-                <button className={`sn-toolbar-btn ${editor?.isActive('bulletList') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleBulletList().run()}><List size={16} /></button>
-                <button className={`sn-toolbar-btn ${editor?.isActive('orderedList') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleOrderedList().run()}><ListOrdered size={16} /></button>
-                <button className="sn-toolbar-btn" onClick={() => editor?.chain().focus().setHorizontalRule().run()}><Minus size={16} /></button>
-                <div className="sn-toolbar-sep" />
-                <button className="sn-toolbar-btn" onClick={() => editor?.chain().focus().insertContent('@').run()}><AtSign size={16} /></button>
-                <span className="sn-toolbar-word-count">{wordCount} words</span>
-                <button className="sn-toolbar-btn" onClick={onDelete} style={{ color: '#ef4444' }}><Trash2 size={16} /></button>
-            </div>
-
-            {/* 4. WRITING AREA */}
-            <div className="sn-editor-writing-area">
-                <div className="sn-editor-content-wrapper">
-                    <EditorContent editor={editor} />
-                </div>
+            {/* 2. SCROLLABLE CANVAS */}
+            <div className="sn-editor-canvas-scroll">
                 
-                {/* 5. MEDIA PANEL (now scrolls at bottom of document) */}
-                <div className="sn-document-media-panel">
-                    <MediaShelfWrapper 
-                        key={note.note_id}
-                        refreshKey={refreshMedia}
-                        sourceId={note.note_id} 
-                        onMediaChange={(refs) => {
-                            onSave({ 
-                                audio_urls: refs.audio_refs,
-                                image_urls: refs.image_refs,
-                                file_urls: refs.file_refs
-                            });
+                {/* FLOATING FORMATTING TOOLBAR (Sticky to top of scroll container) */}
+                <div className="sn-editor-toolbar-floating">
+                    <select 
+                        className="sn-custom-select-dark minimal" 
+                        style={{ width: '70px' }}
+                        value={currentHeading}
+                        onChange={e => handleHeadingChange(e.target.value)}
+                    >
+                        <option value="Body">Text</option>
+                        <option value="H1">H1</option>
+                        <option value="H2">H2</option>
+                        <option value="H3">H3</option>
+                    </select>
+                    <div className="sn-toolbar-sep" />
+                    <button className={`sn-toolbar-btn ${editor?.isActive('bold') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleBold().run()}><Bold size={14} /></button>
+                    <button className={`sn-toolbar-btn ${editor?.isActive('italic') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic size={14} /></button>
+                    <button className={`sn-toolbar-btn ${editor?.isActive('underline') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleUnderline().run()}><UnderlineIcon size={14} /></button>
+                    <button className={`sn-toolbar-btn ${editor?.isActive('strike') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleStrike().run()}><Strikethrough size={14} /></button>
+                    <button className={`sn-toolbar-btn ${editor?.isActive('codeBlock') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}><Code size={14} /></button>
+                    
+                    <div className="sn-toolbar-sep" />
+                    <button className={`sn-toolbar-btn ${editor?.isActive('bulletList') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleBulletList().run()}><List size={14} /></button>
+                    <button className={`sn-toolbar-btn ${editor?.isActive('orderedList') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleOrderedList().run()}><ListOrdered size={14} /></button>
+                    <button className={`sn-toolbar-btn ${editor?.isActive('taskList') ? 'active' : ''}`} onClick={() => editor?.chain().focus().toggleTaskList().run()}><List size={14} /></button>
+                    
+                    <div className="sn-toolbar-sep" />
+                    <button className="sn-toolbar-btn" onClick={triggerImageInput} title="Image"><ImageIcon size={14} /></button>
+                    <button className="sn-toolbar-btn" onClick={() => editor?.chain().focus().insertContent({ type: 'grid', attrs: { rows: 1, columns: 3, cells: [] } }).run()} title="Grid"><Grid3x3 size={14} /></button>
+                    <button className={`sn-toolbar-btn ${isRecording ? 'active sn-recording-btn' : ''}`} onClick={startStopRecording} title="Audio">
+                        <Mic size={14} />
+                        {isRecording && <span className="sn-rec-dot" />}
+                    </button>
+                    <button className="sn-toolbar-btn" onClick={triggerCodeInput} title="File"><FileCode size={14} /></button>
+                    
+                    <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleFileInsert} />
+                    <input type="file" ref={codeInputRef} style={{ display: 'none' }} accept=".js,.ts,.tsx,.jsx,.py,.css,.html,.json,.txt,.md,.sh,.env" onChange={handleCodeFileInsert} />
+                    
+                    <div className="sn-toolbar-spacer" />
+                    <span className="sn-toolbar-word-count">{wordCount} words</span>
+                    <button className="sn-toolbar-btn danger" onClick={onDelete}><Trash2 size={14} /></button>
+                </div>
+
+                {/* THE DOCUMENT ITSELF */}
+                <div className="sn-editor-document-container">
+                    
+                    {/* NATIVE TITLE */}
+                    <TextareaAutosize
+                        className="sn-document-title-input"
+                        value={title}
+                        onChange={e => {
+                            setTitle(e.target.value);
+                            onTriggerAutoSave({ content: editor?.getHTML(), title: e.target.value, folder_id: folderId, tags: tags.join('|') });
                         }}
+                        onBlur={flushMeta}
+                        placeholder="Untitled"
+                        readOnly={isReadOnlyFullscreen}
                     />
+
+                    {/* NATIVE METADATA PROPERTIES */}
+                    <div className="sn-document-properties">
+                        <div className="sn-doc-prop-row">
+                            <div className="sn-doc-prop-label"><FolderIcon size={14} /> Folder</div>
+                            <div className="sn-doc-prop-value">
+                                <select 
+                                    className="sn-prop-select"
+                                    value={folderId}
+                                    onChange={e => {
+                                        setFolderId(e.target.value);
+                                        onTriggerAutoSave({ content: editor?.getHTML(), title, folder_id: e.target.value, tags: tags.join('|') });
+                                    }}
+                                    disabled={isReadOnlyFullscreen}
+                                >
+                                    <option value="">Unfoldered</option>
+                                    {folders.map(f => <option key={f.folder_id} value={f.folder_id}>{f.folder_name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="sn-doc-prop-row">
+                            <div className="sn-doc-prop-label"><Hash size={14} /> Tags</div>
+                            <div className="sn-doc-prop-value" style={isReadOnlyFullscreen ? { pointerEvents: 'none', opacity: 0.8 } : {}}>
+                                <TagsInput tags={tags} onChange={t => {
+                                    setTags(t);
+                                    onTriggerAutoSave({ content: editor?.getHTML(), title, folder_id: folderId, tags: t.join('|') });
+                                }} />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* WRITING AREA */}
+                    <div className="sn-editor-content-wrapper">
+                        {isContentLoading ? (
+                            <div className="sn-loading" style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent' }}>
+                                <div className="sn-loading-spinner" />
+                            </div>
+                        ) : (
+                            <EditorContent editor={editor} />
+                        )}
+                    </div>
+                    
+                    {/* MEDIA ATTACHMENTS AT BOTTOM OF PAGE */}
+                    <div className="sn-document-attachments">
+                        <MediaShelfWrapper 
+                            key={note.note_id}
+                            refreshKey={refreshMedia}
+                            sourceId={note.note_id} 
+                            onMediaChange={(refs) => {
+                                onSave({ 
+                                    audio_urls: refs.audio_refs,
+                                    image_urls: refs.image_refs,
+                                    file_urls: refs.file_refs
+                                });
+                            }}
+                        />
+                    </div>
                 </div>
             </div>
         </div>

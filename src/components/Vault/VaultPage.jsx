@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import VaultMediaGrid from './GooglePhotos';
+import VaultMediaGrid from './VaultMediaGrid';
 import PeopleView from './PeopleView';
 import TrashView from './TrashView';
 import VaultLock from './VaultLock';
@@ -93,45 +93,46 @@ function CreateCollectionModal({ onAdd, onClose, vaultMode }) {
     );
 }
 
+// ─── Nav Button Styles (hoisted — injected once, not per-instance) ────────
+const NAV_BTN_STYLES = `
+    .nav-btn-container { animation: none; }
+    .vault-nav-btn {
+        flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.5rem;
+        padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid transparent;
+        text-align: left; cursor: pointer; font-size: 0.75rem; font-weight: 500;
+        background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.7);
+        transition: none;
+        backdrop-filter: blur(10px);
+    }
+    .vault-nav-btn:hover {
+        background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.7);
+        border-color: transparent; transform: none;
+    }
+    .vault-nav-btn.active {
+        background: linear-gradient(135deg, #a78bfa, #7c3aed);
+        color: white; box-shadow: 0 8px 20px rgba(124, 58, 237, 0.3);
+        border-color: rgba(255,255,255,0.2); font-weight: 600;
+    }
+    .vault-remove-btn {
+        background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2);
+        color: #f87171; border-radius: 10px; width: 28px; height: 28px;
+        cursor: pointer; font-size: 10px; display: flex; align-items: center;
+        justify-content: center; transition: none;
+        opacity: 1; transform: none;
+    }
+    .nav-btn-container:hover .vault-remove-btn { opacity: 1; transform: none; }
+    .vault-remove-btn:hover { background: #ef4444; color: white; border-color: transparent; }
+    .nav-text-container { flex: 1; min-width: 0; overflow: hidden; }
+    .nav-text-static {
+        white-space: nowrap; width: 100%;
+        overflow: hidden; text-overflow: ellipsis; vertical-align: bottom;
+    }
+`;
+
 // ─── Sidebar Nav Button ─────────────────────────────────────────
 function NavBtn({ active, onClick, icon, label, subLabel, onRemove, indent = 0 }) {
     return (
         <div className="nav-btn-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', paddingLeft: `${indent * 1.5}rem` }}>
-            <style>{`
-                .nav-btn-container { animation: none; }
-                .vault-nav-btn {
-                    flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.5rem;
-                    padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid transparent;
-                    text-align: left; cursor: pointer; font-size: 0.75rem; font-weight: 500;
-                    background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.7);
-                    transition: none;
-                    backdrop-filter: blur(10px);
-                }
-                .vault-nav-btn:hover {
-                    background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.7);
-                    border-color: transparent; transform: none;
-                }
-                .vault-nav-btn.active {
-                    background: linear-gradient(135deg, #a78bfa, #7c3aed);
-                    color: white; box-shadow: 0 8px 20px rgba(124, 58, 237, 0.3);
-                    border-color: rgba(255,255,255,0.2); font-weight: 600;
-                }
-                .vault-remove-btn {
-                    background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2);
-                    color: #f87171; border-radius: 10px; width: 28px; height: 28px;
-                    cursor: pointer; font-size: 10px; display: flex; align-items: center;
-                    justify-content: center; transition: none;
-                    opacity: 1; transform: none;
-                }
-                .nav-btn-container:hover .vault-remove-btn { opacity: 1; transform: none; }
-                .vault-remove-btn:hover { background: #ef4444; color: white; border-color: transparent; }
-                
-                .nav-text-container { flex: 1; min-width: 0; overflow: hidden; }
-                .nav-text-static {
-                    white-space: nowrap; width: 100%;
-                    overflow: hidden; text-overflow: ellipsis; vertical-align: bottom;
-                }
-            `}</style>
             <button 
                 onClick={onClick} 
                 className={`vault-nav-btn ${active ? 'active' : ''}`}
@@ -179,6 +180,7 @@ function VaultPage() {
     const [pendingMode, setPendingMode] = useState(null); // mode to unlock
     const [secretClicks, setSecretClicks] = useState(0);
     const [pendingDelete, setPendingDelete] = useState(null);
+    const [collectionSearch, setCollectionSearch] = useState('');
 
     const loadCollections = () => {
         setLoading(true);
@@ -259,16 +261,36 @@ function VaultPage() {
                 .vault-sidebar {
                     width: 280px; background: rgba(15, 15, 25, 0.5);
                     backdrop-filter: blur(30px); border-right: 1px solid rgba(255,255,255,0.08);
-                    display: flex; flex-direction: column; padding: 1.5rem;
+                    display: flex; flex-direction: column; padding: 0;
                     flex-shrink: 0; height: 100%;
                 }
+                .vault-sidebar-header {
+                    padding: 1.5rem 1.5rem 0.75rem;
+                    flex-shrink: 0;
+                    border-bottom: 1px solid rgba(255,255,255,0.06);
+                }
+                .vault-sidebar-body {
+                    flex: 1; min-height: 0; display: flex; flex-direction: column;
+                    padding: 0.75rem 1.5rem 1rem;
+                    overflow: hidden;
+                }
                 .vault-title {
-                    font-size: 1.25rem; font-weight: 800; margin-bottom: 2rem;
+                    font-size: 1.25rem; font-weight: 800; margin-bottom: 0;
                     background: linear-gradient(to right, #fff, rgba(255,255,255,0.4));
                     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
                     display: flex; align-items: center; gap: 10px;
                 }
-                .vault-nav-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+                .vault-search-bar {
+                    width: 100%; padding: 0.55rem 0.85rem;
+                    border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);
+                    background: rgba(0,0,0,0.3); color: white; font-size: 0.8rem;
+                    outline: none; box-sizing: border-box;
+                    margin-bottom: 0.5rem;
+                    transition: border-color 0.2s;
+                }
+                .vault-search-bar::placeholder { color: rgba(255,255,255,0.3); }
+                .vault-search-bar:focus { border-color: rgba(167,139,250,0.5); }
+                .vault-nav-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
                 .vault-content {
                     flex: 1; flex-basis: 0; min-width: 0;
                     overflow-y: auto; overflow-x: hidden;
@@ -279,11 +301,15 @@ function VaultPage() {
                     margin-top: 1rem; width: 100%; padding: 0.85rem; border-radius: 14px;
                     border: 1px dashed rgba(167,139,250,0.4); background: rgba(167,139,250,0.05);
                     color: #a78bfa; font-size: 0.85rem; font-weight: 700; cursor: pointer;
-                    transition: none; text-align: center;
+                    transition: none; text-align: center; flex-shrink: 0;
                 }
                 .vault-add-btn:hover {
                     background: rgba(167,139,250,0.15); border-color: #a78bfa;
                     transform: none; box-shadow: 0 10px 20px rgba(167,139,250,0.1); color: white;
+                }
+                .vault-no-results {
+                    padding: 1rem; text-align: center; color: rgba(255,255,255,0.25);
+                    font-size: 0.78rem;
                 }
                 @keyframes vault-fade-in {
                     from { opacity: 0; transform: translateY(10px); }
@@ -295,6 +321,7 @@ function VaultPage() {
                     .vault-sidebar { display: none; }
                 }
             `}</style>
+            <style>{NAV_BTN_STYLES}</style>
 
             {/* ─── Mobile Segmented Control ─── */}
             <div className={`vault-mobile-nav mobile-only ${isCollectionActive ? 'hidden' : ''}`} style={{ padding: '1rem', background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)' }}>
@@ -318,83 +345,117 @@ function VaultPage() {
 
             {/* ─── Left Sidebar (Desktop Only) ─── */}
             <div className="vault-sidebar desktop-only">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span 
-                            onClick={() => handleSecretClick('hidden')} 
-                            style={{ cursor: 'pointer', fontSize: '1.5rem', userSelect: 'none' }}
-                            title={vaultMode === 'hidden' ? "Lock Hidden Vault" : "..."}
-                        >
-                            {vaultMode === 'hidden' ? '👻' : vaultMode === 'secret' ? '🕵️' : '🔒'}
-                        </span>
-                        <h2 className="vault-title" style={{ margin: 0 }}>VAULT_CORE</h2>
-                        {vaultMode === 'normal' && (
+                {/* Sticky header section */}
+                <div className="vault-sidebar-header">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span 
-                                onClick={() => handleSecretClick('secret')} 
-                                style={{ cursor: 'pointer', fontSize: '1.2rem', userSelect: 'none', opacity: 0.3, marginLeft: '4px' }}
-                                title="🕵️"
+                                onClick={() => handleSecretClick('hidden')} 
+                                style={{ cursor: 'pointer', fontSize: '1.5rem', userSelect: 'none' }}
+                                title={vaultMode === 'hidden' ? "Lock Hidden Vault" : "..."}
                             >
-                                ◈
+                                {vaultMode === 'hidden' ? '👻' : vaultMode === 'secret' ? '🕵️' : '🔒'}
                             </span>
-                        )}
-                    </div>
-                    
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={loadCollections} className="btn btn-ghost btn-xs" title="Reload collections" style={{ padding: '4px', opacity: 0.5 }}>🔄</button>
-                    </div>
-                </div>
-
-                <div className="vault-nav-scroll">
-
-                    <NavBtn
-                        active={activeTab === 'people'}
-                        onClick={() => setActiveTab('people')}
-                        icon="👥"
-                        label="People & Groups"
-                    />
-
-                    <NavBtn
-                        active={activeTab === 'trash'}
-                        onClick={() => setActiveTab('trash')}
-                        icon="🗑️"
-                        label="Trash"
-                    />
-
-                    {collections.length > 0 && (
-                        <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.25)', padding: '1.25rem 0.9rem 0.5rem', textTransform: 'uppercase', letterSpacing: '0.2em', fontWeight: 800 }}>
-                            Collections
+                            <h2 className="vault-title" style={{ margin: 0 }}>VAULT_CORE</h2>
+                            {vaultMode === 'normal' && (
+                                <span 
+                                    onClick={() => handleSecretClick('secret')} 
+                                    style={{ cursor: 'pointer', fontSize: '1.2rem', userSelect: 'none', opacity: 0.3, marginLeft: '4px' }}
+                                    title="🕵️"
+                                >
+                                    ◈
+                                </span>
+                            )}
                         </div>
-                    )}
-
-                    {loading ? (
-                        <div style={{ padding: '1rem', color: 'rgba(255,255,255,0.3)', fontSize: '0.8rem' }}>Loading...</div>
-                    ) : (
-                        collections.filter(c => !c.parent_id && !c.name?.toLowerCase().includes('trash')).map(col => (
-                            <NavBtn
-                                key={col.id}
-                                active={activeTab === col.id}
-                                onClick={() => setActiveTab(col.id)}
-                                icon={TYPE_ICONS[col.type] || '📁'}
-                                label={col.name}
-                                subLabel={col.file_count ? `${col.file_count.toLocaleString()} files · ${fmtBytes(col.size_bytes)}` : null}
-                                onRemove={() => handleRemoveCollection(col.id)}
-                            />
-                        ))
-                    )}
-
-                    <button className="vault-add-btn" onClick={() => setShowAdd(true)}>
-                        + New Collection
-                    </button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={loadCollections} className="btn btn-ghost btn-xs" title="Reload collections" style={{ padding: '4px', opacity: 0.5 }}>🔄</button>
+                        </div>
+                    </div>
+                    {/* Search bar */}
+                    <input
+                        className="vault-search-bar"
+                        type="text"
+                        placeholder="🔍  Search collections…"
+                        value={collectionSearch}
+                        onChange={e => setCollectionSearch(e.target.value)}
+                    />
                 </div>
 
-                <StorageBar collections={collections} />
+                {/* Scrollable body */}
+                <div className="vault-sidebar-body">
+                    <div className="vault-nav-scroll">
+                        <NavBtn
+                            active={activeTab === 'people'}
+                            onClick={() => setActiveTab('people')}
+                            icon="👥"
+                            label="People & Groups"
+                        />
+
+                        <NavBtn
+                            active={activeTab === 'trash'}
+                            onClick={() => setActiveTab('trash')}
+                            icon="🗑️"
+                            label="Trash"
+                        />
+
+                        {collections.length > 0 && (
+                            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.25)', padding: '1.25rem 0.9rem 0.5rem', textTransform: 'uppercase', letterSpacing: '0.2em', fontWeight: 800 }}>
+                                Collections
+                            </div>
+                        )}
+
+                        {loading ? (
+                            <div style={{ padding: '1rem', color: 'rgba(255,255,255,0.3)', fontSize: '0.8rem' }}>Loading...</div>
+                        ) : (() => {
+                            const filtered = collections
+                                .filter(c => !c.parent_id && !c.name?.toLowerCase().includes('trash'))
+                                .filter(c => !collectionSearch.trim() || c.name?.toLowerCase().includes(collectionSearch.toLowerCase()));
+                            return filtered.length === 0 && collectionSearch.trim() ? (
+                                <div className="vault-no-results">No collections match "{collectionSearch}"</div>
+                            ) : (
+                                filtered.map(col => (
+                                    <NavBtn
+                                        key={col.id}
+                                        active={activeTab === col.id}
+                                        onClick={() => setActiveTab(col.id)}
+                                        icon={TYPE_ICONS[col.type] || '📁'}
+                                        label={col.name}
+                                        subLabel={col.file_count ? `${col.file_count.toLocaleString()} files · ${fmtBytes(col.size_bytes)}` : null}
+                                        onRemove={() => handleRemoveCollection(col.id)}
+                                    />
+                                ))
+                            );
+                        })()}
+
+                        <button className="vault-add-btn" onClick={() => setShowAdd(true)}>
+                            + New Collection
+                        </button>
+                    </div>
+
+                    <StorageBar collections={collections} />
+                </div>
             </div>
 
             {/* ─── Content Area ─── */}
             <div className={`vault-content ${activeTab === 'folders_menu' ? 'mobile-only' : ''}`}>
                 {activeTab === 'folders_menu' ? (
                     <div className="mobile-folders-grid-view">
-                        <h3 className="mobile-folders-title">My Collections</h3>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                            <h3 className="mobile-folders-title" style={{ margin: 0 }}>My Collections</h3>
+                        </div>
+                        {/* Mobile search bar */}
+                        <input
+                            type="text"
+                            placeholder="🔍  Search collections…"
+                            value={collectionSearch}
+                            onChange={e => setCollectionSearch(e.target.value)}
+                            style={{
+                                width: '100%', padding: '0.65rem 1rem', borderRadius: '12px',
+                                border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(0,0,0,0.3)',
+                                color: 'white', fontSize: '0.85rem', outline: 'none',
+                                boxSizing: 'border-box', marginBottom: '1rem',
+                            }}
+                        />
                         <div className="mobile-folders-grid">
                             <div className="add-folder-card" onClick={() => setShowAdd(true)}>
                                 <div className="add-icon">+</div>
@@ -402,16 +463,25 @@ function VaultPage() {
                             </div>
                             {loading ? (
                                 <div style={{ gridColumn: 'span 2', textAlign: 'center', padding: '2rem' }}>Loading...</div>
-                            ) : (
-                                collections.filter(c => !c.parent_id && !c.name?.toLowerCase().includes('trash')).map(col => (
-                                    <div key={col.id} className="folder-card" onClick={() => setActiveTab(col.id)}>
-                                        <div className="folder-icon-wrapper">{TYPE_ICONS[col.type] || '📁'}</div>
-                                        <div className="folder-name">{col.name}</div>
-                                        {col.file_count > 0 && <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', marginTop: '4px' }}>{col.file_count} files</div>}
-                                        <button className="folder-remove" onClick={(e) => { e.stopPropagation(); handleRemoveCollection(col.id); }}>✕</button>
+                            ) : (() => {
+                                const filtered = collections
+                                    .filter(c => !c.parent_id && !c.name?.toLowerCase().includes('trash'))
+                                    .filter(c => !collectionSearch.trim() || c.name?.toLowerCase().includes(collectionSearch.toLowerCase()));
+                                return filtered.length === 0 && collectionSearch.trim() ? (
+                                    <div style={{ gridColumn: 'span 2', textAlign: 'center', padding: '2rem', color: 'rgba(255,255,255,0.3)', fontSize: '0.85rem' }}>
+                                        No collections match "{collectionSearch}"
                                     </div>
-                                ))
-                            )}
+                                ) : (
+                                    filtered.map(col => (
+                                        <div key={col.id} className="folder-card" onClick={() => setActiveTab(col.id)}>
+                                            <div className="folder-icon-wrapper">{TYPE_ICONS[col.type] || '📁'}</div>
+                                            <div className="folder-name">{col.name}</div>
+                                            {col.file_count > 0 && <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', marginTop: '4px' }}>{col.file_count} files</div>}
+                                            <button className="folder-remove" onClick={(e) => { e.stopPropagation(); handleRemoveCollection(col.id); }}>✕</button>
+                                        </div>
+                                    ))
+                                );
+                            })()}
                         </div>
                     </div>
                 ) : activeTab === 'people' ? (

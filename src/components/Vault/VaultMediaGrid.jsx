@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/atom-one-dark.css';
@@ -55,6 +55,13 @@ function getCachedUrl(r2Key) {
 
 function setCachedUrl(r2Key, url) {
     urlCache.set(r2Key, { url, expiresAt: Date.now() + URL_TTL_MS });
+    // Notify any listening VaultCards that a URL is now available
+    window.dispatchEvent(new CustomEvent('vault-url-cached', { detail: { r2Key } }));
+}
+
+// Notify cards in bulk after a batch prefetch resolves
+function notifyBatchCached(keys) {
+    window.dispatchEvent(new CustomEvent('vault-urls-batch-cached', { detail: { keys } }));
 }
 
 // ─── Download Session Cache ─────────────────────────────────
@@ -256,11 +263,10 @@ function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
 }
 
 // ─── Lazy Image Card ──────────────────────────────────────────
-function VaultCard({ file, isLiked, onLike, onOpen, onDownload, onDelete }) {
+const VaultCard = React.memo(function VaultCard({ file, isLiked, onLike, onOpen, onDownload, onDelete }) {
     const [thumbUrl, setThumbUrl] = useState(() => getCachedUrl(file.r2_key));
     const [imgLoaded, setImgLoaded] = useState(false);
     const cardRef = useRef(null);
-    const retryRef = useRef(null);
     const nameLabelRef = useRef(null);
     const nameTextRef = useRef(null);
     const [scrollDist, setScrollDist] = useState(0);
@@ -270,28 +276,36 @@ function VaultCard({ file, isLiked, onLike, onOpen, onDownload, onDelete }) {
         const cached = getCachedUrl(file.r2_key);
         if (cached) { setThumbUrl(cached); return; }
 
-        // Wait for the batch-prefetch to populate the cache (up to 3s),
-        // then fall back to an individual request only if still missing.
-        let attempts = 0;
-        const MAX_ATTEMPTS = 12; // 12 × 250ms = 3s
-        retryRef.current = setInterval(() => {
-            const url = getCachedUrl(file.r2_key);
-            if (url) {
-                clearInterval(retryRef.current);
-                setThumbUrl(url);
-                return;
+        // Event-driven: listen for cache population instead of polling
+        const handleSingleCached = (e) => {
+            if (e.detail.r2Key === file.r2_key) {
+                const url = getCachedUrl(file.r2_key);
+                if (url) setThumbUrl(url);
             }
-            attempts++;
-            if (attempts >= MAX_ATTEMPTS) {
-                clearInterval(retryRef.current);
-                // Batch didn't cover this key — fetch individually as last resort
-                getR2PresignedGet(file.r2_key)
-                    .then(({ url: u }) => { setCachedUrl(file.r2_key, u); setThumbUrl(u); })
-                    .catch(console.error);
+        };
+        const handleBatchCached = (e) => {
+            if (e.detail.keys?.includes(file.r2_key)) {
+                const url = getCachedUrl(file.r2_key);
+                if (url) setThumbUrl(url);
             }
-        }, 250);
+        };
+        window.addEventListener('vault-url-cached', handleSingleCached);
+        window.addEventListener('vault-urls-batch-cached', handleBatchCached);
 
-        return () => clearInterval(retryRef.current);
+        // Fallback: if after 4s the batch still hasn't covered this key, fetch individually
+        const fallbackTimer = setTimeout(() => {
+            const url = getCachedUrl(file.r2_key);
+            if (url) { setThumbUrl(url); return; }
+            getR2PresignedGet(file.r2_key)
+                .then(({ url: u }) => { setCachedUrl(file.r2_key, u); setThumbUrl(u); })
+                .catch(console.error);
+        }, 4000);
+
+        return () => {
+            window.removeEventListener('vault-url-cached', handleSingleCached);
+            window.removeEventListener('vault-urls-batch-cached', handleBatchCached);
+            clearTimeout(fallbackTimer);
+        };
     }, [file.r2_key]);
 
     // Measure text overflow to power the scroll animation without layout thrashing
@@ -410,89 +424,89 @@ function VaultCard({ file, isLiked, onLike, onOpen, onDownload, onDelete }) {
             </div>
         </div>
     );
-}
+});
+
+// ─── Media Grid Styles (hoisted to module-level to avoid re-parsing on every render) ──
+const MEDIA_GRID_STYLES = `
+    @media (max-width: 767px) { .vault-ultimate-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; } }
+    @media (min-width: 768px) and (max-width: 1023px) { .vault-ultimate-grid { grid-template-columns: repeat(3, 1fr) !important; } }
+    @media (min-width: 1400px) { .vault-ultimate-grid { grid-template-columns: repeat(5, 1fr) !important; } }
+    .vault-card-wrapper { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; transform: translateZ(0); }
+    .vault-card-wrapper > .vault-card { flex-shrink: 0; }
+    .vault-card {
+        position: relative; aspect-ratio: 1/1; width: 100%;
+        border-radius: 24px; overflow: hidden;
+        cursor: pointer; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
+        transition: none;
+    }
+    .vault-card:hover { transform: none; border-color: rgba(167,139,250,0.6); box-shadow: 0 20px 40px rgba(0,0,0,0.6), 0 0 15px rgba(167,139,250,0.15); }
+    .vault-thumb {
+        position: absolute; inset: 0;
+        width: 100%; height: 100%;
+        object-fit: cover; object-position: center; display: block;
+        opacity: 0; transition: none;
+    }
+    .vault-thumb--loaded { opacity: 1; }
+    .vault-card:hover .vault-thumb { transform: none; }
+    .vault-shimmer {
+        position: absolute; inset: 0;
+        background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 75%);
+        background-size: 200% 100%;
+        animation: none;
+        display: flex; align-items: center; justify-content: center;
+    }
+    @keyframes vault-shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+    .card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent 70%); opacity: 0.95; pointer-events: none; }
+    .vault-dl-btn {
+        position: absolute; top: 10px; right: 10px; z-index: 6;
+        width: 30px; height: 30px; border-radius: 50%;
+        background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.18);
+        color: white; font-size: 0.72rem; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        opacity: 1; transform: none;
+        transition: none;
+        backdrop-filter: blur(10px);
+    }
+    .vault-card:hover .vault-dl-btn { opacity: 1; transform: none; }
+    .vault-dl-btn:hover { background: rgba(167,139,250,0.7) !important; border-color: #a78bfa !important; transform: none !important; }
+    .vault-delete-btn {
+        position: absolute; top: 10px; right: 48px; z-index: 6;
+        width: 30px; height: 30px; border-radius: 50%;
+        background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.18);
+        color: white; font-size: 0.72rem; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        opacity: 1; transform: none;
+        transition: none;
+        backdrop-filter: blur(10px);
+    }
+    .vault-card:hover .vault-delete-btn { opacity: 1; transform: none; }
+    .vault-delete-btn:hover { background: rgba(239,68,68,0.7) !important; border-color: #ef4444 !important; transform: none !important; }
+    .vault-subfolder-card:hover .subfolder-action-btn,
+    .vault-subfolder-row:hover .subfolder-action-btn { opacity: 1 !important; }
+    .vault-filename-label {
+        width: 100%; overflow: hidden; padding: 0 3px;
+        font-size: 0.68rem; font-weight: 600;
+        color: rgba(255,255,255,0.45); line-height: 1.4;
+        height: 1.4em; user-select: none;
+    }
+    .vault-filename-text { display: inline-block; white-space: nowrap; }
+    .vault-card-wrapper:hover .vault-filename-text[data-animated="true"] {
+        animation: none;
+    }
+    @keyframes vault-name-scroll {
+        0%   { transform: translateX(0); }
+        100% { transform: translateX(0); }
+    }
+`;
 
 // ─── Media Grid ───────────────────────────────────────────────
 function MediaGrid({ items, likedIds, onLike, onOpen, onDownload, onDelete }) {
     return (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', width: '100%', overflowX: 'hidden', boxSizing: 'border-box', paddingBottom: '40px' }} className="vault-ultimate-grid">
-            <style>{`
-                @media (max-width: 767px) { .vault-ultimate-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; } }
-                @media (min-width: 768px) and (max-width: 1023px) { .vault-ultimate-grid { grid-template-columns: repeat(3, 1fr) !important; } }
-                @media (min-width: 1400px) { .vault-ultimate-grid { grid-template-columns: repeat(5, 1fr) !important; } }
-                .vault-card-wrapper { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; transform: translateZ(0); }
-                .vault-card-wrapper > .vault-card { flex-shrink: 0; }
-                .vault-card {
-                    position: relative; aspect-ratio: 1/1; width: 100%;
-                    border-radius: 24px; overflow: hidden;
-                    cursor: pointer; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
-                    transition: none;
-                }
-                .vault-card:hover { transform: none; border-color: rgba(167,139,250,0.6); box-shadow: 0 20px 40px rgba(0,0,0,0.6), 0 0 15px rgba(167,139,250,0.15); }
-                .vault-thumb {
-                    position: absolute; inset: 0;
-                    width: 100%; height: 100%;
-                    object-fit: cover; object-position: center; display: block;
-                    opacity: 0; transition: none;
-                }
-                .vault-thumb--loaded { opacity: 1; }
-                .vault-card:hover .vault-thumb { transform: none; }
-                .vault-shimmer {
-                    position: absolute; inset: 0;
-                    background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 75%);
-                    background-size: 200% 100%;
-                    animation: none;
-                    display: flex; align-items: center; justify-content: center;
-                }
-                @keyframes vault-shimmer {
-                    0% { background-position: 200% 0; }
-                    100% { background-position: -200% 0; }
-                }
-                .card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent 70%); opacity: 0.95; pointer-events: none; }
-                /* ── Download button ── */
-                .vault-dl-btn {
-                    position: absolute; top: 10px; right: 10px; z-index: 6;
-                    width: 30px; height: 30px; border-radius: 50%;
-                    background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.18);
-                    color: white; font-size: 0.72rem; cursor: pointer;
-                    display: flex; align-items: center; justify-content: center;
-                    opacity: 1; transform: none;
-                    transition: none;
-                    backdrop-filter: blur(10px);
-                }
-                .vault-card:hover .vault-dl-btn { opacity: 1; transform: none; }
-                .vault-dl-btn:hover { background: rgba(167,139,250,0.7) !important; border-color: #a78bfa !important; transform: none !important; }
-                /* ── Delete button ── */
-                .vault-delete-btn {
-                    position: absolute; top: 10px; right: 48px; z-index: 6;
-                    width: 30px; height: 30px; border-radius: 50%;
-                    background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.18);
-                    color: white; font-size: 0.72rem; cursor: pointer;
-                    display: flex; align-items: center; justify-content: center;
-                    opacity: 1; transform: none;
-                    transition: none;
-                    backdrop-filter: blur(10px);
-                }
-                .vault-card:hover .vault-delete-btn { opacity: 1; transform: none; }
-                .vault-delete-btn:hover { background: rgba(239,68,68,0.7) !important; border-color: #ef4444 !important; transform: none !important; }
-                /* ── Filename label ── */
-                .vault-subfolder-card:hover .subfolder-action-btn,
-                .vault-subfolder-row:hover .subfolder-action-btn { opacity: 1 !important; }
-                .vault-filename-label {
-                    width: 100%; overflow: hidden; padding: 0 3px;
-                    font-size: 0.68rem; font-weight: 600;
-                    color: rgba(255,255,255,0.45); line-height: 1.4;
-                    height: 1.4em; user-select: none;
-                }
-                .vault-filename-text { display: inline-block; white-space: nowrap; }
-                .vault-card-wrapper:hover .vault-filename-text[data-animated="true"] {
-                    animation: none;
-                }
-                @keyframes vault-name-scroll {
-                    0%   { transform: translateX(0); }
-                    100% { transform: translateX(0); }
-                }
-            `}</style>
+            <style>{MEDIA_GRID_STYLES}</style>
             {items.map((file, idx) => (
                 <VaultCard key={file.id || idx} file={file} isLiked={likedIds.has(file.id)} onLike={onLike} onOpen={() => onOpen(idx)} onDownload={onDownload} onDelete={onDelete} />
             ))}
@@ -592,7 +606,7 @@ function UploadQueue({ collectionId, onDone }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────
-export default function GooglePhotos({ activeTab, collections, onTabChange, onCollectionsChanged }) {
+export default function VaultMediaGrid({ activeTab, collections, onTabChange, onCollectionsChanged }) {
     const [liked, setLiked] = useState([]);
     const [collectionCache, setCollectionCache] = useState({}); // colId → { files, page, total, hasMore }
     const [loading, setLoading] = useState(false);
@@ -612,8 +626,21 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
     const [pendingFolderDownload, setPendingFolderDownload] = useState(null); // subfolder awaiting password
     const [folderDownloading, setFolderDownloading] = useState(false);
     const [folderDownloadMsg, setFolderDownloadMsg] = useState('');
+    const [subfolderSearch, setSubfolderSearch] = useState('');
+    const [toolbarHeight, setToolbarHeight] = useState(120);
+    const toolbarRef = useRef(null);
     const lastAutoSyncedCollection = useRef(null);
     const isSyncingRef = useRef(false); // Synchronous lock to prevent concurrent syncs
+
+    // Track toolbar height for fixed-position spacer
+    useEffect(() => {
+        if (!toolbarRef.current) return;
+        const ro = new ResizeObserver(entries => {
+            for (const e of entries) setToolbarHeight(e.contentRect.height);
+        });
+        ro.observe(toolbarRef.current);
+        return () => ro.disconnect();
+    }, []);
 
     // Load liked items on mount + batch-prefetch their presigned URLs
     useEffect(() => {
@@ -626,7 +653,10 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
                 for (let i = 0; i < keys.length; i += 20) {
                     const batch = keys.slice(i, i + 20);
                     getR2PresignedBatch(batch)
-                        .then(({ urls }) => { Object.entries(urls).forEach(([k, url]) => setCachedUrl(k, url)); })
+                        .then(({ urls }) => {
+                            Object.entries(urls).forEach(([k, url]) => setCachedUrl(k, url));
+                            notifyBatchCached(Object.keys(urls));
+                        })
                         .catch(console.error);
                 }
             })
@@ -640,6 +670,7 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
     useEffect(() => {
         if (!activeTab) return;
         setInnerTab('all'); // Reset inner tab when switching collections
+        setSubfolderSearch(''); // Reset subfolder search when switching collections
         const col = collections?.find(c => String(c.id) === String(activeTab));
         
         // Use the database value (or fallback to false)
@@ -678,7 +709,10 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
             for (let i = 0; i < keys.length; i += 20) {
                 const batch = keys.slice(i, i + 20);
                 getR2PresignedBatch(batch)
-                    .then(({ urls }) => { Object.entries(urls).forEach(([k, url]) => setCachedUrl(k, url)); })
+                    .then(({ urls }) => {
+                        Object.entries(urls).forEach(([k, url]) => setCachedUrl(k, url));
+                        notifyBatchCached(Object.keys(urls));
+                    })
                     .catch(console.error);
             }
 
@@ -750,7 +784,10 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
             for (let i = 0; i < keys.length; i += 20) {
                 const batch = keys.slice(i, i + 20);
                 getR2PresignedBatch(batch)
-                    .then(({ urls }) => { Object.entries(urls).forEach(([k, url]) => setCachedUrl(k, url)); })
+                    .then(({ urls }) => {
+                        Object.entries(urls).forEach(([k, url]) => setCachedUrl(k, url));
+                        notifyBatchCached(Object.keys(urls));
+                    })
                     .catch(console.error);
             }
 
@@ -774,7 +811,7 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
         }
     };
 
-    const likedIds = new Set(liked.map(l => l.id));
+    const likedIds = useMemo(() => new Set(liked.map(l => l.id)), [liked]);
 
     const handleLike = async (file) => {
         if (likePending.has(file.id)) return;
@@ -795,13 +832,11 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
         if (!window.confirm(`Move "${file.filename}" to trash?`)) return;
         
         try {
-            console.log('🗑️ DELETE START - File:', { id: file.id, filename: file.filename, r2_key: file.r2_key });
             await moveFileToTrash(file.id);
-            console.log('✅ DELETE SUCCESS - File moved to trash');
             // Refresh the folder to show updated file list
             await fetchCollectionPage(col?.id || activeTab, 1);
         } catch (err) {
-            console.error('❌ DELETE FAILED:', err);
+            console.error('Delete failed:', err);
             alert(`Failed to delete file: ${err.message}`);
         }
     };
@@ -1017,117 +1052,105 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
     const colData = collectionCache[col.id] || { files: [], hasMore: false, total: 0 };
     // Filter items based on innerTab: all files or just favorites for this collection
     const collectionLiked = liked.filter(f => f.collection_id === col.id);
-    const items = innerTab === 'favorites'
+    const searchQ = subfolderSearch.trim().toLowerCase();
+    const items = (innerTab === 'favorites'
         ? collectionLiked
-        : colData.files.filter(item => !likedIds.has(item.id));
+        : colData.files.filter(item => !likedIds.has(item.id))
+    ).filter(item => !searchQ || item.filename?.toLowerCase().includes(searchQ));
 
     const subfolders = collections?.filter(c => c.parent_id === col.id) || [];
     const parentFolder = col.parent_id ? collections?.find(c => c.id === col.parent_id) : null;
 
     return (
         <div style={{ animation: 'none' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <p style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 700, margin: 0 }}>
-                        {items.length}{innerTab === 'all' && colData.total > items.length ? ` / ${colData.total}` : ''} {innerTab === 'favorites' ? 'FAVORITES' : 'FILES'} · {col.name.toUpperCase()}
-                    </p>
-                    {syncing && <span style={{ fontSize: '0.65rem', color: '#a78bfa', fontWeight: 800, letterSpacing: '0.1em', animation: 'none' }}>[ SYNCING_R2 ]</span>}
-                    {syncMsg && <span style={{ fontSize: '0.75rem', color: syncMsg.startsWith('✅') ? '#34d399' : '#f87171', fontWeight: 700 }}>{syncMsg}</span>}
-                    {folderDownloadMsg && <span style={{ fontSize: '0.75rem', color: folderDownloading ? '#a78bfa' : folderDownloadMsg.startsWith('✅') ? '#34d399' : folderDownloadMsg.startsWith('❌') ? '#f87171' : '#a78bfa', fontWeight: 700, animation: 'none' }}>{folderDownloadMsg}</span>}
-                </div>
-                <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', marginTop: '4px', textTransform: 'none', letterSpacing: 'normal' }}>
-                    R2 Path: <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px' }}>{col.key_prefix}</code>
-                </div>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                    {parentFolder && (
-                        <button
-                            onClick={() => onTabChange(parentFolder.id)}
-                            style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                            ‹ BACK
-                        </button>
-                    )}
-                    <button
-                        onClick={handleCreateSubfolder}
-                        style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.2)', color: '#38bdf8', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                        + SUBFOLDER
-                    </button>
-                    <button
-                        onClick={() => setShowUpload(v => !v)}
-                        style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.2)', color: '#a78bfa', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                        {showUpload ? 'CLOSE_UPLOAD' : '↑ UPLOAD'}
-                    </button>
-                    <button
-                        onClick={() => handleSync(col.id)}
-                        disabled={syncing}
-                        style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)', color: '#34d399', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: syncing ? 'not-allowed' : 'pointer' }}
-                    >
-                        SYNC_R2
-                    </button>
-                    {isRandomView && (
-                        <button
-                            onClick={() => fetchRandomFiles(col.id)}
-                            disabled={loading}
-                            style={{ background: 'rgba(236,72,153,0.1)', border: '1px solid rgba(236,72,153,0.2)', color: '#f472b6', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}
-                        >
-                            🔄 REROLL
-                        </button>
-                    )}
-                    <button
-                        onClick={() => {
-                            const nextState = !isRandomView;
-                            setIsRandomView(nextState);
-                            
-                            // Silently update the database so it syncs across devices
-                            updateVaultCollection(col.id, { default_random: nextState }).catch(err => 
-                                console.error('Failed to save random preference', err)
-                            );
-                            
-                            // Update local collections state if possible, though VaultPage holds it
-                            // For now, this local isRandomView state handles the UI immediately
-                            col.default_random = nextState; 
+            {/* CSS: fixed toolbar positioned after the 280px vault sidebar */}
+            <style>{`
+                .vault-fixed-toolbar {
+                    position: fixed !important;
+                    top: 0; left: 280px; right: 0;
+                    z-index: 100;
+                    background: rgba(8, 4, 22, 0.90);
+                    backdrop-filter: blur(36px) saturate(1.6);
+                    -webkit-backdrop-filter: blur(36px) saturate(1.6);
+                    border-bottom: 1px solid rgba(167,139,250,0.15);
+                    box-shadow: 0 2px 30px rgba(0,0,0,0.3);
+                    padding: 0.85rem 2rem 0.8rem;
+                }
+                @media (max-width: 900px) {
+                    .vault-fixed-toolbar { left: 0; }
+                }
+            `}</style>
 
-                            if (nextState) {
-                                fetchRandomFiles(col.id);
-                            } else {
-                                fetchCollectionPage(col.id, 1);
-                            }
-                        }}
-                        disabled={loading}
-                        style={{ background: isRandomView ? 'rgba(52,211,153,0.1)' : 'rgba(167,139,250,0.1)', border: `1px solid ${isRandomView ? 'rgba(52,211,153,0.2)' : 'rgba(167,139,250,0.2)'}`, color: isRandomView ? '#34d399' : '#a78bfa', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}
-                    >
-                        {loading ? 'LOADING...' : isRandomView ? 'NORMAL VIEW' : 'RANDOM VIEW'}
-                    </button>
+            {/* ── Fixed collection header ─────────────────────────── */}
+            <div ref={toolbarRef} className="vault-fixed-toolbar">
+                {/* Row 1: file count + R2 path + action buttons */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '0.6rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flexWrap: 'wrap' }}>
+                        <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.6)', fontWeight: 700, margin: 0, letterSpacing: '0.04em' }}>
+                            {items.length}{innerTab === 'all' && colData.total > items.length ? ` / ${colData.total}` : ''} {innerTab === 'favorites' ? 'FAVORITES' : 'FILES'} · {col.name.toUpperCase()}
+                        </p>
+                        {syncing && <span style={{ fontSize: '0.62rem', color: '#a78bfa', fontWeight: 800, letterSpacing: '0.1em' }}>[ SYNCING_R2 ]</span>}
+                        {syncMsg && <span style={{ fontSize: '0.72rem', color: syncMsg.startsWith('✅') ? '#34d399' : '#f87171', fontWeight: 700 }}>{syncMsg}</span>}
+                        {folderDownloadMsg && <span style={{ fontSize: '0.72rem', color: folderDownloading ? '#a78bfa' : folderDownloadMsg.startsWith('✅') ? '#34d399' : folderDownloadMsg.startsWith('❌') ? '#f87171' : '#a78bfa', fontWeight: 700 }}>{folderDownloadMsg}</span>}
+                        <span style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.22)' }}>
+                            R2: <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: '3px' }}>{col.key_prefix}</code>
+                        </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {parentFolder && (
+                            <button onClick={() => onTabChange(parentFolder.id)}
+                                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'white', padding: '5px 12px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+                            >‹ BACK</button>
+                        )}
+                        <button onClick={handleCreateSubfolder}
+                            style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.2)', color: '#38bdf8', padding: '5px 12px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+                        >+ SUBFOLDER</button>
+                        <button onClick={() => setShowUpload(v => !v)}
+                            style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.2)', color: '#a78bfa', padding: '5px 12px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+                        >{showUpload ? 'CLOSE_UPLOAD' : '↑ UPLOAD'}</button>
+                        <button onClick={() => handleSync(col.id)} disabled={syncing}
+                            style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)', color: '#34d399', padding: '5px 12px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 700, cursor: syncing ? 'not-allowed' : 'pointer' }}
+                        >SYNC_R2</button>
+                        {isRandomView && (
+                            <button onClick={() => fetchRandomFiles(col.id)} disabled={loading}
+                                style={{ background: 'rgba(236,72,153,0.1)', border: '1px solid rgba(236,72,153,0.2)', color: '#f472b6', padding: '5px 12px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}
+                            >🔄 REROLL</button>
+                        )}
+                        <button onClick={() => { const n = !isRandomView; setIsRandomView(n); updateVaultCollection(col.id, { default_random: n }).catch(console.error); col.default_random = n; if (n) fetchRandomFiles(col.id); else fetchCollectionPage(col.id, 1); }} disabled={loading}
+                            style={{ background: isRandomView ? 'rgba(52,211,153,0.1)' : 'rgba(167,139,250,0.1)', border: `1px solid ${isRandomView ? 'rgba(52,211,153,0.2)' : 'rgba(167,139,250,0.2)'}`, color: isRandomView ? '#34d399' : '#a78bfa', padding: '5px 12px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}
+                        >{loading ? 'LOADING...' : isRandomView ? 'NORMAL VIEW' : 'RANDOM VIEW'}</button>
+                    </div>
+                </div>
+
+                {/* Row 2: ALL FILES / FAVORITES + Search (always visible at every level) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '10px', flexShrink: 0 }}>
+                        <button onClick={() => setInnerTab('all')} style={{ padding: '6px 16px', borderRadius: '8px', border: 'none', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', background: innerTab === 'all' ? 'rgba(167,139,250,0.25)' : 'transparent', color: innerTab === 'all' ? '#c4b5fd' : 'rgba(255,255,255,0.35)' }}>ALL FILES</button>
+                        <button onClick={() => setInnerTab('favorites')} style={{ padding: '6px 16px', borderRadius: '8px', border: 'none', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', background: innerTab === 'favorites' ? 'rgba(239,68,68,0.2)' : 'transparent', color: innerTab === 'favorites' ? '#fca5a5' : 'rgba(255,255,255,0.35)' }}>❤️ FAVORITES {collectionLiked.length > 0 ? `(${collectionLiked.length})` : ''}</button>
+                    </div>
+                    {/* Search — always visible, searches folders + files at any depth */}
+                    <div style={{ position: 'relative', flex: 1, minWidth: '160px' }}>
+                        <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.74rem', opacity: 0.38, pointerEvents: 'none' }}>🔍</span>
+                        <input
+                            type="text"
+                            placeholder={subfolders.length > 0 ? `Search folders & files…` : `Search ${colData.total || ''} files…`}
+                            value={subfolderSearch}
+                            onChange={e => setSubfolderSearch(e.target.value)}
+                            style={{ width: '100%', padding: '0.48rem 1.8rem 0.48rem 2rem', borderRadius: '10px', border: '1px solid rgba(167,139,250,0.22)', background: 'rgba(167,139,250,0.07)', color: 'white', fontSize: '0.8rem', outline: 'none', boxSizing: 'border-box' }}
+                            onFocus={e => { e.target.style.borderColor = 'rgba(167,139,250,0.65)'; e.target.style.background = 'rgba(167,139,250,0.13)'; }}
+                            onBlur={e => { e.target.style.borderColor = 'rgba(167,139,250,0.22)'; e.target.style.background = 'rgba(167,139,250,0.07)'; }}
+                        />
+                        {subfolderSearch && (
+                            <button onClick={() => setSubfolderSearch('')}
+                                style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: '0.9rem', lineHeight: 1 }}
+                            >✕</button>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {/* ─── Inner Tab Toggle: ALL FILES | FAVORITES ─── */}
-            <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.04)', padding: '4px', borderRadius: '12px', marginBottom: '1.5rem', width: 'fit-content' }}>
-                <button
-                    onClick={() => setInnerTab('all')}
-                    style={{
-                        padding: '8px 18px', borderRadius: '10px', border: 'none', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', letterSpacing: '0.05em', transition: 'none',
-                        background: innerTab === 'all' ? 'rgba(167,139,250,0.25)' : 'transparent',
-                        color: innerTab === 'all' ? '#c4b5fd' : 'rgba(255,255,255,0.35)',
-                        boxShadow: innerTab === 'all' ? '0 2px 8px rgba(167,139,250,0.15)' : 'none'
-                    }}
-                >
-                    ALL FILES
-                </button>
-                <button
-                    onClick={() => setInnerTab('favorites')}
-                    style={{
-                        padding: '8px 18px', borderRadius: '10px', border: 'none', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', letterSpacing: '0.05em', transition: 'none',
-                        background: innerTab === 'favorites' ? 'rgba(239,68,68,0.2)' : 'transparent',
-                        color: innerTab === 'favorites' ? '#fca5a5' : 'rgba(255,255,255,0.35)',
-                        boxShadow: innerTab === 'favorites' ? '0 2px 8px rgba(239,68,68,0.1)' : 'none'
-                    }}
-                >
-                    ❤️ FAVORITES {collectionLiked.length > 0 ? `(${collectionLiked.length})` : ''}
-                </button>
-            </div>
+            {/* Spacer — exact height of fixed toolbar (measured via ResizeObserver) */}
+            <div style={{ height: toolbarHeight }} />
 
             {showUpload && (
                 <UploadQueue
@@ -1172,55 +1195,76 @@ export default function GooglePhotos({ activeTab, collections, onTabChange, onCo
                 <>
                     {subfolders.length > 0 && innerTab === 'all' && (
                         <div style={{ marginBottom: '2rem' }}>
-                            {/* Column headers */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 80px', gap: '0', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '6px', marginBottom: '2px' }}>
-                                <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', paddingLeft: '28px' }}>NAME</span>
-                                <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em' }}>TYPE</span>
-                                <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textAlign: 'right', paddingRight: '70px' }}>FILES</span>
+                            {/* Column headers only — search is in the sticky toolbar above */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 80px', borderBottom: '1px solid rgba(255,255,255,0.07)', paddingBottom: '5px', marginBottom: '2px' }}>
+                                <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', paddingLeft: '28px', textTransform: 'uppercase' }}>Name</span>
+                                <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Type</span>
+                                <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textAlign: 'right', paddingRight: '70px', textTransform: 'uppercase' }}>Files</span>
                             </div>
                             {/* Rows */}
-                            {subfolders.map(sub => (
-                                <div
-                                    key={sub.id}
-                                    className="vault-subfolder-row"
-                                    onClick={() => onTabChange(sub.id)}
-                                    style={{ display: 'grid', gridTemplateColumns: '1fr 120px 80px', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', borderRadius: '6px', position: 'relative', transition: 'none' }}
-                                    onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
-                                    onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-                                >
-                                    {/* Name */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: '4px', minWidth: 0 }}>
-                                        <span style={{ fontSize: '1rem', flexShrink: 0 }}>📁</span>
-                                        <span style={{ fontSize: '0.85rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.9)' }}>{sub.name}</span>
+                            {(() => {
+                                const q = subfolderSearch.trim().toLowerCase();
+                                const filtered = q ? subfolders.filter(s => s.name?.toLowerCase().includes(q)) : subfolders;
+                                if (filtered.length === 0) return (
+                                    <div style={{ padding: '1.5rem', textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: '0.82rem' }}>
+                                        No folders match &ldquo;{subfolderSearch}&rdquo;
                                     </div>
-                                    {/* Type */}
-                                    <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)' }}>File folder</span>
-                                    {/* Files + Actions */}
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px', paddingRight: '4px' }}>
-                                        <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)', minWidth: '32px', textAlign: 'right' }}>
-                                            {sub.file_count > 0 ? sub.file_count : '—'}
+                                );
+                                return filtered.map(sub => {
+                                    // Highlight matching portion of name
+                                    const name = sub.name || '';
+                                    const idx = q ? name.toLowerCase().indexOf(q) : -1;
+                                    const nameEl = idx >= 0 ? (
+                                        <span>
+                                            {name.slice(0, idx)}
+                                            <mark style={{ background: 'rgba(167,139,250,0.35)', color: 'white', borderRadius: '3px', padding: '0 2px' }}>{name.slice(idx, idx + q.length)}</mark>
+                                            {name.slice(idx + q.length)}
                                         </span>
-                                        {/* Download */}
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleFolderDownloadClick(sub); }}
-                                            className="subfolder-action-btn"
-                                            title="Download folder as ZIP"
-                                            style={{ background: 'transparent', border: 'none', color: '#38bdf8', borderRadius: '4px', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '0.65rem', opacity: 0, transition: 'none', flexShrink: 0 }}
-                                            onMouseOver={e => { e.currentTarget.style.background = 'rgba(56,189,248,0.15)'; e.currentTarget.style.opacity = '1'; }}
-                                            onMouseOut={e => { e.currentTarget.style.background = 'transparent'; }}
-                                        >⬇</button>
-                                        {/* Delete */}
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleDeleteSubfolder(sub.id, sub.name); }}
-                                            className="subfolder-action-btn"
-                                            title="Delete Subfolder"
-                                            style={{ background: 'transparent', border: 'none', color: '#ef4444', borderRadius: '4px', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '0.65rem', opacity: 0, transition: 'none', flexShrink: 0 }}
-                                            onMouseOver={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.opacity = '1'; }}
-                                            onMouseOut={e => { e.currentTarget.style.background = 'transparent'; }}
-                                        >✕</button>
-                                    </div>
-                                </div>
-                            ))}
+                                    ) : name;
+                                    return (
+                                        <div
+                                            key={sub.id}
+                                            className="vault-subfolder-row"
+                                            onClick={() => onTabChange(sub.id)}
+                                            style={{ display: 'grid', gridTemplateColumns: '1fr 120px 80px', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', borderRadius: '6px', position: 'relative', transition: 'none' }}
+                                            onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                                            onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                                        >
+                                            {/* Name */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: '4px', minWidth: 0 }}>
+                                                <span style={{ fontSize: '1rem', flexShrink: 0 }}>📁</span>
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.9)' }}>{nameEl}</span>
+                                            </div>
+                                            {/* Type */}
+                                            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)' }}>File folder</span>
+                                            {/* Files + Actions */}
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px', paddingRight: '4px' }}>
+                                                <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)', minWidth: '32px', textAlign: 'right' }}>
+                                                    {sub.file_count > 0 ? sub.file_count : '—'}
+                                                </span>
+                                                {/* Download */}
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleFolderDownloadClick(sub); }}
+                                                    className="subfolder-action-btn"
+                                                    title="Download folder as ZIP"
+                                                    style={{ background: 'transparent', border: 'none', color: '#38bdf8', borderRadius: '4px', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '0.65rem', opacity: 0, transition: 'none', flexShrink: 0 }}
+                                                    onMouseOver={e => { e.currentTarget.style.background = 'rgba(56,189,248,0.15)'; e.currentTarget.style.opacity = '1'; }}
+                                                    onMouseOut={e => { e.currentTarget.style.background = 'transparent'; }}
+                                                >⬇</button>
+                                                {/* Delete */}
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteSubfolder(sub.id, sub.name); }}
+                                                    className="subfolder-action-btn"
+                                                    title="Delete Subfolder"
+                                                    style={{ background: 'transparent', border: 'none', color: '#ef4444', borderRadius: '4px', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '0.65rem', opacity: 0, transition: 'none', flexShrink: 0 }}
+                                                    onMouseOver={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.opacity = '1'; }}
+                                                    onMouseOut={e => { e.currentTarget.style.background = 'transparent'; }}
+                                                >✕</button>
+                                            </div>
+                                        </div>
+                                    );
+                                });
+                            })()}
                         </div>
                     )}
                     <MediaGrid items={items} likedIds={likedIds} onLike={handleLike} onOpen={(i) => { setLightboxItems(items); setLightboxIndex(i); }} onDownload={handleFileDownloadClick} onDelete={handleDelete} />
