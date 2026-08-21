@@ -12,6 +12,7 @@ const TABS = [
     { id: 'journal', icon: '📖', label: 'Journal' },
     { id: 'studynotes', icon: '📝', label: 'Study Notes' },
     { id: 'writing', icon: '✍️', label: 'Writing' },
+    { id: 'bookmarks', icon: '❤️', label: 'Bookmarks' },
     { id: 'delegation', icon: '🤝', label: 'Delegation' },
     { id: 'musicplayer', icon: '🎵', label: 'Music Player' },
     { id: 'videos', icon: '🎬', label: 'YouTube' },
@@ -23,7 +24,7 @@ const TABS = [
     { id: 'todos', icon: '🎯', label: 'Todos' },
     { id: 'insights', icon: '✨', label: 'Insights' },
     { id: 'readinglist', icon: '📚', label: 'Reading List' },
-    { id: 'bookmarks', icon: '❤️', label: 'Bookmarks' },
+
     { id: 'watchlist', icon: '🎞️', label: 'Watchlist' },
     { id: 'lifemap', icon: '🧭', label: 'Life Map' },
     { id: 'timecapsule', icon: '📦', label: 'Time Capsule' },
