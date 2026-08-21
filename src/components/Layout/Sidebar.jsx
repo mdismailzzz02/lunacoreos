@@ -1,40 +1,88 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAudio } from '../../context/AudioContext';
 import Dither from '../Shared/Dither';
 import { Disc, Settings, Play, Pause, SkipForward } from 'lucide-react';
 
-const TABS = [
+const DEFAULT_TABS = [
     { id: 'dashboard', icon: '🌸', label: 'Dashboard' },
     { id: 'luna', icon: '✨', label: 'Luna AI' },
-    { id: 'lifeos', icon: '🧬', label: 'LifeOS', isExternal: '/lifeos.html' },
-    { id: 'studynotes', icon: '📝', label: 'Study Notes' },
-    { id: 'writing', icon: '✍️', label: 'Writing' },
-    { id: 'bookmarks', icon: '❤️', label: 'Bookmarks' },
+    { id: 'mail', icon: '✉️', label: 'Gmail Inbox' },
+    { id: 'todos', icon: '🎯', label: 'Todos' },
     { id: 'journal', icon: '📖', label: 'Journal' },
-    { id: 'vault', icon: '💎', label: 'Vault', isRed: true },
-    { id: 'passwords', icon: '🔑', label: 'Passwords' },
-    // { id: 'musicplayer', icon: '🎵', label: 'Music Player' },
+    { id: 'horoscope', icon: '♾️', label: 'Horoscope' },
+    { id: 'studynotes', icon: '📝', label: 'Study Notes' },
+    { id: 'musicplayer', icon: '🎵', label: 'Music Player' },
+    { id: 'lifeos', icon: '🧬', label: 'LifeOS React' },
+    { id: 'insights', icon: '✨', label: 'Insights' },
+    { id: 'writing', icon: '✍️', label: 'Writing' },
+    { id: 'readinglist', icon: '📚', label: 'Reading List' },
+    { id: 'bookmarks', icon: '❤️', label: 'Bookmarks' },
     { id: 'videos', icon: '🎬', label: 'Videos' },
     { id: 'media', icon: '🎨', label: 'Media Library' },
-    { id: 'todos', icon: '🎯', label: 'Todos' },
-    { id: 'insights', icon: '✨', label: 'Insights' },
-    // { id: 'habits', icon: '💕', label: 'Habits' },
+    { id: 'twitch', icon: '🎮', label: 'Twitch' },
+    { id: 'watchlist', icon: '🎞️', label: 'Watchlist' },
     { id: 'lifemap', icon: '🧭', label: 'Life Map' },
     { id: 'timecapsule', icon: '📦', label: 'Time Capsule' },
-    // { id: 'thoughtdump', icon: '🌊', label: 'Thought Dump' },
-    { id: 'streaks', icon: '🌟', label: 'Streaks' },
-    { id: 'readinglist', icon: '📚', label: 'Reading List' },
-    { id: 'watchlist', icon: '🎞️', label: 'Watchlist' },
     { id: 'yearlyreview', icon: '🎆', label: 'Yearly Review' },
     { id: 'delegation', icon: '🤝', label: 'Delegation' },
-    // { id: 'notifications', icon: '🔔', label: 'Notifications' },
+    { id: 'passwords', icon: '🔑', label: 'Passwords' },
+    { id: 'vault', icon: '💎', label: 'Vault', isRed: true },
     { id: 'system-settings', icon: '⚙️', label: 'Settings' },
 ];
 
 export default function Sidebar({ active, onNavigate, userName, isOffline, onPreload, preload, isOpen, onClose, onMusicClick }) {
     const { playing, currentTrack, playTrack, playNext } = useAudio();
     const [isHovered, setIsHovered] = useState(false);
+    const [tabs, setTabs] = useState(DEFAULT_TABS);
     const hoverTimeout = useRef(null);
+
+    // Intelligent Sorting: Load usage stats and sort
+    useEffect(() => {
+        try {
+            const stats = JSON.parse(localStorage.getItem('luna_sidebar_stats') || '{}');
+            const sortedTabs = [...DEFAULT_TABS].sort((a, b) => {
+                if (a.id === 'dashboard') return -1;
+                if (b.id === 'dashboard') return 1;
+                const countA = stats[a.id] || 0;
+                const countB = stats[b.id] || 0;
+                if (countA !== countB) {
+                    return countB - countA; // Higher counts first
+                }
+                // Fallback to alphabetical if counts are the same
+                return a.label.localeCompare(b.label);
+            });
+            setTabs(sortedTabs);
+        } catch (e) {
+            setTabs(DEFAULT_TABS);
+        }
+    }, []);
+
+    const trackUsageAndNavigate = (tab) => {
+        try {
+            const stats = JSON.parse(localStorage.getItem('luna_sidebar_stats') || '{}');
+            stats[tab.id] = (stats[tab.id] || 0) + 1;
+            localStorage.setItem('luna_sidebar_stats', JSON.stringify(stats));
+            
+            // Re-sort silently for next time
+            const sortedTabs = [...DEFAULT_TABS].sort((a, b) => {
+                if (a.id === 'dashboard') return -1;
+                if (b.id === 'dashboard') return 1;
+                const countA = stats[a.id] || 0;
+                const countB = stats[b.id] || 0;
+                if (countA !== countB) return countB - countA;
+                return a.label.localeCompare(b.label);
+            });
+            setTabs(sortedTabs);
+        } catch (e) {
+            console.error('Failed to track tab usage', e);
+        }
+
+        if (tab.isExternal) {
+            window.open(tab.isExternal, '_blank');
+        } else {
+            onNavigate(tab.id);
+        }
+    };
 
     const handleMouseEnter = () => {
         clearTimeout(hoverTimeout.current);
@@ -82,21 +130,45 @@ export default function Sidebar({ active, onNavigate, userName, isOffline, onPre
                 </div>
             </div>
 
+            {/* Top Mini Music Player */}
+            {currentTrack && active !== 'musicplayer' && (
+                <div className="sidebar-top-music">
+                    <div className="stm-track-info" onClick={() => onNavigate('musicplayer')}>
+                        <div className={`stm-disc ${playing ? 'spinning' : ''}`}>
+                            <Disc size={16} />
+                        </div>
+                        <div className="stm-details">
+                            <span className="stm-title">{currentTrack.title}</span>
+                            <span className="stm-artist">{currentTrack.artist}</span>
+                        </div>
+                        {playing && (
+                            <div className="stm-bars">
+                                <span/><span/><span/>
+                            </div>
+                        )}
+                    </div>
+                    <div className="stm-controls">
+                        <button className="stm-btn" onClick={() => playTrack(currentTrack)}>
+                            {playing ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" style={{ marginLeft: 2 }} />}
+                        </button>
+                        <button className="stm-btn" onClick={playNext}>
+                            <SkipForward size={16} fill="currentColor" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <nav className="sidebar-nav">
-                {TABS.map(tab => (
+                {tabs.map(tab => (
                     <div
                         key={tab.id}
                         className={`nav-item ${active === tab.id ? 'active' : ''}`}
-                        onClick={() => {
-                            if (tab.isExternal) window.open(tab.isExternal, '_blank');
-                            else onNavigate(tab.id);
-                        }}
+                        onClick={() => trackUsageAndNavigate(tab)}
                         role="button"
                         tabIndex={0}
                         onKeyDown={e => {
                             if (e.key === 'Enter') {
-                                if (tab.isExternal) window.open(tab.isExternal, '_blank');
-                                else onNavigate(tab.id);
+                                trackUsageAndNavigate(tab);
                             }
                         }}
                     >
@@ -107,42 +179,7 @@ export default function Sidebar({ active, onNavigate, userName, isOffline, onPre
                 <div style={{ height: '2rem', flexShrink: 0 }} />
             </nav>
 
-            {/* Music section disabled per user request
-            {currentTrack && (
-                <div className="sidebar-mini-player">
-                    <div className="mini-player-info" onClick={() => onNavigate('musicplayer')}>
-                        <div className={`mini-disc ${playing ? 'spinning' : ''}`}>
-                            <Disc size={14} />
-                        </div>
-                        <div className="mini-details">
-                            <span className="mini-title">{currentTrack.title}</span>
-                            <span className="mini-artist">{currentTrack.artist}</span>
-                        </div>
-                    </div>
-                    <div className="mini-controls">
-                        <button onClick={() => playTrack(currentTrack)}>
-                            {playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-                        </button>
-                        <button onClick={playNext}>
-                            <SkipForward size={14} fill="currentColor" />
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            <div className="sidebar-footer">
-                <div className="sidebar-footer-actions">
-                    <button 
-                        className={`sidebar-music-btn ${playing ? 'is-playing' : ''}`} 
-                        onClick={onMusicClick}
-                        title="Music Player"
-                    >
-                        <Disc size={24} className={playing ? 'spinning' : ''} />
-                        <div className="music-btn-glow"></div>
-                    </button>
-                </div>
-            </div>
-            */}
+            {/* Footer actions removed to clean up UI, music player is now at top */}
         </aside>
         </>
     );

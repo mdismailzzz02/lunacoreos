@@ -205,13 +205,27 @@ export default function TwitchPage() {
     }, [selected]); // eslint-disable-line
 
     const handleAdd = async (overrideQuery = null) => {
-        const query = overrideQuery || addQuery;
-        if (!query.trim()) return;
+        const rawQuery = typeof overrideQuery === 'string' ? overrideQuery : addQuery;
+        if (!rawQuery || !rawQuery.trim()) return;
+        
+        // If user pastes a URL (e.g. https://www.twitch.tv/rekkles), extract just the username
+        let query = rawQuery.trim();
+        if (query.includes('twitch.tv/')) {
+            query = query.split('twitch.tv/')[1].split('/')[0].split('?')[0];
+        }
+        
         setAdding(true);
         setError('');
         try {
-            const ch = await api.searchTwitchChannel(query.trim());
-            if (!ch || ch.error) { setError(ch?.error || 'Channel not found.'); return; }
+            const ch = await api.searchTwitchChannel(query);
+            
+            // The backend Twitch API is currently stubbed out and returns an empty array.
+            // This guard prevents the app from trying to save undefined values to Supabase.
+            if (!ch || ch.error || !ch.id) { 
+                setError(ch?.error || 'Twitch API disconnected (backend stubbed).'); 
+                return; 
+            }
+            
             if (channels.find(c => c.id === ch.id)) { setError('Already followed!'); return; }
 
             const newCh = {
@@ -315,6 +329,7 @@ export default function TwitchPage() {
         try {
             await api.toggleTwitchLiked({
                 video_id: vidId,
+                liked: !isCurrentlyLiked,
                 title: v?.title || 'Twitch Stream',
                 user_name: v?.user_name || v?.display_name || '',
                 thumbnail_url: v?.thumbnail_url || v?.thumbnail || ''
@@ -372,7 +387,7 @@ export default function TwitchPage() {
                 {channels.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', margin: '0.75rem 0' }}>
                         <button 
-                            className={`yt-all-btn ${!selected && activeTab !== 'liked' ? 'active' : ''}`} 
+                            className={`yt-all-btn ${!selected && activeTab !== 'liked' && activeTab !== 'library' ? 'active' : ''}`} 
                             onClick={() => { setSelected(null); setActiveTab('live'); }}
                         >
                             🌐 All Followed
@@ -383,6 +398,13 @@ export default function TwitchPage() {
                             style={{ color: activeTab === 'liked' ? '#ef4444' : 'inherit' }}
                         >
                             ❤️ Liked Videos
+                        </button>
+                        <button 
+                            className={`yt-all-btn ${activeTab === 'library' ? 'active' : ''}`} 
+                            onClick={() => { setActiveTab('library'); setSelected(null); }} 
+                            style={{ color: activeTab === 'library' ? '#3b82f6' : 'inherit' }}
+                        >
+                            📚 Saved Library
                         </button>
                     </div>
                 )}

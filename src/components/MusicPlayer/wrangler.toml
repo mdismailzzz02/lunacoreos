@@ -1,0 +1,11 @@
+name = "music-sync"
+main = "music-sync-worker.js"
+compatibility_date = "2024-01-01"
+
+[[r2_buckets]]
+binding    = "R2_BUCKET"
+bucket_name = "YOUR_BUCKET_NAME"   # Replace with your actual R2 bucket name
+
+# Secrets (set via: wrangler secret put SUPABASE_URL)
+# SUPABASE_URL
+# SUPABASE_SERVICE_KEY

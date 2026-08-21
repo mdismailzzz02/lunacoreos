@@ -27,31 +27,55 @@ function ChannelCard({ ch, selected, onClick, onRemove }) {
     );
 }
 
-function VideoCard({ video, onPlay, isLiked, onLike }) {
+function VideoCard({ video, onPlay, isLiked, onLike, isFavorite, onFavorite }) {
     const vidId = video.id || video.video_id;
     return (
         <div className="yt-video-card" onClick={() => onPlay(vidId)} style={{ cursor: 'pointer' }}>
             <div className="yt-thumb-wrap" style={{ position: 'relative' }}>
                 <img src={video.thumbnail} alt={video.title} className="yt-thumb" />
                 <span className="yt-ago">{timeAgo(video.publishedAt || video.published_at)}</span>
-                {/* Like button */}
-                <button
-                    onClick={e => { e.stopPropagation(); onLike(vidId); }}
-                    title={isLiked ? 'Unlike' : 'Like'}
-                    style={{
-                        position: 'absolute', top: '6px', right: '6px',
-                        background: isLiked ? 'rgba(239,68,68,0.85)' : 'rgba(0,0,0,0.55)',
-                        border: 'none', borderRadius: '50%',
-                        width: '28px', height: '28px',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        cursor: 'pointer', fontSize: '13px',
-                        backdropFilter: 'blur(4px)',
-                        transition: 'all 0.2s',
-                        boxShadow: isLiked ? '0 0 8px rgba(239,68,68,0.6)' : 'none'
-                    }}
-                >
-                    {isLiked ? '❤️' : '🤍'}
-                </button>
+                
+                {/* Save to library button (if not in library view) */}
+                {onLike && (
+                    <button
+                        onClick={e => { e.stopPropagation(); onLike(vidId); }}
+                        title={isLiked ? 'Remove from library' : 'Save to library'}
+                        style={{
+                            position: 'absolute', top: '6px', right: onFavorite ? '40px' : '6px',
+                            background: isLiked ? 'rgba(239,68,68,0.85)' : 'rgba(0,0,0,0.55)',
+                            border: 'none', borderRadius: '50%',
+                            width: '28px', height: '28px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', fontSize: '13px',
+                            backdropFilter: 'blur(4px)',
+                            transition: 'all 0.2s',
+                            boxShadow: isLiked ? '0 0 8px rgba(239,68,68,0.6)' : 'none'
+                        }}
+                    >
+                        {isLiked ? '📥' : '📥'}
+                    </button>
+                )}
+                
+                {/* Favorite button (only for saved library items) */}
+                {onFavorite && (
+                    <button
+                        onClick={e => { e.stopPropagation(); onFavorite(vidId); }}
+                        title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                        style={{
+                            position: 'absolute', top: '6px', right: '6px',
+                            background: isFavorite ? 'rgba(236,72,153,0.85)' : 'rgba(0,0,0,0.55)',
+                            border: 'none', borderRadius: '50%',
+                            width: '28px', height: '28px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', fontSize: '13px',
+                            backdropFilter: 'blur(4px)',
+                            transition: 'all 0.2s',
+                            boxShadow: isFavorite ? '0 0 8px rgba(236,72,153,0.6)' : 'none'
+                        }}
+                    >
+                        {isFavorite ? '❤️' : '🤍'}
+                    </button>
+                )}
             </div>
             <div className="yt-video-info">
                 <p className="yt-video-title">{video.title}</p>
@@ -169,6 +193,19 @@ export default function Videos() {
         }
     };
 
+
+    const toggleFavoriteVideo = async (vidId) => {
+        const v = library.find(l => (l.video_id || l.id) === vidId) || likedVideosMap.get(vidId);
+        if (!v) return;
+        const isFav = v.is_favorite;
+        setLibrary(prev => prev.map(item => (item.video_id || item.id) === vidId ? { ...item, is_favorite: !isFav } : item));
+        try {
+            await api.toggleYTLike(vidId, !isFav);
+        } catch (err) {
+            console.error('Failed to toggle favorite:', err);
+            setLibrary(prev => prev.map(item => (item.video_id || item.id) === vidId ? { ...item, is_favorite: isFav } : item));
+        }
+    };
     // Load initial data from Google Sheets
     const loadSyncData = useCallback(async () => {
         try {
@@ -493,6 +530,8 @@ export default function Videos() {
                                             onPlay={setActiveVideo}
                                             isLiked={likedVideoIds.has(v.video_id || v.id)}
                                             onLike={toggleLikeVideo}
+                                            isFavorite={v.is_favorite}
+                                            onFavorite={toggleFavoriteVideo}
                                         />
                                     ))}
                                 </div>
@@ -520,6 +559,8 @@ export default function Videos() {
                                                     onPlay={setActiveVideo}
                                                     isLiked={true}
                                                     onLike={toggleLikeVideo}
+                                                    isFavorite={v.is_favorite}
+                                                    onFavorite={toggleFavoriteVideo}
                                                 />
                                             );
                                         })}
@@ -543,3 +584,5 @@ export default function Videos() {
         </div>
     );
 }
+
+

@@ -1,5 +1,5 @@
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-const SCOPES = 'https://www.googleapis.com/auth/drive';
+const SCOPES = 'https://www.googleapis.com/auth/drive https://mail.google.com/';
 
 // We import supabase from the centralized client to avoid circular dependencies
 import { supabase } from './supabaseClient';
@@ -204,6 +204,25 @@ export const requestDriveAccess = async (isSilent = false) => {
         pendingResolvers.push([resolve, reject]);
         try {
             tokenClient.requestAccessToken({ prompt: '' });
+        } catch (err) {
+            popupOpen = false;
+            reject(new Error('Google Identity Services failed.'));
+        }
+    });
+};
+
+export const forceGoogleReauth = async () => {
+    clearDriveToken();
+    // Also sign out of Supabase to clear provider_token if it exists, but actually we just need GSI
+    await gsiReady;
+    
+    if (popupOpen) return;
+    
+    popupOpen = true;
+    return new Promise((resolve, reject) => {
+        pendingResolvers.push([resolve, reject]);
+        try {
+            tokenClient.requestAccessToken({ prompt: 'consent' });
         } catch (err) {
             popupOpen = false;
             reject(new Error('Google Identity Services failed.'));

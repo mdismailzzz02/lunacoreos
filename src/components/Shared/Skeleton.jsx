@@ -77,3 +77,13 @@ export function SkeletonCard({ lines = 3, type = 'default' }) {
         </div>
     );
 }
+
+export function SkeletonStrip({ count = 3, width = '80px', height = '24px', radius = '12px' }) {
+    return (
+        <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'hidden' }}>
+            {Array.from({ length: count }).map((_, i) => (
+                <Skeleton key={i} width={width} height={height} radius={radius} />
+            ))}
+        </div>
+    );
+}

@@ -123,20 +123,22 @@ export function AudioProvider({ children }) {
         audioRef.current._lastPlaybackId = playbackId;
 
         try {
-            const streamUrl = await api.getMusicBytes(track.drive_file_id);
+            // R2 direct URL — no auth needed, streams from CDN
+            const streamUrl = track.playback_url || track.r2_url || '';
+            if (!streamUrl) throw new Error('No playback URL for track: ' + track.title);
 
-            // ── Check if we've been superseded ──
             if (audioRef.current._lastPlaybackId !== playbackId) return;
 
             audioRef.current.pause();
             audioRef.current.src = streamUrl;
+            audioRef.current.crossOrigin = 'anonymous';
             audioRef.current.load();
 
+            // Resume from last position for large tracks
             if (track.last_played_time > 0 && (track.file_size_mb || 0) > 30) {
                 audioRef.current.currentTime = track.last_played_time;
             }
 
-            // ── Execute Play safely ──
             const p = audioRef.current.play();
             if (p !== undefined) {
                 p.catch(e => {
@@ -149,6 +151,7 @@ export function AudioProvider({ children }) {
             console.error('Global Playback failed', err);
         }
     }, []);
+
 
     const playNext = useCallback(() => {
         const lib = libraryRef.current;

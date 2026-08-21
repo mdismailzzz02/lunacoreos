@@ -26,13 +26,17 @@ if ('serviceWorker' in navigator) {
     });
 }
 
+import { GlobalErrorBoundary } from './ErrorBoundary.jsx'
+
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
-        <AudioProvider>
-            <ToastProvider>
-                <App />
-            </ToastProvider>
-        </AudioProvider>
+        <GlobalErrorBoundary>
+            <AudioProvider>
+                <ToastProvider>
+                    <App />
+                </ToastProvider>
+            </AudioProvider>
+        </GlobalErrorBoundary>
     </React.StrictMode>
 )
 

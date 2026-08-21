@@ -361,3 +361,116 @@
     }
 }
 
+/* -- Sidebar Top Music Player -- */
+.sidebar-top-music {
+    margin: 0 16px 16px 16px;
+    background: rgba(13, 13, 15, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(8px);
+}
+.sidebar-top-music:hover {
+    background: rgba(255, 184, 48, 0.03);
+    border-color: rgba(255, 184, 48, 0.2);
+}
+
+.stm-track-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    position: relative;
+}
+
+.stm-disc {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #141416;
+    border: 1px solid rgba(255, 184, 48, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffb830;
+    flex-shrink: 0;
+}
+.stm-disc.spinning {
+    animation: stmSpin 4s linear infinite;
+    box-shadow: 0 0 10px rgba(255, 184, 48, 0.2);
+}
+@keyframes stmSpin { to { transform: rotate(360deg); } }
+
+.stm-details {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex: 1;
+}
+
+.stm-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #f2f2f4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stm-artist {
+    font-size: 0.65rem;
+    color: #a0a0b0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stm-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 12px;
+    margin-right: 4px;
+}
+.stm-bars span {
+    width: 3px;
+    background: #ffb830;
+    border-radius: 2px;
+    animation: stmBar 0.8s ease-in-out infinite alternate;
+}
+.stm-bars span:nth-child(2) { animation-delay: 0.2s; }
+.stm-bars span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes stmBar { from { height: 3px; } to { height: 12px; } }
+
+.stm-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stm-btn {
+    background: none;
+    border: none;
+    color: #a0a0b0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    border-radius: 50%;
+    transition: all 0.15s;
+}
+.stm-btn:hover {
+    color: #ffb830;
+    background: rgba(255, 184, 48, 0.1);
+}
+
+.scifi-sidebar:not(.is-expanded) .sidebar-top-music {
+    display: none;
+}

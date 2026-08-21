@@ -1265,9 +1265,9 @@ export const getTwitchLiked = async () => {
 };
 
 export const toggleTwitchLiked = async (params) => {
-    const { video_id, liked } = params;
+    const { video_id, liked, ...dbParams } = params;
     if (liked) {
-        const { data, error } = await supabase.from('twitch_liked').upsert([params]).select();
+        const { data, error } = await supabase.from('twitch_liked').upsert([{ video_id, ...dbParams }]).select();
         if (error) throw error;
         return data[0];
     } else {
@@ -1457,7 +1457,7 @@ const resizeImageToWebP = (file, maxDimension = 400) => {
 };
 
 export const getReadingList = async () => {
-    const { data, error } = await supabase.from('reading_list').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('reading_list').select('*');
     if (error) throw error;
     return data;
 };
@@ -1643,145 +1643,164 @@ export const deleteStudyNote = async (id) => {
     if (error) throw error;
 };
 
-// ─── Music ──────────────────────────────────────────────────────────
-export const getMusicLibrary = async () => {
+// ─── Music (via Vault R2) ────────────────────────────────────────────────
+const R2_PUBLIC_URL = import.meta.env.VITE_R2_PUBLIC_URL || '';
+
+export const getR2TrackUrl = (r2_key) => {
+    if (!r2_key) return '';
+    return `${R2_PUBLIC_URL}/${r2_key}`;
+};
+
+/**
+ * Fetch audio files directly from the vault_files table.
+ */
+export const getMusicLibrary = async (collectionId = null, playlistId = null) => {
+    if (playlistId) {
+        // Fetch tracks specifically for this playlist
+        const { data, error } = await supabase
+            .from('music_playlist_tracks')
+            .select(`
+                file_id,
+                added_at,
+                vault_files (*, vault_collections(name))
+            `)
+            .eq('playlist_id', playlistId)
+            .order('added_at', { ascending: true });
+            
+        if (error) throw error;
+        
+        return data
+            .filter(row => row.vault_files && !row.vault_files.is_trashed)
+            .map(row => {
+                const f = row.vault_files;
+                return {
+                    id: f.id,
+                    title: f.filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' '),
+                    artist: f.vault_collections?.name || 'Vault',
+                    album: 'Playlist Track',
+                    r2_key: f.r2_key,
+                    playback_url: getR2TrackUrl(f.r2_key),
+                    file_size_mb: ((f.size_bytes || 0) / 1048576).toFixed(2),
+                    collection_id: f.collection_id,
+                    playlist_added_at: row.added_at
+                };
+            });
+    }
+
+    // Standard folder fetching logic
+    let query = supabase
+        .from('vault_files')
+        .select('*, vault_collections(name)')
+        .or('mime_type.ilike.audio/%,filename.ilike.%.mp3,filename.ilike.%.wav,filename.ilike.%.m4a,filename.ilike.%.flac')
+        .ilike('r2_key', '%documents-music-folders/%')
+        .eq('is_trashed', false)
+        .order('filename', { ascending: true });
+
+    if (collectionId && collectionId !== 'all') {
+        query = query.eq('collection_id', collectionId);
+    }
+    
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return data.map(f => ({
+        id: f.id,
+        title: f.filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' '),
+        artist: f.vault_collections?.name || 'Vault',
+        album: 'Vault Collection',
+        r2_key: f.r2_key,
+        playback_url: getR2TrackUrl(f.r2_key),
+        file_size_mb: ((f.size_bytes || 0) / 1048576).toFixed(2),
+        collection_id: f.collection_id
+    }));
+};
+
+/**
+ * Fetch Vault collections that we can use as "Folders"
+ */
+export const getMusicFolders = async () => {
     const { data, error } = await supabase
-        .from('music_library')
+        .from('vault_collections')
         .select('*')
-        .order('updated_at', { ascending: false }); // Always freshest first
+        .eq('is_hidden', false)
+        .eq('is_secret', false)
+        .ilike('key_prefix', '%documents-music-folders/%')
+        .order('name', { ascending: true });
+    if (error) throw error;
+    
+    // Map them to the expected format for MusicPlayerPage
+    return data.map(c => ({
+        id: c.id,
+        name: c.name.replace('documents-music-folders/', ''), // Clean up display name if needed
+        key_prefix: c.key_prefix
+    }));
+};
+
+// ── Custom Playlists ──────────────────────────────────────────────────
+export const getMusicPlaylists = async () => {
+    const { data, error } = await supabase
+        .from('music_playlists')
+        .select('*')
+        .order('created_at', { ascending: true });
     if (error) throw error;
     return data;
 };
 
-
-
-export const syncMusicLibrary = async (params = {}, onStatus) => {
-    if (!params.folderId || params.folderId === 'all') {
-        return { message: 'Use specific folder sync to add new tracks', files_added: 0 };
-    }
-
-    if (onStatus) onStatus('Authenticating...');
-    // Ensure we have a token BEFORE starting the scan timer
-    await requestDriveAccess();
-    
-    if (onStatus) onStatus('Scanning Drive...');
-    
-    // 1. Scan Drive folder directly with specific audio filter
-    const audioFilter = "mimeType contains 'audio/' or name contains '.mp3' or name contains '.wav' or name contains '.m4a' or name contains '.flac'";
-    
-    // Add a 60s safety timeout to the scan (after auth is done)
-    const filesPromise = scanDriveFolder(params.folderId, audioFilter);
-    const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Drive Scan Timed Out (60s). This folder might be too large or Drive is unresponsive.')), 60000)
-    );
-    
-    const audioFiles = await Promise.race([filesPromise, timeoutPromise]);
-    
-    if (audioFiles.length === 0) return { message: 'No new music found.', files_added: 0 };
-    if (onStatus) onStatus(`Found ${audioFiles.length} tracks...`);
-
-    const now = new Date().toISOString();
-
-    // 2. Format the tracks to match the strict Supabase schema
-    const formattedTracks = audioFiles.map(file => ({
-        id: file.id,
-        title: file.name.replace(/\.[^/.]+$/, ""),
-        artist: 'Unknown',
-        album: 'Unknown',
-        drive_file_id: file.id,
-        drive_link: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`,
-        file_size_mb: String((parseInt(file.size || 0) / (1024 * 1024)).toFixed(2)),
-        last_played_time: '0',
-        updated_at: now,
-        folder_id: params.folderId
-    }));
-
-    // 3. Ensure the folder exists in music_folders
-    if (onStatus) onStatus('Updating Folders...');
-    const { data: folderExists } = await supabase.from('music_folders').select('id').eq('folder_id', params.folderId).maybeSingle();
-    if (!folderExists) {
-        await supabase.from('music_folders').insert([{
-            id: `FLD-${params.folderId.substring(0, 8)}`,
-            name: 'Synced Folder',
-            folder_id: params.folderId,
-            added_at: now
-        }]);
-    }
-
-    // 4. Insert the scanned tracks directly into Supabase
-    const chunkSize = 200;
-    for (let i = 0; i < formattedTracks.length; i += chunkSize) {
-        if (onStatus) onStatus(`Syncing ${Math.min(i + chunkSize, formattedTracks.length)} / ${formattedTracks.length}...`);
-        const chunk = formattedTracks.slice(i, i + chunkSize);
-        const { error } = await supabase.from('music_library').upsert(chunk, { onConflict: 'id' });
-        if (error) throw error;
-    }
-
-    if (onStatus) onStatus('Finalizing...');
-    return { message: 'Sync complete!', files_added: formattedTracks.length };
-};
-
-export const updateMusicHistory = async (params) => {
-    const { id, ...updates } = params;
-    updates.updated_at = new Date().toISOString();
+export const createMusicPlaylist = async (name) => {
     const { data, error } = await supabase
-        .from('music_library')
-        .update(updates)
-        .eq('music_id', id)
+        .from('music_playlists')
+        .insert([{ name }])
         .select()
         .single();
     if (error) throw error;
     return data;
 };
 
-export const getMusicFolders = async () => {
-    const { data, error } = await supabase
-        .from('music_folders')
-        .select('*')
-        .order('added_at', { ascending: false }); // Always freshest first
-    if (error) throw error;
-    return data;
-};
-
-
-export const addMusicFolder = async (params) => {
-    const { data, error } = await supabase.from('music_folders').insert([{
-        id: `FLD-${Math.random().toString(36).substr(2, 8)}`,
-        name: params.name,
-        folder_id: params.folder_id,
-        added_at: new Date().toISOString()
-    }]).select();
-    if (error) throw error;
-    return data[0];
-};
-
-
-export const removeMusicFolder = async (id) => {
-    const { error } = await supabase.from('music_folders').delete().eq('id', id);
+export const deleteMusicPlaylist = async (playlistId) => {
+    const { error } = await supabase
+        .from('music_playlists')
+        .delete()
+        .eq('id', playlistId);
     if (error) throw error;
 };
 
-export const addMusicFromLink = async () => {
-    throw new Error('Please use Sync Now with a folder instead.');
+export const addTrackToPlaylist = async (playlistId, fileId) => {
+    const { error } = await supabase
+        .from('music_playlist_tracks')
+        .insert([{ playlist_id: playlistId, file_id: fileId }]);
+    if (error && error.code !== '23505') throw error; // Ignore unique constraint violation (already added)
 };
 
-export const getMusicBytes = async (fileId) => {
-    const token = await requestDriveAccess();
-    const url = 'https://www.googleapis.com/drive/v3/files/' + fileId + '?alt=media';
-    let res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
-    if (res.status === 401) {
-        const gAuth = await import('./googleAuth');
-        gAuth.clearDriveToken();
-        const freshToken = await requestDriveAccess();
-        res = await fetch(url, { headers: { Authorization: 'Bearer ' + freshToken } });
-    }
-    if (!res.ok) throw new Error('Drive fetch failed (' + res.status + ')');
-    const ct = res.headers.get('content-type') || '';
-    if (ct.includes('text/html')) throw new Error('Drive returned HTML - check file sharing permissions');
-    const blob = await res.blob();
-    if (!blob.size) throw new Error('Received empty file from Drive');
-    return URL.createObjectURL(blob);
+export const removeTrackFromPlaylist = async (playlistId, fileId) => {
+    const { error } = await supabase
+        .from('music_playlist_tracks')
+        .delete()
+        .match({ playlist_id: playlistId, file_id: fileId });
+    if (error) throw error;
 };
+
+
+export const addMusicFolder = async () => {
+    throw new Error('Please create Collections in the Vault instead.');
+};
+export const removeMusicFolder = async () => {
+    throw new Error('Please manage Collections in the Vault.');
+};
+
+export const syncMusicLibrary = async (params = {}, onStatus) => {
+    if (onStatus) onStatus('Scanning Vault...');
+    // Since we're pulling directly from Vault, "Syncing" just means reloading the data
+    const data = await getMusicLibrary(params.folderId);
+    return { message: `Found ${data.length} audio files in Vault.`, files_added: 0 };
+};
+
+export const updateMusicHistory = async () => {
+    // We don't store playback position on Vault files to keep the schema clean
+    return null;
+};
+
+export const getMusicBytes = async () => { throw new Error('getMusicBytes is removed. Use R2 playback_url.'); };
+export const addMusicFromLink = async () => { throw new Error('Use Vault to upload files.'); };
 
 export const getYearlyReviews = async () => {
     const { data, error } = await supabase.from('yearly_reviews').select('*');
@@ -1796,6 +1815,29 @@ export const saveYearlyReview = async (params) => {
 };
 
 // ─── Twitch ──────────────────────────────────────────────────────────
+
+let twitchAccessToken = null;
+let twitchTokenExpiry = 0;
+
+const getTwitchToken = async () => {
+    if (twitchAccessToken && Date.now() < twitchTokenExpiry) {
+        return twitchAccessToken;
+    }
+    const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+    const clientSecret = import.meta.env.VITE_TWITCH_CLIENT_SECRET;
+    if (!clientId || !clientSecret) throw new Error("Twitch credentials missing in .env");
+
+    const res = await fetch(`https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`, {
+        method: 'POST'
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to get Twitch token');
+    
+    twitchAccessToken = data.access_token;
+    twitchTokenExpiry = Date.now() + (data.expires_in * 1000) - 60000;
+    return twitchAccessToken;
+};
+
 export const getTwitchChannels = async () => {
     const { data, error } = await supabase.from('twitch_channels').select('*');
     if (error) throw error;
@@ -1814,11 +1856,65 @@ export const removeTwitchChannel = async (id) => {
 };
 
 export const getTwitchData = async (params) => {
-    return { success: true, streams: [], videos: [] };
+    try {
+        const { data: channels } = await supabase.from('twitch_channels').select('*');
+        if (!channels || channels.length === 0) return { streams: [], videos: [] };
+        
+        const token = await getTwitchToken();
+        const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+        
+        const userLogins = channels.map(c => `user_login=${c.login}`).join('&');
+
+        // 1. Fetch live streams
+        const streamsRes = await fetch(`https://api.twitch.tv/helix/streams?${userLogins}`, {
+            headers: { 'Client-ID': clientId, 'Authorization': `Bearer ${token}` }
+        });
+        const streamsData = await streamsRes.json();
+        const streams = streamsData.data || [];
+
+        // 2. Fetch recent VODs concurrently for up to 10 channels to avoid long loads
+        const videoPromises = channels.slice(0, 10).map(c => 
+            fetch(`https://api.twitch.tv/helix/videos?user_id=${c.id}&first=3&type=archive`, {
+                headers: { 'Client-ID': clientId, 'Authorization': `Bearer ${token}` }
+            }).then(r => r.json()).catch(() => ({ data: [] }))
+        );
+        const videosData = await Promise.all(videoPromises);
+        let videos = [];
+        videosData.forEach(vd => {
+            if (vd.data) videos = videos.concat(vd.data);
+        });
+
+        // Sort videos by most recent
+        videos.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        return { success: true, streams, videos };
+    } catch (e) {
+        return { error: e.message, streams: [], videos: [] };
+    }
 };
 
 export const searchTwitchChannel = async (query) => {
-    return [];
+    try {
+        const token = await getTwitchToken();
+        const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
+        
+        const res = await fetch(`https://api.twitch.tv/helix/users?login=${query}`, {
+            headers: { 'Client-ID': clientId, 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.data && data.data.length > 0) {
+            const user = data.data[0];
+            // Map fields to match what TwitchPage.jsx expects
+            return {
+                ...user,
+                broadcaster_login: user.login,
+                thumbnail_url: user.profile_image_url
+            };
+        }
+        return { error: 'Channel not found' };
+    } catch (e) {
+        return { error: e.message };
+    }
 };
 
 export const getSavedTwitchVideos = async () => {
@@ -2092,3 +2188,10 @@ export const bulkCreatePasswords = async (entries) => {
     if (error) throw error;
     return data;
 };
+
+export const toggleYTLike = async (video_id, is_favorite) => {
+    const { data, error } = await supabase.from('yt_liked').update({ is_favorite }).eq('video_id', video_id).select();
+    if (error) throw error;
+    return data;
+};
+

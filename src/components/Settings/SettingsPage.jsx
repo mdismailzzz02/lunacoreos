@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import * as api from '../../services/api';
+import { forceGoogleReauth } from '../../services/googleAuth';
 import { useToast } from '../../context/ToastContext';
-import { Save, User, Palette, Film, Brain, Globe, Key } from 'lucide-react';
+import { Save, User, Palette, Film, Brain, Globe, Key, Mail } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
 
 export default function SettingsPage() {
@@ -190,6 +191,31 @@ export default function SettingsPage() {
                         <p style={{ fontSize: '0.75rem', opacity: 0.5, marginTop: '5px' }}>
                             Required for AI processing of Study Notes and Journal.
                         </p>
+                    </div>
+
+                    <div className="field-group" style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                            <Mail size={16} />
+                            <label className="field-label" style={{ margin: 0 }}>Google Accounts Integration</label>
+                        </div>
+                        <p style={{ fontSize: '0.85rem', opacity: 0.7, marginBottom: '1rem' }}>
+                            If you recently added new permissions (like Gmail) or are experiencing 403 Forbidden errors, you need to force a reconnection to grant the new scopes.
+                        </p>
+                        <button 
+                            type="button" 
+                            className="mail-btn" 
+                            style={{ padding: '8px 16px', background: 'var(--surface-light)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', color: 'var(--text)' }}
+                            onClick={async () => {
+                                try {
+                                    await forceGoogleReauth();
+                                    addToast('Google Account Reconnected successfully!', 'success');
+                                } catch (e) {
+                                    addToast('Google Reconnect failed or cancelled.', 'error');
+                                }
+                            }}
+                        >
+                            Reconnect Google Account
+                        </button>
                     </div>
                 </div>
 

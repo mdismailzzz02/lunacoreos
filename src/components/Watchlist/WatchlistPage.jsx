@@ -208,11 +208,7 @@ export default function WatchlistPage() {
                 </button>
             </div>
 
-            {!apiKey && (
-                <div style={{ background: 'rgba(255, 165, 0, 0.1)', border: '1px solid rgba(255, 165, 0, 0.2)', padding: '0.8rem 1rem', borderRadius: '12px', fontSize: '0.85rem', color: '#ff9f43', marginBottom: '1.5rem' }}>
-                    Note: Add TMDB_API_KEY to your settings for automatic movie search and posters.
-                </div>
-            )}
+            {/* Removed TMDB_API_KEY note per user request */}
 
             {loading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>

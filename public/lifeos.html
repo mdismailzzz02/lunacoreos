@@ -39,7 +39,7 @@
     /* ── Text: warm white, not cold blue-white ── */
     --text:    #f5f0e8;
     --text2:   #9a9488;
-    --text3:   #555050;
+    --text3:   rgba(255,255,255,0.7);
 
     /* ── Utility ── */
     --green:     #39ff7e;
@@ -393,7 +393,7 @@
   .tabs-bar::-webkit-scrollbar { display: none; }
   .tab-btn {
     font-family: var(--font-display);
-    font-size: 0.65rem;
+    font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -510,7 +510,7 @@
   .metric-card:hover { border-color: var(--border2); transform: translateY(-1px); }
   .metric-label {
     font-family: var(--font-mono);
-    font-size: 0.58rem;
+    font-size: 0.7rem;
     color: var(--text3);
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -525,13 +525,13 @@
     letter-spacing: -0.02em;
   }
   .metric-sub {
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     color: var(--text3);
     margin-top: 5px;
   }
   .metric-trend {
     font-family: var(--font-mono);
-    font-size: 0.62rem;
+    font-size: 0.72rem;
     margin-top: 10px;
     display: flex;
     align-items: center;
@@ -602,7 +602,7 @@
   .form-row { margin-bottom: 14px; }
   .form-label {
     font-family: var(--font-mono);
-    font-size: 0.6rem;
+    font-size: 0.72rem;
     color: var(--text3);
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -752,7 +752,7 @@
     margin-bottom: 6px;
     align-items: center;
   }
-  .slider-row-head span:first-child { color: var(--text3); font-size: 0.7rem; }
+  .slider-row-head span:first-child { color: var(--text3); font-size: 0.78rem; }
   .slider-val {
     font-family: var(--font-mono);
     font-size: 0.85rem;
@@ -762,6 +762,9 @@
     text-align: right;
     transition: color 0.2s;
   }
+  .slider-val.unset { color: var(--text3); font-weight: 400; }
+  input[type="range"].unset { opacity: 0.45; }
+  .slider-hint { font-size: 0.72rem; color: var(--text3); margin-top: 4px; }
 
   /* ── CHECKLIST ── */
   .checklist { list-style: none; }
@@ -991,7 +994,7 @@
   .tool-icon { font-size: 1.5rem; margin-bottom: 10px; display: block; }
   .tool-name { font-family: var(--font-display); font-size: 0.82rem; font-weight: 700; color: var(--text); margin-bottom: 4px; }
   .tool-desc { font-size: 0.7rem; color: var(--text2); line-height: 1.45; }
-  .tool-science { margin-top: 10px; font-family: var(--font-mono); font-size: 0.58rem; color: var(--accent); opacity: 0.7; }
+  .tool-science { margin-top: 10px; font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent); opacity: 0.85; }
 
   /* ── OKR ── */
   .okr-item {
@@ -1021,7 +1024,7 @@
     padding: 8px 10px;
     text-align: center;
   }
-  .matrix-table th { background: var(--surface3); color: var(--text3); font-family: var(--font-mono); font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  .matrix-table th { background: var(--surface3); color: var(--text3); font-family: var(--font-mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; }
   .matrix-table td { color: var(--text2); }
   .matrix-table .best  { color: var(--green); font-weight: 700; }
   .matrix-table .worst { color: var(--red); }
@@ -1227,10 +1230,11 @@
           <div class="slider-row">
             <div class="slider-row-head">
               <span>Poor</span>
-              <span class="slider-val" id="sleep-val">5</span>
+              <span class="slider-val unset" id="sleep-val">—</span>
               <span>Excellent</span>
             </div>
-            <input type="range" min="1" max="10" value="5" oninput="updateSlider('sleep-val',this.value)">
+            <input type="range" class="unset" min="1" max="10" value="5" oninput="updateSlider('sleep-val',this.value)">
+            <div class="slider-hint" id="sleep-hint">Drag to rate — not recorded until you do</div>
           </div>
         </div>
 
@@ -1239,10 +1243,11 @@
           <div class="slider-row">
             <div class="slider-row-head">
               <span>Drained</span>
-              <span class="slider-val" id="energy-val">5</span>
+              <span class="slider-val unset" id="energy-val">—</span>
               <span>Peak</span>
             </div>
-            <input type="range" min="1" max="10" value="5" oninput="updateSlider('energy-val',this.value)">
+            <input type="range" class="unset" min="1" max="10" value="5" oninput="updateSlider('energy-val',this.value)">
+            <div class="slider-hint" id="energy-hint">Drag to rate — not recorded until you do</div>
           </div>
         </div>
 
@@ -1251,10 +1256,11 @@
           <div class="slider-row">
             <div class="slider-row-head">
               <span>Low</span>
-              <span class="slider-val" id="mood-val">5</span>
+              <span class="slider-val unset" id="mood-val">—</span>
               <span>High</span>
             </div>
-            <input type="range" min="1" max="10" value="5" oninput="updateSlider('mood-val',this.value)">
+            <input type="range" class="unset" min="1" max="10" value="5" oninput="updateSlider('mood-val',this.value)">
+            <div class="slider-hint" id="mood-hint">Drag to rate — not recorded until you do</div>
           </div>
         </div>
 
@@ -1340,10 +1346,11 @@
           <div class="slider-row">
             <div class="slider-row-head">
               <span>None</span>
-              <span class="slider-val" id="stress-val">3</span>
+              <span class="slider-val unset" id="stress-val">—</span>
               <span>Max</span>
             </div>
-            <input type="range" min="1" max="10" value="3" oninput="updateSlider('stress-val',this.value)">
+            <input type="range" class="unset" min="1" max="10" value="3" oninput="updateSlider('stress-val',this.value)">
+            <div class="slider-hint" id="stress-hint">Drag to rate — not recorded until you do</div>
           </div>
         </div>
 
@@ -2092,7 +2099,7 @@
 </div>
 
 <!-- Floating timer button -->
-<button onclick="openTimer()" title="Open Timer" style="position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;background:var(--accent);border:none;font-size:1.3rem;cursor:pointer;box-shadow:0 4px 20px rgba(0,212,170,0.4);z-index:200;transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">⏱</button>
+<button onclick="openTimer()" title="Open Timer" aria-label="Open Timer" style="position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;background:var(--accent);border:none;font-size:1.3rem;cursor:pointer;box-shadow:0 4px 20px rgba(0,212,170,0.4);z-index:200;transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">⏱</button>
 
 <!-- ===================== TIMER SCRIPT ===================== -->
 <script>
@@ -2333,7 +2340,7 @@ let decisions   = [];
 let woops       = [];
 let okrs        = [];
 let habitMap    = {};
-let domainScores= {health:0,work:0,social:0,finance:0,learn:0,well:0};
+let domainScores= {health:null,work:null,social:null,finance:null,learn:null,well:null};
 let timerSessionsMap = {};
 let _checklistState = {}; // date -> {title: done}
 
@@ -2510,7 +2517,7 @@ async function loadFromSupabase() {
       .select('*').order('month_start', { ascending: false }).limit(12);
     if(!mrErr && mrRows && mrRows.length > 0) {
       monthlyLogs = mrRows.map(r => ({
-        _id: r.id, date: new Date(r.month_start + 'T00:00:00').toDateString(),
+        _id: r.id, date: new Date(r.month_start + 'T00:00:00').toLocaleString('en-US', { month: 'long', year: 'numeric' }),
         ts: new Date(r.created_at).getTime(),
         wins: r.top_wins, fail: r.biggest_failure,
         system: r.system_change, theme: r.theme
@@ -2518,8 +2525,12 @@ async function loadFromSupabase() {
     }
 
     // 9. domain scores — only load if cloud has data
+    // Every change inserts its own row (full history preserved), and
+    // created_at (added via migration, default now()) always increases —
+    // so sorting on it and taking row 0 reliably gets the truly latest
+    // change, even if two slider drags landed within the same second.
     const { data: dsRows, error: dsErr } = await supa.from('domain_scores_history')
-      .select('*').order('scored_on', { ascending: false }).limit(1);
+      .select('*').order('created_at', { ascending: false }).limit(1);
     if(!dsErr && dsRows && dsRows.length > 0) {
       const r = dsRows[0];
       domainScores = { health: r.health||0, work: r.work||0, social: r.social||0,
@@ -2650,12 +2661,16 @@ async function syncGoal(okrObj) {
     const catVal = catMap[okrObj.cat] || 'General';
     const confVal = parseInt(okrObj.conf) || 50;
 
+    const nowQ = new Date();
+    const qNum = Math.floor(nowQ.getMonth() / 3) + 1;
+    const quarterStr = `Q${qNum}-${nowQ.getFullYear()}`;
+
     const { data: goalData, error: ge } = await supa.from('goals').insert({
       objective: okrObj.obj,
       category: catVal,
       confidence: confVal,
       status: 'active',
-      quarter: 'Q2-2026'
+      quarter: quarterStr
     }).select('id').single();
     if(ge) throw ge;
 
@@ -2737,7 +2752,8 @@ async function syncWeeklyReview(entry) {
     const mondayOffset = day === 0 ? -6 : 1 - day;
     const monday = new Date(now);
     monday.setDate(now.getDate() + mondayOffset);
-    const weekStart = monday.toISOString().split('T')[0];
+    const pad = (n) => n.toString().padStart(2, '0');
+    const weekStart = `${monday.getFullYear()}-${pad(monday.getMonth()+1)}-${pad(monday.getDate())}`;
 
     const payload = {
       week_start: weekStart,
@@ -2768,7 +2784,8 @@ async function syncMonthlyReview(entry, domainScores) {
   setSyncStatus('syncing');
   try {
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const pad = (n) => n.toString().padStart(2, '0');
+    const monthStart = `${now.getFullYear()}-${pad(now.getMonth()+1)}-01`;
     const s = domainScores || getDomainScores();
 
     const payload = {
@@ -2793,14 +2810,10 @@ async function syncMonthlyReview(entry, domainScores) {
       if(error) throw error;
     }
 
-    // Snapshot to domain_scores_history
-    const { error: he } = await supa.from('domain_scores_history').insert({
-      scored_on: new Date().toISOString().split('T')[0],
-      source: 'monthly',
-      health: s.health, work: s.work, social: s.social,
-      finance: s.finance, learn: s.learn, wellbeing: s.well
-    });
-    if(he) console.warn('domain history insert:', he.message);
+    // Snapshot to domain_scores_history — reuse the same day-upsert helper
+    // used elsewhere so this never creates a second same-day row (which
+    // would bring back the "which row is newest" ambiguity).
+    await syncDomainSnapshot(s);
 
     // Refresh monthly totals
 
@@ -2811,14 +2824,21 @@ async function syncMonthlyReview(entry, domainScores) {
 
 async function syncDomainSnapshot(scores) {
   if(!supa) return;
+  const today = new Date().toISOString().split('T')[0];
+  const map = { health:'health', work:'work', social:'social', finance:'finance', learn:'learn', well:'wellbeing' };
+  const payload = { scored_on: today, source: 'manual', created_at: new Date().toISOString() };
+  let anySet = false;
+  Object.keys(map).forEach(k => {
+    if(scores[k] !== null && scores[k] !== undefined && scores[k] !== 0) { payload[map[k]] = scores[k]; anySet = true; }
+  });
+  if(!anySet) return; // nothing set yet, don't sync a constraint-violating row
   setSyncStatus('syncing');
   try {
-    const { error } = await supa.from('domain_scores_history').insert({
-      scored_on: new Date().toISOString().split('T')[0],
-      source: 'manual',
-      health: scores.health, work: scores.work, social: scores.social,
-      finance: scores.finance, learn: scores.learn, wellbeing: scores.well
-    });
+    // Plain insert — full history preserved, one new row per change. created_at
+    // is set explicitly here (rather than relying on a DB-side default) so
+    // "the latest row" can always be determined reliably on load by sorting
+    // on it, regardless of how that column is configured server-side.
+    const { error } = await supa.from('domain_scores_history').insert(payload);
     if(error) throw error;
     setSyncStatus('synced');
   } catch(err) { console.error('syncDomainSnapshot error:', err); setSyncStatus('error'); }
@@ -2860,6 +2880,18 @@ function initApp() {
   renderWoopList();
   renderDecisionLog();
   renderMonthlyDomainSliders();
+  // Reflect any already-saved domain scores in the top Month Score card right
+  // away, instead of leaving it at "—" until the user drags a slider.
+  (function initMonthScoreCard() {
+    const avg = avgSetDomains(getDomainScores());
+    const scoreEl = document.getElementById('m-month-score');
+    if(scoreEl) scoreEl.textContent = avg === null ? '—' : (avg*10).toFixed(0);
+  })();
+  refreshMonthlyLogStats();
+  // Show today's already-saved morning/evening entries in the Daily Log
+  // form (if any), instead of leaving it blank on a fresh page load.
+  loadDailyForm();
+  markTodayLogStatus();
   computeWeekly();
   loadJournalDraft();
   restoreChecklistState();
@@ -2888,7 +2920,7 @@ const THEMES = {
     '--accent2':'#00e5ff','--accent2-dim':'rgba(0,229,255,0.08)',
     '--accent3':'#ff6b35','--accent3-dim':'rgba(255,107,53,0.10)',
     '--accent4':'#ff3d7f','--accent4-dim':'rgba(255,61,127,0.10)',
-    '--text':'#f5f0e8','--text2':'#9a9488','--text3':'#555050',
+    '--text':'#f5f0e8','--text2':'#9a9488','--text3':'rgba(255,255,255,0.7)',
     '--green':'#39ff7e','--green-dim':'rgba(57,255,126,0.10)',
     '--red':'#ff4444','--yellow':'#ffe033','--blue':'#4da6ff','--blue-dim':'rgba(77,166,255,0.08)',
     label:'🔥 Amber'
@@ -2900,7 +2932,7 @@ const THEMES = {
     '--accent2':'#bf5af2','--accent2-dim':'rgba(191,90,242,0.08)',
     '--accent3':'#ff9f0a','--accent3-dim':'rgba(255,159,10,0.10)',
     '--accent4':'#ff375f','--accent4-dim':'rgba(255,55,95,0.10)',
-    '--text':'#e8e8ff','--text2':'#7878a8','--text3':'#404060',
+    '--text':'#e8e8ff','--text2':'#7878a8','--text3':'rgba(255,255,255,0.7)',
     '--green':'#00ff88','--green-dim':'rgba(0,255,136,0.10)',
     '--red':'#ff375f','--yellow':'#ff9f0a','--blue':'#0af5ff','--blue-dim':'rgba(10,245,255,0.08)',
     label:'⚡ Neon'
@@ -2912,7 +2944,7 @@ const THEMES = {
     '--accent2':'#ffc947','--accent2-dim':'rgba(255,201,71,0.08)',
     '--accent3':'#7ee8a2','--accent3-dim':'rgba(126,232,162,0.10)',
     '--accent4':'#c77dff','--accent4-dim':'rgba(199,125,255,0.10)',
-    '--text':'#f8eef0','--text2':'#a08888','--text3':'#604848',
+    '--text':'#f8eef0','--text2':'#a08888','--text3':'rgba(255,255,255,0.7)',
     '--green':'#7ee8a2','--green-dim':'rgba(126,232,162,0.10)',
     '--red':'#ff6584','--yellow':'#ffc947','--blue':'#64b5f6','--blue-dim':'rgba(100,181,246,0.08)',
     label:'🌸 Rose'
@@ -2924,7 +2956,7 @@ const THEMES = {
     '--accent2':'#34d399','--accent2-dim':'rgba(52,211,153,0.08)',
     '--accent3':'#f59e0b','--accent3-dim':'rgba(245,158,11,0.10)',
     '--accent4':'#f87171','--accent4-dim':'rgba(248,113,113,0.10)',
-    '--text':'#e2e8f0','--text2':'#7888a8','--text3':'#444c60',
+    '--text':'#e2e8f0','--text2':'#7888a8','--text3':'rgba(255,255,255,0.7)',
     '--green':'#34d399','--green-dim':'rgba(52,211,153,0.10)',
     '--red':'#f87171','--yellow':'#fbbf24','--blue':'#5e9bff','--blue-dim':'rgba(94,155,255,0.08)',
     label:'🌊 Slate'
@@ -2981,6 +3013,7 @@ function switchTab(name, btn) {
   sessionStorage.setItem('lifeos_tab', name);
   if(name === 'weekly') loadWeeklyForm();
   if(name === 'monthly') loadMonthlyForm();
+  if(name === 'decisions') loadDecisionForm();
 }
 
 function switchGoalTab(name) {
@@ -2989,6 +3022,7 @@ function switchGoalTab(name) {
   document.querySelectorAll('#tab-goals .inner-tab').forEach((b,i) => {
     b.classList.toggle('active', ['okr','woop','add'][i] === name);
   });
+  if(name === 'add' || name === 'woop') loadWoopForm();
 }
 
 function switchDecTab(name) {
@@ -3013,7 +3047,17 @@ function switchToolTab(name) {
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function updateSlider(id, val) {
   const el = document.getElementById(id);
-  if(el) el.textContent = id.includes('conf') ? val+'%' : val;
+  if(el) {
+    el.textContent = id.includes('conf') ? val+'%' : val;
+    el.classList.remove('unset');
+    const row = el.closest('.slider-row');
+    if(row) {
+      const range = row.querySelector('input[type="range"]');
+      if(range) range.classList.remove('unset');
+      const hint = row.querySelector('.slider-hint');
+      if(hint) hint.style.display = 'none';
+    }
+  }
 }
 
 function todayKey() {
@@ -3041,8 +3085,8 @@ function toggleCheck(li) {
   // Persist state locally
   const today = todayKey();
   const title = li.dataset.title || li.querySelector('span:last-child')?.textContent || '';
-  const savedChecks = (_checklistState[today] || {});
-  savedChecks[title] = box.classList.contains('checked');
+  if(!_checklistState[today]) _checklistState[today] = {};
+  _checklistState[today][title] = box.classList.contains('checked');
 
   // Sync to Supabase (fire and forget)
   const items = document.querySelectorAll('#today-checklist li');
@@ -3085,6 +3129,14 @@ const DOMAINS = [
   {name:'Wellbeing / Peace',   color:'var(--accent4)', key:'well'},
 ];
 
+// Averages only the domains that have actually been set, so a couple of
+// filled-in sliders don't get dragged down by the rest still being unset.
+function avgSetDomains(scores) {
+  const set = Object.values(scores).filter(v => v !== null && v !== undefined && v !== 0);
+  if(!set.length) return null;
+  return set.reduce((a,b)=>a+b,0) / set.length;
+}
+
 function getDomainScores() { return domainScores; }
 
 function renderDomainBars() {
@@ -3098,7 +3150,7 @@ function renderDomainBars() {
       <div class="prog-wrap">
         <div class="prog-label">
           <span style="font-size:0.8rem;color:var(--text);">${d.name}</span>
-          <span style="color:${d.color};font-family:var(--font-mono);font-size:0.75rem;">${val}/10</span>
+          <span style="color:${val ? d.color : 'var(--text3)'};font-family:var(--font-mono);font-size:0.75rem;">${val ? val+'/10' : 'not set'}</span>
         </div>
         <div class="prog-bar" style="height:7px;background:var(--surface4);">
           <div class="prog-fill" style="width:${pct}%;background:${d.color};${pct===0?'background:var(--surface3);width:100%;opacity:0.3;':''}"></div>
@@ -3116,14 +3168,18 @@ function renderMonthlyDomainSliders() {
   const container = document.getElementById('monthly-domain-sliders');
   container.innerHTML = '';
   DOMAINS.forEach(d => {
+    const isSet = scores[d.key] !== null && scores[d.key] !== undefined && scores[d.key] !== 0;
+    const displayVal = isSet ? scores[d.key] : 'not set';
+    const sliderVal = isSet ? scores[d.key] : 5; // neutral handle position until user sets it
     container.innerHTML += `
       <div class="slider-row">
         <div class="slider-row-head">
           <span>${d.name}</span>
-          <span class="slider-val" id="ms-${d.key}">${scores[d.key]}</span>
+          <span class="slider-val${isSet ? '' : ' unset'}" id="ms-${d.key}">${displayVal}</span>
         </div>
-        <input type="range" min="1" max="10" value="${scores[d.key]}"
-          oninput="updateSlider('ms-${d.key}',this.value);updateDomainScore('${d.key}',this.value)">
+        <input type="range" class="${isSet ? '' : 'unset'}" min="1" max="10" value="${sliderVal}"
+          oninput="updateSlider('ms-${d.key}',this.value);updateDomainScore('${d.key}',this.value)"
+          onchange="flushDomainSync()">
       </div>`;
   });
 }
@@ -3133,9 +3189,22 @@ function updateDomainScore(key, val) {
   const scores = getDomainScores();
   scores[key] = parseInt(val);
   renderDomainBars();
-  // Debounce snapshot: wait 3s after last slider change before syncing
+  // Keep the top "Month Score" card live as sliders move, instead of only
+  // updating it when the "Compute Month Score" button is clicked.
+  const avg = avgSetDomains(scores);
+  const scoreEl = document.getElementById('m-month-score');
+  if(scoreEl) scoreEl.textContent = avg === null ? '—' : (avg*10).toFixed(0);
+  // Debounce snapshot while actively dragging, so we don't insert on every pixel
   clearTimeout(domainSnapshotTimer);
-  domainSnapshotTimer = setTimeout(() => syncDomainSnapshot(scores), 3000);
+  domainSnapshotTimer = setTimeout(() => syncDomainSnapshot(scores), 800);
+}
+
+// Fires on the slider's 'change' event (mouse/finger release), which is the
+// real signal the user is done — saves immediately instead of waiting on
+// the debounce, so a quick refresh right after adjusting can't lose the change.
+function flushDomainSync() {
+  clearTimeout(domainSnapshotTimer);
+  syncDomainSnapshot(getDomainScores());
 }
 
 function getLast7FocusHours() {
@@ -3193,8 +3262,8 @@ function refreshDashboardMetrics() {
   document.getElementById('m-streak').textContent = calcStreak();
 
   const scores = getDomainScores();
-  const allZero = Object.values(scores).every(v => !v);
-  const ls = allZero ? '--' : Math.round(Object.values(scores).reduce((a,b)=>a+b,0) / 6 * 10);
+  const avgScore = avgSetDomains(scores);
+  const ls = avgScore === null ? '--' : Math.round(avgScore * 10);
   document.getElementById('m-lifescore').textContent = ls;
 
   if(todayMorning.length === 0 && todayEvening.length === 0) {
@@ -3204,10 +3273,12 @@ function refreshDashboardMetrics() {
   }
 
   const streak = calcStreak();
+  const alertStreak = document.getElementById('alert-streak');
   if(streak >= 3) {
-    const alertStreak = document.getElementById('alert-streak');
     alertStreak.style.display = 'block';
     alertStreak.textContent = `🔥 ${streak}-day logging streak! Keep the data flowing.`;
+  } else {
+    alertStreak.style.display = 'none';
   }
 
   renderDailySummary();
@@ -3232,25 +3303,75 @@ function calcStreak() {
 }
 
 // ─── DAILY LOG ────────────────────────────────────────────────────────────────
+// Sets both the visible slider handle and its label/unset state — used to
+// repopulate a slider from a saved value, same as if the user had dragged it.
+function setSliderFromValue(id, val) {
+  if(val === undefined || val === null || val === '') return;
+  const el = document.getElementById(id);
+  if(!el) return;
+  const row = el.closest('.slider-row');
+  const range = row ? row.querySelector('input[type="range"]') : null;
+  if(range) range.value = val;
+  updateSlider(id, val);
+}
+
+// Pulls today's already-saved morning/evening entries (if any) back into the
+// form fields, so opening or returning to Daily Log shows what you already
+// logged today for a quick glance, instead of a blank form.
+function loadDailyForm() {
+  const today = new Date().toDateString();
+  const morning = logs.filter(l => l.type === 'morning' && l.date === today).pop();
+  if(morning) {
+    setSliderFromValue('sleep-val', morning.sleep);
+    setSliderFromValue('energy-val', morning.energy);
+    setSliderFromValue('mood-val', morning.mood);
+    const mit1 = document.getElementById('mit1'); if(mit1) mit1.value = morning.mit1 || '';
+    const mit2 = document.getElementById('mit2'); if(mit2) mit2.value = morning.mit2 || '';
+    const mit3 = document.getElementById('mit3'); if(mit3) mit3.value = morning.mit3 || '';
+    const intention = document.getElementById('intention'); if(intention) intention.value = morning.intention || '';
+  }
+  const evening = logs.filter(l => l.type === 'evening' && l.date === today).pop();
+  if(evening) {
+    const focusHours = document.getElementById('focus-hours'); if(focusHours) focusHours.value = evening.focus || '0';
+    const exerciseDone = document.getElementById('exercise-done'); if(exerciseDone) exerciseDone.value = evening.exercise || '0';
+    const bigWin = document.getElementById('big-win'); if(bigWin) bigWin.value = evening.win || '';
+    const friction = document.getElementById('friction'); if(friction) friction.value = evening.friction || '';
+    setSliderFromValue('stress-val', evening.stress);
+    const journalEntry = document.getElementById('journal-entry'); if(journalEntry) journalEntry.innerHTML = evening.journal || '';
+  }
+}
+
 function saveDaily(type) {
   const date = new Date().toDateString();
   const ts = new Date().toLocaleTimeString();
   let entry = { type, date, ts };
 
   if(type === 'morning') {
-    entry.sleep     = document.getElementById('sleep-val').textContent;
-    entry.energy    = document.getElementById('energy-val').textContent;
-    entry.mood      = document.getElementById('mood-val').textContent;
+    const sleepEl = document.getElementById('sleep-val');
+    const energyEl = document.getElementById('energy-val');
+    const moodEl = document.getElementById('mood-val');
+    if(sleepEl.classList.contains('unset') || energyEl.classList.contains('unset') || moodEl.classList.contains('unset')) {
+      showToast('Rate sleep, energy & mood first');
+      return;
+    }
+    entry.sleep     = sleepEl.textContent;
+    entry.energy    = energyEl.textContent;
+    entry.mood      = moodEl.textContent;
     entry.mit1      = document.getElementById('mit1').value;
     entry.mit2      = document.getElementById('mit2').value;
     entry.mit3      = document.getElementById('mit3').value;
     entry.intention = document.getElementById('intention').value;
   } else {
+    const stressEl = document.getElementById('stress-val');
+    if(stressEl.classList.contains('unset')) {
+      showToast('Rate stress level first');
+      return;
+    }
     entry.focus    = document.getElementById('focus-hours').value;
     entry.exercise = document.getElementById('exercise-done').value;
     entry.win      = document.getElementById('big-win').value;
     entry.friction = document.getElementById('friction').value;
-    entry.stress   = document.getElementById('stress-val').textContent;
+    entry.stress   = stressEl.textContent;
     entry.journal  = document.getElementById('journal-entry').innerHTML;
     entry.attachments = journalAttachments.map(a => ({type:a.type, name:a.name}));
   }
@@ -3261,23 +3382,21 @@ function saveDaily(type) {
   habitMap[key].logs = (habitMap[key].logs || 0) + 1;
   renderHeatmap();
 
-  logs.push(entry);
+  // Replace today's existing entry of this type instead of appending a
+  // duplicate — otherwise editing and resaving the same day would double-count
+  // it in monthly averages (avg energy, total focus, etc).
+  const key2 = new Date().toDateString();
+  const existingIdx = logs.findIndex(l => l.type === type && l.date === key2);
+  if(existingIdx >= 0) logs[existingIdx] = entry; else logs.push(entry);
   showToast();
   renderDailySummary();
   refreshDashboardMetrics();
   renderDataLogs();
+  refreshMonthlyLogStats();
 
-  // Reset form fields after save
-  if(type === 'morning') {
-    ['mit1','mit2','mit3','intention'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
-  } else {
-    document.getElementById('focus-hours').value = '0';
-    document.getElementById('exercise-done').value = '0';
-    ['big-win','friction'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
-    document.getElementById('journal-entry').innerHTML = '';
-    document.getElementById('journal-attachments').innerHTML = '';
-    journalAttachments = [];
-  }
+  // Keep the form populated with what was just saved, instead of clearing
+  // it — gives a quick glance at today's entry and an easy way to tweak it.
+  loadDailyForm();
   markTodayLogStatus();
   // Restore last active tab
   const savedTab = sessionStorage.getItem('lifeos_tab');
@@ -3358,6 +3477,7 @@ function computeWeekly() {
   set('w-ex-pct', exerciseDays+'/7'); setBar('w-ex-bar', exPct, 'var(--accent3)');
   set('w-sleep-avg', avgSleep ? avgSleep.toFixed(1)+'/10' : '—'); setBar('w-sleep-bar', sleepPct, 'var(--blue)');
   set('w-mood-avg', avgMood ? avgMood.toFixed(1)+'/10' : '—'); setBar('w-mood-bar', moodPct, 'var(--green)');
+  showToast('Weekly stats updated ✓');
 }
 
 function loadWeeklyForm() {
@@ -3392,11 +3512,11 @@ function saveWeekly() {
 }
 
 // ─── MONTHLY ─────────────────────────────────────────────────────────────────
-function computeMonthlyScore() {
-  const scores = getDomainScores();
-  const avg = Object.values(scores).reduce((a,b)=>a+b,0) / 6;
-  document.getElementById('m-month-score').textContent = (avg*10).toFixed(0);
-
+// Split out from computeMonthlyScore so it can be called automatically
+// (after saving a daily log, on page load) instead of only when the
+// "Compute Month Score" button is clicked — otherwise data you just logged
+// doesn't show up here until you remember to hit that button again.
+function refreshMonthlyLogStats() {
   const now = new Date();
   const thisMonthLogs = logs.filter(l => {
     const d = new Date(l.date);
@@ -3407,8 +3527,23 @@ function computeMonthlyScore() {
   const totalFocus = evenings.reduce((s,l) => s + (parseFloat(l.focus)||0), 0);
   const avgEnergy = mornings.length ? mornings.reduce((s,l) => s + (parseInt(l.energy)||0), 0) / mornings.length : 0;
 
-  document.getElementById('m-avg-energy').textContent = avgEnergy ? avgEnergy.toFixed(1) : '—';
-  document.getElementById('m-total-focus').textContent = totalFocus ? totalFocus+'h' : '—';
+  const energyEl = document.getElementById('m-avg-energy');
+  const focusEl = document.getElementById('m-total-focus');
+  if(energyEl) energyEl.textContent = avgEnergy ? avgEnergy.toFixed(1) : '—';
+  if(focusEl) focusEl.textContent = totalFocus ? totalFocus+'h' : '—';
+}
+
+function computeMonthlyScore() {
+  const scores = getDomainScores();
+  const avg = avgSetDomains(scores);
+  document.getElementById('m-month-score').textContent = avg === null ? '—' : (avg*10).toFixed(0);
+
+  refreshMonthlyLogStats();
+
+  // Also make sure any pending domain-score change is actually saved,
+  // not just recalculated on screen.
+  flushDomainSync();
+  showToast('Month score updated ✓');
 }
 
 function loadMonthlyForm() {
@@ -3422,12 +3557,21 @@ function loadMonthlyForm() {
     document.getElementById('mon-fail').value = thisMonth.fail || '';
     document.getElementById('mon-system').value = thisMonth.system || '';
     document.getElementById('mon-theme').value = thisMonth.theme || '';
+    const m = document.getElementById('mon-month');
+    if(m) {
+      const d = new Date(thisMonth.date);
+      m.value = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    }
   }
 }
 
 function saveMonthly() {
+  const now = new Date();
+  const pad = (n) => n.toString().padStart(2, '0');
+  const monthStart = `${now.getFullYear()}-${pad(now.getMonth()+1)}-01`;
+  const prettyDate = new Date(monthStart + 'T00:00:00').toLocaleString('en-US', { month: 'long', year: 'numeric' });
   const entry = {
-    date: document.getElementById('mon-month').value || new Date().toDateString(),
+    date: prettyDate,
     ts: Date.now(),
     wins: document.getElementById('mon-wins').value,
     fail: document.getElementById('mon-fail').value,
@@ -3435,7 +3579,6 @@ function saveMonthly() {
     theme: document.getElementById('mon-theme').value,
   };
   // Replace if same month already exists
-  const now = new Date();
   const existIdx = monthlyLogs.findIndex(m => {
     const d = new Date(m.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
@@ -3487,15 +3630,30 @@ function renderOKRList() {
   `).join('');
 }
 
+function loadWoopForm() {
+  if(!woops || !woops.length) return;
+  const today = new Date().toDateString();
+  const latest = woops.slice().reverse().find(w => w.date === today);
+  if(latest) {
+    document.getElementById('woop-wish').value = latest.wish || '';
+    document.getElementById('woop-outcome').value = latest.outcome || '';
+    document.getElementById('woop-obstacle').value = latest.obstacle || '';
+    document.getElementById('woop-plan').value = latest.plan || '';
+  }
+}
+
 function saveWoop() {
+  const today = new Date().toDateString();
   const w = {
-    date: new Date().toDateString(),
+    date: today,
     wish:     document.getElementById('woop-wish').value,
     outcome:  document.getElementById('woop-outcome').value,
     obstacle: document.getElementById('woop-obstacle').value,
     plan:     document.getElementById('woop-plan').value,
   };
-  woops.push(w);
+  const idx = woops.findIndex(x => x.date === today);
+  if(idx >= 0) woops[idx] = w;
+  else woops.push(w);
   renderWoopList();
   showToast();
   syncWoop(w);
@@ -3540,10 +3698,24 @@ function computeMatrix() {
 
 function saveMatrixDecision() { saveDecision(); }
 
+function loadDecisionForm() {
+  if(!decisions || !decisions.length) return;
+  const today = new Date().toDateString();
+  const latest = decisions.slice().reverse().find(d => d.date === today);
+  if(latest) {
+    document.getElementById('dj-decision').value = latest.decision || '';
+    document.getElementById('dj-options').value = latest.options || '';
+    document.getElementById('dj-reason').value = latest.reason || '';
+    document.getElementById('dj-expected').value = latest.expected || '';
+    if(latest.confidence) setSliderFromValue('dj-conf-val', latest.confidence);
+  }
+}
+
 function saveDecision() {
   const rawConf = document.getElementById('dj-conf-val').textContent;
+  const today = new Date().toDateString();
   const entry = {
-    date: new Date().toDateString(),
+    date: today,
     ts: Date.now(),
     decision: document.getElementById('dj-decision').value,
     options:  document.getElementById('dj-options').value,
@@ -3552,7 +3724,9 @@ function saveDecision() {
     expected: document.getElementById('dj-expected').value,
   };
   entry._priority = computeDecisionPriority(entry);
-  decisions.push(entry);
+  const idx = decisions.findIndex(x => x.date === today);
+  if(idx >= 0) decisions[idx] = entry;
+  else decisions.push(entry);
   renderDecisionLog();
   showToast();
   syncDecision(entry);
@@ -3668,13 +3842,11 @@ function jInsertHR() {
   document.execCommand('insertHTML', false, '<hr>');
 }
 
-function saveJournalDraft() {
-}
-
-function loadJournalDraft() {
-  const draft = null;
-
-}
+// Journal drafts are not persisted separately — the journal content is
+// saved as part of the daily log itself via saveDaily(). These are kept
+// as harmless no-ops since the editor's oninput handler still calls them.
+function saveJournalDraft() {}
+function loadJournalDraft() {}
 
 function jAttachImage(input) {
   const file = input.files[0];
@@ -3793,7 +3965,7 @@ function importDataPrompt() {
         if(data.decisions)   { decisions = data.decisions; }
         if(data.woops)       { woops = data.woops; }
         if(data.okrs)        { okrs = data.okrs; }
-        if(data.domainScores)
+        if(data.domainScores){ domainScores = data.domainScores; }
         if(data.habitMap)    { habitMap = data.habitMap; }
         showToast('Imported ✓');
         setTimeout(() => location.reload(), 800);
@@ -3847,10 +4019,35 @@ function showToast(msg = 'Logged ✓') {
 
     <!-- Header -->
     <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 22px; border-bottom:1px solid var(--border2); flex-shrink:0; background:var(--surface2);">
-      <div style="display:flex; align-items:center; gap:14px;">
+      <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
         <h3 id="history-modal-title" style="margin:0; font-family:var(--font-display); font-size:1rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--text);">History</h3>
-        <input id="history-search" type="text" placeholder="Search entries…" oninput="filterHistoryList(this.value)"
-          style="background:var(--surface3); border:1px solid var(--border2); border-radius:20px; padding:5px 14px; font-size:0.75rem; color:var(--text); width:220px; outline:none;">
+        <input id="history-search" type="text" placeholder="Search entries…" oninput="applyHistoryFilters()"
+          style="background:var(--surface3); border:1px solid var(--border2); border-radius:20px; padding:5px 14px; font-size:0.75rem; color:var(--text); width:200px; outline:none;">
+        <select id="history-month" onchange="applyHistoryFilters()" style="background:var(--surface3); border:1px solid var(--border2); border-radius:8px; padding:4px 8px; font-size:0.75rem; color:var(--text); outline:none; cursor:pointer;">
+          <option value="">All Months</option>
+          <option value="0">January</option>
+          <option value="1">February</option>
+          <option value="2">March</option>
+          <option value="3">April</option>
+          <option value="4">May</option>
+          <option value="5">June</option>
+          <option value="6">July</option>
+          <option value="7">August</option>
+          <option value="8">September</option>
+          <option value="9">October</option>
+          <option value="10">November</option>
+          <option value="11">December</option>
+        </select>
+        <select id="history-year" onchange="applyHistoryFilters()" style="background:var(--surface3); border:1px solid var(--border2); border-radius:8px; padding:4px 8px; font-size:0.75rem; color:var(--text); outline:none; cursor:pointer;">
+          <option value="">All Years</option>
+          <option value="2024">2024</option>
+          <option value="2025">2025</option>
+          <option value="2026">2026</option>
+          <option value="2027">2027</option>
+          <option value="2028">2028</option>
+          <option value="2029">2029</option>
+          <option value="2030">2030</option>
+        </select>
       </div>
       <button onclick="closeHistoryModal()" style="background:none; border:none; color:var(--text3); font-size:1.4rem; cursor:pointer; line-height:1; padding:2px 6px;">✕</button>
     </div>
@@ -3885,6 +4082,8 @@ function openHistoryModal(type) {
   const titles = { daily:'Daily Logs', weekly:'Weekly Reviews', monthly:'Monthly Reviews', decision:'Decision Log', woop:'WOOP Entries' };
   document.getElementById('history-modal-title').textContent = titles[type] || 'History';
   document.getElementById('history-search').value = '';
+  document.getElementById('history-month').value = '';
+  document.getElementById('history-year').value = '';
   document.getElementById('history-modal').style.display = 'flex';
 
   if (type === 'daily') {
@@ -3934,25 +4133,41 @@ function renderHistoryList(data) {
   }).join('');
 }
 
-function filterHistoryList(q) {
-  if (!q.trim()) { renderHistoryList(_historyData); return; }
-  const lower = q.toLowerCase();
+function applyHistoryFilters() {
+  const q = document.getElementById('history-search').value.toLowerCase();
+  const mVal = document.getElementById('history-month').value;
+  const yVal = document.getElementById('history-year').value;
+
   const filtered = _historyData.map((e,i) => ({...e, _origIdx:i})).filter(e => {
-    const combined = JSON.stringify(e).toLowerCase();
-    return combined.includes(lower);
+    let match = true;
+    
+    if (e.date && (mVal !== '' || yVal !== '')) {
+      const d = new Date(e.date);
+      if (!isNaN(d.getTime())) {
+        if (mVal !== '' && d.getMonth().toString() !== mVal) match = false;
+        if (yVal !== '' && d.getFullYear().toString() !== yVal) match = false;
+      }
+    }
+
+    if (match && q.trim()) {
+      const combined = JSON.stringify(e).toLowerCase();
+      if (!combined.includes(q)) match = false;
+    }
+
+    return match;
   });
-  // Re-render with filtered but keep origIdx for openEntryDetail
+
   const panel = document.getElementById('history-list-panel');
   if (!filtered.length) {
     panel.innerHTML = '<div style="padding:20px;color:var(--text3);font-size:0.78rem;text-align:center;">No matches.</div>';
     return;
   }
-  panel.innerHTML = filtered.map((entry, i) => {
+  panel.innerHTML = filtered.map((entry) => {
     const label = getEntryListLabel(entry, _historyType);
     const sub   = getEntryListSub(entry, _historyType);
     const icon  = getEntryIcon(entry, _historyType);
     const oi    = entry._origIdx;
-    return `<div onclick="openEntryDetail(${oi})"
+    return `<div onclick="openEntryDetail(${oi})" id="hist-item-${oi}"
       style="padding:10px 12px;border-radius:8px;cursor:pointer;border:1px solid transparent;transition:all 0.15s;"
       onmouseover="this.style.background='var(--surface2)';this.style.borderColor='var(--border2)'"
       onmouseout="this.style.background='';this.style.borderColor='transparent'">
@@ -4012,6 +4227,57 @@ function openEntryDetail(idx) {
   else if (_historyType === 'monthly') panel.innerHTML = renderMonthlyDetail(entry);
   else if (_historyType === 'decision') panel.innerHTML = renderDecisionDetail(entry);
   else if (_historyType === 'woop') panel.innerHTML = renderWoopDetail(entry);
+
+  panel.innerHTML += `
+    <div style="margin-top:32px;padding-top:16px;border-top:1px solid var(--border);text-align:right;">
+      <button class="btn" style="background:var(--accent4-dim);color:var(--accent4);border-color:var(--accent4);font-size:0.8rem;padding:6px 12px;" onclick="deleteHistoryEntry(${idx})">
+        🗑 Delete Entry
+      </button>
+    </div>
+  `;
+}
+
+async function deleteHistoryEntry(idx) {
+  const entry = _historyData[idx];
+  if(!entry) return;
+  if(!confirm("Permanently delete this entry?")) return;
+  
+  const id = entry._id;
+  if(!id) {
+    alert("This entry hasn't been synced with an ID yet. Please reload the page to sync, then try deleting again.");
+    return;
+  }
+  
+  if(!supa) { showToast("Cannot delete while offline"); return; }
+  
+  let table = '';
+  if(_historyType === 'daily') table = 'daily_logs';
+  if(_historyType === 'weekly') table = 'weekly_reviews';
+  if(_historyType === 'monthly') table = 'monthly_reviews';
+  if(_historyType === 'decision') table = 'decisions';
+  if(_historyType === 'woop') table = 'woop_entries';
+  
+  try {
+    const { error } = await supa.from(table).delete().eq('id', id);
+    if(error) throw error;
+    
+    // Remove locally
+    if(_historyType === 'daily') logs = logs.filter(l => l._id !== id);
+    if(_historyType === 'weekly') weeklyLogs = weeklyLogs.filter(l => l._id !== id);
+    if(_historyType === 'monthly') monthlyLogs = monthlyLogs.filter(l => l._id !== id);
+    if(_historyType === 'decision') decisions = decisions.filter(l => l._id !== id);
+    if(_historyType === 'woop') woops = woops.filter(l => l._id !== id);
+    
+    showToast("Entry deleted ✓");
+    openHistoryModal(_historyType); // Refresh list
+    document.getElementById('history-detail-panel').innerHTML = '<div style="padding:20px;color:var(--text3);text-align:center;">Entry deleted.</div>';
+    
+    if(typeof renderDataLogs === 'function') renderDataLogs();
+    
+  } catch(e) {
+    console.error("Delete error:", e);
+    showToast("Failed to delete entry");
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -4154,6 +4420,10 @@ function renderMonthlyDetail(m) {
   html += detailSection('⚙️', 'System to Change',
     `<div style="font-size:0.88rem;line-height:1.8;color:var(--text);background:var(--blue-dim);border-radius:8px;padding:14px 16px;border-left:3px solid var(--blue);white-space:pre-wrap;">${m.system || '<span style="color:var(--text3)">Nothing logged</span>'}</div>`,
     'var(--blue)');
+
+  html += detailSection('🎯', "Next Month's Theme",
+    `<div style="font-size:0.88rem;line-height:1.8;color:var(--text);background:var(--accent3-dim);border-radius:8px;padding:14px 16px;border-left:3px solid var(--accent3);white-space:pre-wrap;">${m.theme || '<span style="color:var(--text3)">Nothing logged</span>'}</div>`,
+    'var(--accent3)');
 
   return html;
 }

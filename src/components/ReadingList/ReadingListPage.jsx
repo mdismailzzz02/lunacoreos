@@ -51,8 +51,7 @@ export default function ReadingListPage() {
             author: book.author,
             cover_url: book.cover_id ? `https://covers.openlibrary.org/b/id/${book.cover_id}-M.jpg` : null,
             status: 'to-read', // to-read, reading, finished
-            rating: 0,
-            added_at: new Date().toISOString()
+            rating: 0
         };
 
         try {
@@ -62,7 +61,8 @@ export default function ReadingListPage() {
             setSearchQuery('');
             setSearchResults([]);
         } catch (err) {
-            alert('Failed to add book');
+            console.error('Supabase Insert Error:', err);
+            alert('Failed to add book: ' + (err.message || JSON.stringify(err)));
         }
     };
 
@@ -121,11 +121,19 @@ export default function ReadingListPage() {
                         }}>
                             <div style={{ height: '280px', background: '#222', position: 'relative', overflow: 'hidden' }}>
                                 {book.cover_url ? (
-                                    <img src={book.cover_url} alt={book.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    <>
+                                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem', opacity: 0.2 }}>📚</div>
+                                        <img 
+                                            src={book.cover_url} 
+                                            alt={book.title} 
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'relative', zIndex: 1 }} 
+                                            onError={(e) => e.target.style.opacity = 0}
+                                        />
+                                    </>
                                 ) : (
                                     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem', opacity: 0.2 }}>📚</div>
                                 )}
-                                <div style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', padding: '5px 10px', borderRadius: '12px', backdropFilter: 'blur(4px)', fontSize: '0.8rem' }}>
+                                <div style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', padding: '5px 10px', borderRadius: '12px', backdropFilter: 'blur(4px)', fontSize: '0.8rem', zIndex: 2, textTransform: 'capitalize' }}>
                                     {getStatusEmoji(book.status)} {book.status.replace('-', ' ')}
                                 </div>
                             </div>
@@ -134,11 +142,15 @@ export default function ReadingListPage() {
                                 <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.6 }}>{book.author}</p>
 
                                 <div style={{ marginTop: 'auto', paddingTop: '1rem', display: 'flex', gap: '0.5rem' }}>
-                                    {book.status !== 'reading' && (
-                                        <button onClick={() => updateStatus(book.id, 'reading')} style={{ flex: 1, fontSize: '0.7rem', padding: '5px', borderRadius: '5px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer' }}>Read</button>
-                                    )}
-                                    {book.status !== 'finished' && (
-                                        <button onClick={() => updateStatus(book.id, 'finished')} style={{ flex: 1, fontSize: '0.7rem', padding: '5px', borderRadius: '5px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer' }}>Done</button>
+                                    {book.status === 'finished' ? (
+                                        <button disabled style={{ flex: 1, fontSize: '0.7rem', padding: '5px', borderRadius: '5px', background: 'rgba(76, 175, 80, 0.2)', border: '1px solid rgba(76, 175, 80, 0.4)', color: '#4caf50', cursor: 'default' }}>✅ Completed</button>
+                                    ) : (
+                                        <>
+                                            {book.status !== 'reading' && (
+                                                <button onClick={() => updateStatus(book.id, 'reading')} style={{ flex: 1, fontSize: '0.7rem', padding: '5px', borderRadius: '5px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer' }}>Read</button>
+                                            )}
+                                            <button onClick={() => updateStatus(book.id, 'finished')} style={{ flex: 1, fontSize: '0.7rem', padding: '5px', borderRadius: '5px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer' }}>Done</button>
+                                        </>
                                     )}
                                 </div>
                             </div>

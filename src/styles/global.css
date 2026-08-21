@@ -55,6 +55,11 @@
   padding: 0;
 }
 
+select, select option, select optgroup {
+  background-color: var(--surface2, #1a1b1e) !important;
+  color: var(--text, #ffffff) !important;
+}
+
 html {
   font-size: 16px;
   scroll-behavior: smooth;
@@ -62,11 +67,27 @@ html {
 
 body {
   font-family: var(--font-ui);
-  background: #000 !important;
+  /* A vibrant, premium dark-mode mesh gradient (brightened) */
+  background: 
+    radial-gradient(circle at 15% 50%, rgba(139, 92, 246, 0.25), transparent 45%),
+    radial-gradient(circle at 85% 30%, rgba(59, 130, 246, 0.25), transparent 45%),
+    radial-gradient(circle at 50% 80%, rgba(245, 158, 11, 0.15), transparent 55%),
+    linear-gradient(135deg, #111524 0%, #0d121c 50%, #151926 100%) !important;
   color: var(--text);
   line-height: 1.6;
   min-height: 100vh;
   overflow: hidden;
+  position: relative;
+}
+
+body::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: -1;
 }
 
 /* ── App Shell ─────────────────────────────────────────────── */
@@ -79,7 +100,8 @@ body {
 .content-area {
   flex: 1;
   overflow-y: auto;
-  background: rgba(0, 0, 0, 0.25) !important;
+  /* Reduced from 0.25 to 0.1 to let the vibrant mesh gradient shine through */
+  background: rgba(0, 0, 0, 0.1) !important;
   backdrop-filter: blur(40px);
   padding: 2rem;
   padding-bottom: 1rem;
@@ -3302,3 +3324,104 @@ textarea.field-input {
 }
 
 
+
+
+/* Dashboard Overhaul Interactive States */
+.interactive-card { transition: all 0.2s ease; border: 1px solid transparent; }
+.interactive-card:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.interactive-text { transition: all 0.2s ease; }
+.interactive-text:hover { opacity: 0.8; text-decoration: underline; }
+.interactive-scale { transition: transform 0.2s ease; }
+.interactive-scale:hover { transform: scale(1.05); }
+
+
+
+/* Dashboard Card Global System */
+.dashboard-card {
+  background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.dashboard-card:hover {
+  border-color: rgba(var(--accent-rgb, 168, 85, 247), 0.4);
+  box-shadow: 0 0 24px rgba(var(--accent-rgb, 168, 85, 247), 0.08);
+}
+.icon-backdrop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 50%;
+}
+.card-title {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+
+
+/* WEATHER WIDGET ANIMATIONS */
+@keyframes weatherFloatSlow {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-4px); }
+    100% { transform: translateY(0px); }
+}
+@keyframes weatherPulseSlow {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.05); opacity: 0.9; }
+    100% { transform: scale(1); opacity: 1; }
+}
+@keyframes weatherDriftSlow {
+    0% { transform: translateX(0px); }
+    50% { transform: translateX(4px); }
+    100% { transform: translateX(0px); }
+}
+@keyframes weatherRainAnim {
+    0% { transform: translateY(-2px) skewY(2deg); opacity: 0.8; }
+    50% { transform: translateY(2px) skewY(-2deg); opacity: 1; }
+    100% { transform: translateY(-2px) skewY(2deg); opacity: 0.8; }
+}
+@keyframes weatherFlash {
+    0%, 100% { filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.4)); opacity: 1; }
+    5% { filter: drop-shadow(0 0 40px rgba(139, 92, 246, 0.8)); opacity: 1; }
+    10% { filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.4)); opacity: 1; }
+}
+
+.weather-float-slow { animation: weatherFloatSlow 6s ease-in-out infinite; }
+.weather-pulse-slow { animation: weatherPulseSlow 4s ease-in-out infinite; }
+.weather-drift-slow { animation: weatherDriftSlow 8s ease-in-out infinite; }
+.weather-rain { animation: weatherRainAnim 2s linear infinite; }
+.weather-rain-fast { animation: weatherRainAnim 1s linear infinite; }
+.weather-flash { animation: weatherFlash 6s infinite; }
+
+.weather-widget {
+    background-size: 200% 200% !important;
+}
+
+.weather-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0,0,0,0.15);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text);
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
