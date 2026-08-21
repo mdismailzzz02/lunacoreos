@@ -11,7 +11,7 @@ export default function MobileHeader({ userName, isOffline, onMusicClick }) {
     return (
         <header className="mobile-header">
             <div className="mobile-header-branding">
-                <img src="/profile.jpg?v=2" alt="Logo" className="mobile-logo-img" />
+                <img src="/logo.png" alt="Logo" className="mobile-logo-img" />
                 <span className="mobile-header-title">LunaCoreOS</span>
             </div>
 
@@ -35,7 +35,7 @@ export default function MobileHeader({ userName, isOffline, onMusicClick }) {
                         }} />
                     )}
                 </button>
-                <img src="/profile.jpg?v=2" alt="User" className="mobile-user-avatar-img" />
+                <img src="/logo.png?v=2" alt="User" className="mobile-user-avatar-img" />
             </div>
         </header>
     );

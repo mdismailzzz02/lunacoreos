@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getInbox, getMessage, sendEmail, archiveEmail, deleteEmail } from '../../services/gmail';
+import { forceGoogleReauth } from '../../services/googleAuth';
 import { Mail, RefreshCw, AlertCircle, Trash2, Archive, Reply, Send, Edit, X, Search } from 'lucide-react';
 import './MailPage.css';
 
@@ -167,14 +168,27 @@ export default function MailPage() {
                 <h2>Gmail Integration Error</h2>
                 <p>{error}</p>
                 <div style={{ marginTop: '1rem', background: 'rgba(239, 68, 68, 0.1)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.2)', textAlign: 'left', maxWidth: '500px' }}>
-                    <p style={{ fontWeight: 'bold' }}>To fix this:</p>
-                    <ol style={{ paddingLeft: '1.5rem', lineHeight: '1.5' }}>
-                        <li>Go to Google Cloud Console (OAuth Consent Screen).</li>
-                        <li>Ensure <code style={{background: 'rgba(255,255,255,0.1)', padding: '2px 4px', borderRadius: '4px'}}>https://mail.google.com/</code> is added.</li>
-                        <li>Log out and log back into Google in LunaCore OS to grant the new permissions.</li>
-                    </ol>
+                    <p style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>Google Authentication Required</p>
+                    <p style={{ fontSize: '0.9rem', opacity: 0.8, marginBottom: '1rem' }}>
+                        To load your inbox automatically, LunaCore OS needs permission to read and manage your Gmail. 
+                        Because this is your first time loading the inbox, you must authorize access manually.
+                    </p>
+                    <button 
+                        className="mail-btn" 
+                        style={{ background: 'var(--accent)', color: '#fff', fontWeight: 'bold', padding: '0.5rem 1rem', width: '100%', justifyContent: 'center' }}
+                        onClick={async () => {
+                            try {
+                                await forceGoogleReauth();
+                                loadInbox();
+                            } catch (err) {
+                                setError('Google Auth failed. ' + err.message);
+                            }
+                        }}
+                    >
+                        Connect Google Account
+                    </button>
                 </div>
-                <button className="mail-btn primary mt-4" onClick={loadInbox}>Try Again</button>
+                <button className="mail-btn primary mt-4" onClick={() => loadInbox()}>Try Again</button>
             </div>
         );
     }

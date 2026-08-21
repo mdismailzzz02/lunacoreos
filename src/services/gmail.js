@@ -5,15 +5,17 @@ const BASE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 /**
  * Helper to get active Google token
  */
-const getToken = async () => {
-    return await requestDriveAccess(false);
+const getToken = async (isSilent = false) => {
+    const token = await requestDriveAccess(isSilent);
+    if (!token) throw new Error('Google Authentication required');
+    return token;
 };
 
 /**
  * Fetch a list of message IDs from the inbox
  */
-export const getInbox = async (maxResults = 20, pageToken = '', query = 'in:inbox') => {
-    const token = await getToken();
+export const getInbox = async (maxResults = 20, pageToken = '', query = 'in:inbox', isSilent = true) => {
+    const token = await getToken(isSilent);
     let url = `${BASE_URL}/messages?maxResults=${maxResults}&q=${encodeURIComponent(query)}`;
     if (pageToken) url += `&pageToken=${pageToken}`;
     
@@ -29,8 +31,8 @@ export const getInbox = async (maxResults = 20, pageToken = '', query = 'in:inbo
 /**
  * Fetch a specific message by ID and parse it
  */
-export const getMessage = async (messageId) => {
-    const token = await getToken();
+export const getMessage = async (messageId, isSilent = true) => {
+    const token = await getToken(isSilent);
     const res = await fetch(`${BASE_URL}/messages/${messageId}?format=full`, {
         headers: {
             'Authorization': `Bearer ${token}`
@@ -168,7 +170,7 @@ export const sendEmail = async (to, subject, body, threadId = null, messageId = 
  * Archive an email (Remove INBOX label)
  */
 export const archiveEmail = async (id) => {
-    const token = await getToken();
+    const token = await getToken(false);
     const res = await fetch(`${BASE_URL}/messages/${id}/modify`, {
         method: 'POST',
         headers: {
@@ -187,7 +189,7 @@ export const archiveEmail = async (id) => {
  * Delete an email (Move to TRASH)
  */
 export const deleteEmail = async (id) => {
-    const token = await getToken();
+    const token = await getToken(false);
     const res = await fetch(`${BASE_URL}/messages/${id}/modify`, {
         method: 'POST',
         headers: {

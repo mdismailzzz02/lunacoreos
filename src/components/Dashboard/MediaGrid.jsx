@@ -145,7 +145,7 @@ export default function MediaGrid({ onNavigate }) {
                                 <div key={s.id} className="interactive-scale" onClick={() => onNavigate('twitch')} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(168, 85, 247, 0.05)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                         <div style={{ position: 'relative' }}>
-                                            <img src={s.thumbnail_url?.replace('{width}', '100').replace('{height}', '100')} alt={s.user_name} style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid #ef4444', objectFit: 'cover' }} onError={(e) => { e.target.src = '/profile.jpg'; }} />
+                                            <img src={s.thumbnail_url?.replace('{width}', '100').replace('{height}', '100')} alt={s.user_name} style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid #ef4444', objectFit: 'cover' }} onError={(e) => { e.target.src = '/logo.png'; }} />
                                             <div style={{ position: 'absolute', top: '-2px', right: '-2px', width: '10px', height: '10px', background: '#ef4444', borderRadius: '50%', border: '2px solid var(--surface)' }}>
                                                 <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: '#ef4444', animation: 'pulse 2s infinite' }}></div>
                                             </div>
@@ -200,7 +200,7 @@ export default function MediaGrid({ onNavigate }) {
                             {twitchLiked.slice(0, 4).map(v => (
                                 <div key={v.video_id} className="interactive-scale" onClick={() => onNavigate('twitch')} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                     <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', overflow: 'hidden', borderRadius: '8px', background: '#000' }}>
-                                        <img src={v.thumbnail || `https://static-cdn.jtvnw.net/previews-ttv/live_user_${v.channel_name}-320x180.jpg`} alt={v.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.src = '/profile.jpg'; }} />
+                                        <img src={v.thumbnail || `https://static-cdn.jtvnw.net/previews-ttv/live_user_${v.channel_name}-320x180.jpg`} alt={v.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.src = '/logo.png'; }} />
                                     </div>
                                     <div style={{ fontWeight: '600', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.title}</div>
                                 </div>

@@ -3,86 +3,41 @@ import { useAudio } from '../../context/AudioContext';
 import Dither from '../Shared/Dither';
 import { Disc, Settings, Play, Pause, SkipForward } from 'lucide-react';
 
-const DEFAULT_TABS = [
+const TABS = [
     { id: 'dashboard', icon: '🌸', label: 'Dashboard' },
+    { id: 'lifeos', icon: '🧬', label: 'LifeOS React' },
     { id: 'luna', icon: '✨', label: 'Luna AI' },
     { id: 'mail', icon: '✉️', label: 'Gmail Inbox' },
-    { id: 'todos', icon: '🎯', label: 'Todos' },
-    { id: 'journal', icon: '📖', label: 'Journal' },
     { id: 'horoscope', icon: '♾️', label: 'Horoscope' },
+    { id: 'journal', icon: '📖', label: 'Journal' },
     { id: 'studynotes', icon: '📝', label: 'Study Notes' },
-    { id: 'musicplayer', icon: '🎵', label: 'Music Player' },
-    { id: 'lifeos', icon: '🧬', label: 'LifeOS React' },
-    { id: 'insights', icon: '✨', label: 'Insights' },
     { id: 'writing', icon: '✍️', label: 'Writing' },
+    { id: 'delegation', icon: '🤝', label: 'Delegation' },
+    { id: 'musicplayer', icon: '🎵', label: 'Music Player' },
+    { id: 'videos', icon: '🎬', label: 'YouTube' },
+    { id: 'twitch', icon: '🎮', label: 'Twitch' },
+    { id: 'vault', icon: '💎', label: 'Vault', isRed: true },
+    { id: 'media', icon: '🎨', label: 'Media Library' },
+    
+    // Remaining items in between
+    { id: 'todos', icon: '🎯', label: 'Todos' },
+    { id: 'insights', icon: '✨', label: 'Insights' },
     { id: 'readinglist', icon: '📚', label: 'Reading List' },
     { id: 'bookmarks', icon: '❤️', label: 'Bookmarks' },
-    { id: 'videos', icon: '🎬', label: 'Videos' },
-    { id: 'media', icon: '🎨', label: 'Media Library' },
-    { id: 'twitch', icon: '🎮', label: 'Twitch' },
     { id: 'watchlist', icon: '🎞️', label: 'Watchlist' },
     { id: 'lifemap', icon: '🧭', label: 'Life Map' },
     { id: 'timecapsule', icon: '📦', label: 'Time Capsule' },
     { id: 'yearlyreview', icon: '🎆', label: 'Yearly Review' },
-    { id: 'delegation', icon: '🤝', label: 'Delegation' },
     { id: 'passwords', icon: '🔑', label: 'Passwords' },
-    { id: 'vault', icon: '💎', label: 'Vault', isRed: true },
+    
+    // Settings at the very end
     { id: 'system-settings', icon: '⚙️', label: 'Settings' },
 ];
 
 export default function Sidebar({ active, onNavigate, userName, isOffline, onPreload, preload, isOpen, onClose, onMusicClick }) {
     const { playing, currentTrack, playTrack, playNext } = useAudio();
     const [isHovered, setIsHovered] = useState(false);
-    const [tabs, setTabs] = useState(DEFAULT_TABS);
     const hoverTimeout = useRef(null);
-
-    // Intelligent Sorting: Load usage stats and sort
-    useEffect(() => {
-        try {
-            const stats = JSON.parse(localStorage.getItem('luna_sidebar_stats') || '{}');
-            const sortedTabs = [...DEFAULT_TABS].sort((a, b) => {
-                if (a.id === 'dashboard') return -1;
-                if (b.id === 'dashboard') return 1;
-                const countA = stats[a.id] || 0;
-                const countB = stats[b.id] || 0;
-                if (countA !== countB) {
-                    return countB - countA; // Higher counts first
-                }
-                // Fallback to alphabetical if counts are the same
-                return a.label.localeCompare(b.label);
-            });
-            setTabs(sortedTabs);
-        } catch (e) {
-            setTabs(DEFAULT_TABS);
-        }
-    }, []);
-
-    const trackUsageAndNavigate = (tab) => {
-        try {
-            const stats = JSON.parse(localStorage.getItem('luna_sidebar_stats') || '{}');
-            stats[tab.id] = (stats[tab.id] || 0) + 1;
-            localStorage.setItem('luna_sidebar_stats', JSON.stringify(stats));
-            
-            // Re-sort silently for next time
-            const sortedTabs = [...DEFAULT_TABS].sort((a, b) => {
-                if (a.id === 'dashboard') return -1;
-                if (b.id === 'dashboard') return 1;
-                const countA = stats[a.id] || 0;
-                const countB = stats[b.id] || 0;
-                if (countA !== countB) return countB - countA;
-                return a.label.localeCompare(b.label);
-            });
-            setTabs(sortedTabs);
-        } catch (e) {
-            console.error('Failed to track tab usage', e);
-        }
-
-        if (tab.isExternal) {
-            window.open(tab.isExternal, '_blank');
-        } else {
-            onNavigate(tab.id);
-        }
-    };
 
     const handleMouseEnter = () => {
         clearTimeout(hoverTimeout.current);
@@ -122,7 +77,7 @@ export default function Sidebar({ active, onNavigate, userName, isOffline, onPre
 
             <div className="sidebar-logo">
                 <div className="logo-flex" onClick={() => onNavigate('dashboard')} style={{ cursor: 'pointer' }}>
-                    <img src="/profile.jpg" alt="Logo" className="app-logo-img" style={{ borderRadius: '50%', objectFit: 'cover' }} />
+                    <img src="/logo.png" alt="Logo" className="app-logo-img" style={{ borderRadius: '50%', objectFit: 'cover' }} />
                     <div className="logo-text">
                         <h1>LunaCoreOS</h1>
                         <p>Your private sanctuary</p>
@@ -159,16 +114,20 @@ export default function Sidebar({ active, onNavigate, userName, isOffline, onPre
             )}
 
             <nav className="sidebar-nav">
-                {tabs.map(tab => (
+                {TABS.map(tab => (
                     <div
                         key={tab.id}
                         className={`nav-item ${active === tab.id ? 'active' : ''}`}
-                        onClick={() => trackUsageAndNavigate(tab)}
+                        onClick={() => {
+                            if (tab.isExternal) window.open(tab.isExternal, '_blank');
+                            else onNavigate(tab.id);
+                        }}
                         role="button"
                         tabIndex={0}
                         onKeyDown={e => {
                             if (e.key === 'Enter') {
-                                trackUsageAndNavigate(tab);
+                                if (tab.isExternal) window.open(tab.isExternal, '_blank');
+                                else onNavigate(tab.id);
                             }
                         }}
                     >
