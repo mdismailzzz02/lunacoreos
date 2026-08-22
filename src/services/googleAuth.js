@@ -77,7 +77,7 @@ function startBackgroundRefresh() {
     
     // Check every 5 minutes
     refreshInterval = setInterval(async () => {
-        const expiry = parseInt(localStorage.getItem(TOKEN_EXPIRY_KEY) || '0', 10);
+        const expiry = parseInt(sessionStorage.getItem(TOKEN_EXPIRY_KEY) || '0', 10);
         const remaining = expiry - Date.now();
         
         // If less than 10 minutes remains, try a silent refresh
@@ -159,7 +159,7 @@ export const requestDriveAccess = async (isSilent = false) => {
 
     // 1. Fast path: check if we have a valid in-memory token
     if (accessToken) {
-        const expiry = parseInt(localStorage.getItem(TOKEN_EXPIRY_KEY) || '0', 10);
+        const expiry = parseInt(sessionStorage.getItem(TOKEN_EXPIRY_KEY) || '0', 10);
         if (Date.now() < expiry) return accessToken;
         accessToken = null;
     }

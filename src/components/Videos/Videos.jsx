@@ -105,7 +105,7 @@ function VideoCard({ video, onPlay, isLiked, onLike, isChannelSaved, onSaveChann
     );
 }
 
-function PendingCard({ video, onApprove, onDismiss, onPlay }) {
+function PendingCard({ video, onApprove, onDismiss, onPlay, isLiked, onLike }) {
     const [saving, setSaving] = useState(false);
     const [shouldDelegate, setShouldDelegate] = useState(false);
     const [delegateDueDate, setDelegateDueDate] = useState('');
@@ -127,9 +127,31 @@ function PendingCard({ video, onApprove, onDismiss, onPlay }) {
     return (
         <div className="yt-pending-card" onClick={() => onPlay(video.id)} style={{ cursor: 'pointer' }}>
             <div className="yt-pending-link">
-                <div className="yt-thumb-wrap">
+                <div className="yt-thumb-wrap" style={{ position: 'relative' }}>
                     <img src={video.thumbnail} alt={video.title} className="yt-thumb" />
                     <span className="yt-ago">{timeAgo(video.publishedAt)}</span>
+                    
+                    {/* Like button */}
+                    {onLike && (
+                        <button
+                            onClick={e => { e.stopPropagation(); onLike(video.id); }}
+                            title={isLiked ? 'Remove from liked' : 'Like video'}
+                            style={{
+                                position: 'absolute', top: '6px', right: '6px',
+                                background: isLiked ? 'rgba(239,68,68,0.85)' : 'rgba(0,0,0,0.55)',
+                                border: 'none', borderRadius: '50%',
+                                width: '28px', height: '28px',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer', fontSize: '13px',
+                                backdropFilter: 'blur(4px)',
+                                transition: 'all 0.2s',
+                                boxShadow: isLiked ? '0 0 8px rgba(239,68,68,0.6)' : 'none',
+                                zIndex: 10
+                            }}
+                        >
+                            {isLiked ? '❤️' : '🤍'}
+                        </button>
+                    )}
                 </div>
                 <div className="yt-video-info">
                     <p className="yt-video-title">{video.title}</p>
@@ -699,6 +721,8 @@ export default function Videos() {
                                             onApprove={handleApprove}
                                             onDismiss={handleDismiss}
                                             onPlay={setActiveVideo}
+                                            isLiked={likedVideoIds.has(v.id)}
+                                            onLike={toggleLikeVideo}
                                         />
                                     ))}
                                 </div>

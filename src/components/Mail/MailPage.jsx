@@ -162,32 +162,48 @@ export default function MailPage() {
     };
 
     if (error) {
+        const isAuthError = error.includes('Silent refresh not possible') || error.includes('Google Authentication required');
+        
+        if (isAuthError) {
+            return (
+                <div className="mail-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                    <div style={{ background: 'var(--surface-light)', padding: '3rem', borderRadius: '16px', border: '1px solid var(--border)', textAlign: 'center', maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+                        <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '1rem', borderRadius: '50%' }}>
+                            <Mail size={48} color="#ef4444" />
+                        </div>
+                        <div>
+                            <h2 style={{ marginBottom: '0.5rem' }}>Connect your Gmail</h2>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.5 }}>
+                                Securely connect your Google account to read, manage, and reply to your emails directly from LunaCore OS.
+                            </p>
+                        </div>
+                        <button 
+                            className="btn interactive-scale" 
+                            style={{ background: 'var(--accent)', color: '#fff', fontWeight: 'bold', padding: '0.75rem 1.5rem', width: '100%', borderRadius: '100px', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: 'none', cursor: 'pointer' }}
+                            onClick={async () => {
+                                try {
+                                    setLoading(true);
+                                    setError('');
+                                    await forceGoogleReauth();
+                                    loadInbox();
+                                } catch (err) {
+                                    setError('Google Auth failed. ' + err.message);
+                                    setLoading(false);
+                                }
+                            }}
+                        >
+                            {loading ? <div className="spinner-sm" style={{ borderColor: '#fff', borderTopColor: 'transparent' }}/> : 'Connect Google Account'}
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
         return (
             <div className="mail-page error-state">
                 <AlertCircle size={48} color="#ef4444" />
                 <h2>Gmail Integration Error</h2>
                 <p>{error}</p>
-                <div style={{ marginTop: '1rem', background: 'rgba(239, 68, 68, 0.1)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.2)', textAlign: 'left', maxWidth: '500px' }}>
-                    <p style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>Google Authentication Required</p>
-                    <p style={{ fontSize: '0.9rem', opacity: 0.8, marginBottom: '1rem' }}>
-                        To load your inbox automatically, LunaCore OS needs permission to read and manage your Gmail. 
-                        Because this is your first time loading the inbox, you must authorize access manually.
-                    </p>
-                    <button 
-                        className="mail-btn" 
-                        style={{ background: 'var(--accent)', color: '#fff', fontWeight: 'bold', padding: '0.5rem 1rem', width: '100%', justifyContent: 'center' }}
-                        onClick={async () => {
-                            try {
-                                await forceGoogleReauth();
-                                loadInbox();
-                            } catch (err) {
-                                setError('Google Auth failed. ' + err.message);
-                            }
-                        }}
-                    >
-                        Connect Google Account
-                    </button>
-                </div>
                 <button className="mail-btn primary mt-4" onClick={() => loadInbox()}>Try Again</button>
             </div>
         );
