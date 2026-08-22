@@ -519,8 +519,9 @@ export default function MusicPlayerPage() {
                                 </p>
                             </div>
                         ) : (
-                            filteredLibrary.map(track => {
+                            filteredLibrary.map((track, index) => {
                                 const isActive = currentTrack?.id === track.id;
+                                const isNearBottom = index >= Math.max(0, filteredLibrary.length - 3);
                                 return (
                                     <div
                                         key={track.id}
@@ -561,7 +562,19 @@ export default function MusicPlayerPage() {
                                                         <Plus size={14} />
                                                     </button>
                                                     {activeTrackPopover === track.id && (
-                                                        <div className="mp-track-popover" style={{ position: 'absolute', right: 0, top: '100%', zIndex: 50, background: '#1c1c21', border: '1px solid #333', borderRadius: 8, padding: 4, width: 160, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                                                        <div className="mp-track-popover" style={{ 
+                                                            position: 'absolute', 
+                                                            right: 0, 
+                                                            top: isNearBottom ? 'auto' : '100%', 
+                                                            bottom: isNearBottom ? '100%' : 'auto',
+                                                            zIndex: 50, 
+                                                            background: '#1c1c21', 
+                                                            border: '1px solid #333', 
+                                                            borderRadius: 8, 
+                                                            padding: 4, 
+                                                            width: 160, 
+                                                            boxShadow: '0 4px 12px rgba(0,0,0,0.5)' 
+                                                        }}>
                                                             <div style={{ fontSize: '0.65rem', color: '#888', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: 1 }}>Add to Playlist</div>
                                                             {playlists.length === 0 && <div style={{ fontSize: '0.75rem', padding: '8px', color: '#aaa' }}>No playlists exist</div>}
                                                             {playlists.map(pl => (
