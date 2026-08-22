@@ -44,6 +44,7 @@ export function AudioProvider({ children }) {
     const [analyserNode, setAnalyserNode] = useState(null);
     const sourceRef = useRef(null);
     const musicRef = useRef(null); // Ref for registered audio elements (Modal or Dashboard)
+    const targetTimeRef = useRef(0);
 
     // ── Hi-Fi Engine Initialization ──
     const initEngine = useCallback((audioEl) => {
@@ -81,12 +82,24 @@ export function AudioProvider({ children }) {
         audio.volume = volume;
         registerMusic(audio); // Register the global music instance
 
+        let lastSavedTime = 0;
         const handleTimeUpdate = () => {
             setCurrentTime(audio.currentTime);
             setDuration(audio.duration || 0);
+
+            // Save position every 10 seconds
+            if (currentTrackRef.current && currentTrackRef.current.id) {
+                if (Math.abs(audio.currentTime - lastSavedTime) > 10) {
+                    api.updateMusicHistory(currentTrackRef.current.id, audio.currentTime);
+                    lastSavedTime = audio.currentTime;
+                }
+            }
         };
 
         const handleEnded = () => {
+            if (currentTrackRef.current && currentTrackRef.current.id) {
+                api.updateMusicHistory(currentTrackRef.current.id, 0); // Reset position
+            }
             if (repeatRef.current === 'one') {
                 audio.currentTime = 0;
                 audio.play();
@@ -96,18 +109,33 @@ export function AudioProvider({ children }) {
         };
 
         const handlePlay = () => setPlaying(true);
-        const handlePause = () => setPlaying(false);
+        const handlePause = () => {
+            setPlaying(false);
+            if (currentTrackRef.current && currentTrackRef.current.id) {
+                api.updateMusicHistory(currentTrackRef.current.id, audio.currentTime);
+                lastSavedTime = audio.currentTime;
+            }
+        };
+
+        const handleLoadedMetadata = () => {
+            if (targetTimeRef.current > 0) {
+                audio.currentTime = targetTimeRef.current;
+                targetTimeRef.current = 0;
+            }
+        };
 
         audio.addEventListener('timeupdate', handleTimeUpdate);
         audio.addEventListener('ended', handleEnded);
         audio.addEventListener('play', handlePlay);
         audio.addEventListener('pause', handlePause);
+        audio.addEventListener('loadedmetadata', handleLoadedMetadata);
 
         return () => {
             audio.removeEventListener('timeupdate', handleTimeUpdate);
             audio.removeEventListener('ended', handleEnded);
             audio.removeEventListener('play', handlePlay);
             audio.removeEventListener('pause', handlePause);
+            audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
         };
     }, []);
 
@@ -129,15 +157,25 @@ export function AudioProvider({ children }) {
 
             if (audioRef.current._lastPlaybackId !== playbackId) return;
 
+            // Fetch last playback position from database BEFORE changing src
+            const history = await api.getMusicHistory(track.id);
+            const targetTime = (history && history.last_position > 0) ? history.last_position :
+                               (track.last_played_time > 0 && (track.file_size_mb || 0) > 30) ? track.last_played_time : 0;
+            
+            if (audioRef.current._lastPlaybackId !== playbackId) return;
+
+            // Save the exact timestamp of the current track right before switching
+            if (currentTrackRef.current && currentTrackRef.current.id) {
+                api.updateMusicHistory(currentTrackRef.current.id, audioRef.current.currentTime);
+            }
+
+            // Set the target time for the next load
+            targetTimeRef.current = targetTime;
+
             audioRef.current.pause();
             audioRef.current.src = streamUrl;
             audioRef.current.crossOrigin = 'anonymous';
             audioRef.current.load();
-
-            // Resume from last position for large tracks
-            if (track.last_played_time > 0 && (track.file_size_mb || 0) > 30) {
-                audioRef.current.currentTime = track.last_played_time;
-            }
 
             const p = audioRef.current.play();
             if (p !== undefined) {

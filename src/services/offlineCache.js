@@ -10,7 +10,7 @@ const CACHE_CONFIG = {
     journal: { key: 'cache_journal', ttl: 3600000 }, // 1 hour
     todos: { key: 'cache_todos', ttl: 1800000 }, // 30 min
     habits: { key: 'cache_habits', ttl: 3600000 },
-    insights: { key: 'cache_insights', ttl: 1800000 },
+
     dashboard: { key: 'cache_dashboard', ttl: 900000 }, // 15 min
     media: { key: 'cache_media', ttl: 3600000 },
     bookmarks: { key: 'cache_bookmarks', ttl: 3600000 },
@@ -90,18 +90,6 @@ async function cacheHabits() {
     }
 }
 
-async function cacheInsights() {
-    try {
-        const config = CACHE_CONFIG.insights;
-        if (isCacheValid(config.key)) return;
-        
-        const insights = await api.getInsights({ limit: 100 });
-        await cacheWithTTL(config.key, insights, config.ttl);
-        console.log('[OfflineCache] ✓ Insights cached');
-    } catch (e) {
-        console.warn('[OfflineCache] Insights cache failed:', e);
-    }
-}
 
 async function cacheDashboard() {
     try {
@@ -219,7 +207,7 @@ export const OfflineCache = {
         const tasks = [
             cacheDashboard(),
             cacheHabits(),
-            cacheTodos().then(() => new Promise(r => setTimeout(r, 200))).then(() => cacheInsights()),
+            cacheTodos(),
             cacheJournal(),
             cacheMedia().then(() => new Promise(r => setTimeout(r, 200))).then(() => cacheBookmarks()),
             cacheWritings(),

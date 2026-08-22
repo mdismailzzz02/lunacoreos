@@ -612,7 +612,42 @@ export default function MusicPlayerPage() {
                                     value={currentTime}
                                     className="mp-progress-range"
                                     onChange={e => {
-                                        if (audioRef?.current) audioRef.current.currentTime = parseFloat(e.target.value);
+                                        const newTime = parseFloat(e.target.value);
+                                        if (!audioRef?.current) return;
+                                        
+                                        // Smooth seek transition
+                                        const audio = audioRef.current;
+                                        const originalVolume = volume; // Target volume from context
+                                        let currentVol = audio.volume;
+                                        
+                                        // Clear any existing seek fades
+                                        if (window._seekFadeOut) clearInterval(window._seekFadeOut);
+                                        if (window._seekFadeIn) clearInterval(window._seekFadeIn);
+                                        
+                                        // Rapid fade out
+                                        window._seekFadeOut = setInterval(() => {
+                                            currentVol -= 0.15;
+                                            if (currentVol <= 0) {
+                                                currentVol = 0;
+                                                audio.volume = 0;
+                                                clearInterval(window._seekFadeOut);
+                                                
+                                                // Change time while silent
+                                                audio.currentTime = newTime;
+                                                
+                                                // Rapid fade in
+                                                window._seekFadeIn = setInterval(() => {
+                                                    currentVol += 0.15;
+                                                    if (currentVol >= originalVolume) {
+                                                        currentVol = originalVolume;
+                                                        clearInterval(window._seekFadeIn);
+                                                    }
+                                                    audio.volume = currentVol;
+                                                }, 15);
+                                            } else {
+                                                audio.volume = currentVol;
+                                            }
+                                        }, 15);
                                     }}
                                 />
                             </div>

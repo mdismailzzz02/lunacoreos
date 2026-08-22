@@ -195,7 +195,7 @@ export default function TwitchPage() {
 
     useEffect(() => {
         loadSyncData();
-    }, [loadSyncData]);
+    }, []); // eslint-disable-line
 
     // Refresh data when switching channels to ensure we catch recent status
     useEffect(() => {

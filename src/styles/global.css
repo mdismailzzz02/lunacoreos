@@ -3425,3 +3425,30 @@ textarea.field-input {
     -ms-overflow-style: none;
     scrollbar-width: none;
 }
+
+/* ── YouTube Filter Chips ─────────────────────────────── */
+.yt-filter-chip {
+    padding: 6px 16px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+    outline: none;
+}
+
+.yt-filter-chip:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: var(--text);
+}
+
+.yt-filter-chip.active {
+    background: #fff;
+    color: #000;
+    border-color: #fff;
+}

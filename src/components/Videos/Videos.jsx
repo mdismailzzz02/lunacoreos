@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { searchChannel, getChannelVideos } from '../../services/youtube';
+import { searchChannel, getChannelVideos, searchGlobalVideos, getChannelById } from '../../services/youtube';
 import * as api from '../../services/api';
 import YTPlayerModal from './YTPlayerModal';
 
@@ -27,55 +27,75 @@ function ChannelCard({ ch, selected, onClick, onRemove }) {
     );
 }
 
-function VideoCard({ video, onPlay, isLiked, onLike, isFavorite, onFavorite }) {
-    const vidId = video.id || video.video_id;
+function VideoCard({ video, onPlay, isLiked, onLike, isChannelSaved, onSaveChannel, onDelegate, isDelegated }) {
+    const vidId = video.video_id || (typeof video.id === 'object' ? video.id.videoId : video.id);
     return (
         <div className="yt-video-card" onClick={() => onPlay(vidId)} style={{ cursor: 'pointer' }}>
             <div className="yt-thumb-wrap" style={{ position: 'relative' }}>
                 <img src={video.thumbnail} alt={video.title} className="yt-thumb" />
                 <span className="yt-ago">{timeAgo(video.publishedAt || video.published_at)}</span>
                 
-                {/* Save to library button (if not in library view) */}
-                {onLike && (
-                    <button
-                        onClick={e => { e.stopPropagation(); onLike(vidId); }}
-                        title={isLiked ? 'Remove from library' : 'Save to library'}
-                        style={{
-                            position: 'absolute', top: '6px', right: onFavorite ? '40px' : '6px',
-                            background: isLiked ? 'rgba(239,68,68,0.85)' : 'rgba(0,0,0,0.55)',
-                            border: 'none', borderRadius: '50%',
-                            width: '28px', height: '28px',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', fontSize: '13px',
-                            backdropFilter: 'blur(4px)',
-                            transition: 'all 0.2s',
-                            boxShadow: isLiked ? '0 0 8px rgba(239,68,68,0.6)' : 'none'
-                        }}
-                    >
-                        {isLiked ? '📥' : '📥'}
-                    </button>
-                )}
-                
-                {/* Favorite button (only for saved library items) */}
-                {onFavorite && (
-                    <button
-                        onClick={e => { e.stopPropagation(); onFavorite(vidId); }}
-                        title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                        style={{
-                            position: 'absolute', top: '6px', right: '6px',
-                            background: isFavorite ? 'rgba(236,72,153,0.85)' : 'rgba(0,0,0,0.55)',
-                            border: 'none', borderRadius: '50%',
-                            width: '28px', height: '28px',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', fontSize: '13px',
-                            backdropFilter: 'blur(4px)',
-                            transition: 'all 0.2s',
-                            boxShadow: isFavorite ? '0 0 8px rgba(236,72,153,0.6)' : 'none'
-                        }}
-                    >
-                        {isFavorite ? '❤️' : '🤍'}
-                    </button>
-                )}
+                <div style={{ position: 'absolute', top: '6px', right: '6px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    {/* Save Channel Button */}
+                    {onSaveChannel && (
+                        <button
+                            onClick={e => { e.stopPropagation(); onSaveChannel(video.channelId || video.channel_id); }}
+                            title={isChannelSaved ? 'Channel Saved' : 'Save Channel'}
+                            style={{
+                                background: isChannelSaved ? 'rgba(59,130,246,0.85)' : 'rgba(0,0,0,0.55)',
+                                border: 'none', borderRadius: '50%',
+                                width: '28px', height: '28px',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer', fontSize: '13px',
+                                backdropFilter: 'blur(4px)',
+                                transition: 'all 0.2s',
+                                boxShadow: isChannelSaved ? '0 0 8px rgba(59,130,246,0.6)' : 'none'
+                            }}
+                        >
+                            {isChannelSaved ? '📺' : '➕'}
+                        </button>
+                    )}
+                    
+                    {/* Delegate Button */}
+                    {onDelegate && (
+                        <button
+                            onClick={e => { e.stopPropagation(); onDelegate(video); }}
+                            title={isDelegated ? 'Added to Delegation' : 'Add to Delegation'}
+                            style={{
+                                background: isDelegated ? 'rgba(168,85,247,0.85)' : 'rgba(0,0,0,0.55)',
+                                border: 'none', borderRadius: '50%',
+                                width: '28px', height: '28px',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer', fontSize: '13px',
+                                backdropFilter: 'blur(4px)',
+                                transition: 'all 0.2s',
+                                boxShadow: isDelegated ? '0 0 8px rgba(168,85,247,0.6)' : 'none'
+                            }}
+                        >
+                            📥
+                        </button>
+                    )}
+
+                    {/* Like button */}
+                    {onLike && (
+                        <button
+                            onClick={e => { e.stopPropagation(); onLike(vidId); }}
+                            title={isLiked ? 'Remove from library' : 'Save to library'}
+                            style={{
+                                background: isLiked ? 'rgba(239,68,68,0.85)' : 'rgba(0,0,0,0.55)',
+                                border: 'none', borderRadius: '50%',
+                                width: '28px', height: '28px',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer', fontSize: '13px',
+                                backdropFilter: 'blur(4px)',
+                                transition: 'all 0.2s',
+                                boxShadow: isLiked ? '0 0 8px rgba(239,68,68,0.6)' : 'none'
+                            }}
+                        >
+                            {isLiked ? '❤️' : '🤍'}
+                        </button>
+                    )}
+                </div>
             </div>
             <div className="yt-video-info">
                 <p className="yt-video-title">{video.title}</p>
@@ -154,58 +174,91 @@ export default function Videos() {
     const [loading, setLoading] = useState(true);
     const [initialLoaded, setInitialLoaded] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [delegatedVideoIds, setDelegatedVideoIds] = useState(new Set());
+    const [delegatingVideo, setDelegatingVideo] = useState(null);
+    const [delegateDate, setDelegateDate] = useState('');
     const [addQuery, setAddQuery] = useState('');
     const [adding, setAdding] = useState(false);
     const [error, setError] = useState('');
     const [activeVideo, setActiveVideo] = useState(null);
     const [activeTab, setActiveTab] = useState('feed');
+    const [contentFilter, setContentFilter] = useState('all'); // all, videos, live, shorts
+    const [nextPageToken, setNextPageToken] = useState(null);
+    const [loadingMore, setLoadingMore] = useState(false);
+
+    // Global Search State
+    const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchNextPageToken, setSearchNextPageToken] = useState(null);
 
     // Liked videos — synced with backend
     const [likedVideoIds, setLikedVideoIds] = useState(new Set());
     const [likedVideosMap, setLikedVideosMap] = useState(new Map()); // stores full metadata for liked videos
 
     const toggleLikeVideo = async (vidId) => {
-        // Optimistic UI
         const isCurrentlyLiked = likedVideoIds.has(vidId);
+        
+        // Find video metadata for the backend and local state
+        const v = pending.find(p => p.id === vidId) || library.find(l => (l.video_id || l.id) === vidId) || searchResults.find(s => s.id === vidId);
+        const originalMapItem = likedVideosMap.get(vidId);
+
+        // Optimistic UI updates for both Sets and Maps
         setLikedVideoIds(prev => {
             const next = new Set(prev);
             isCurrentlyLiked ? next.delete(vidId) : next.add(vidId);
             return next;
         });
-
-        // Find video metadata for the backend
-        const v = pending.find(p => p.id === vidId) || library.find(l => (l.video_id || l.id) === vidId);
+        
+        setLikedVideosMap(prev => {
+            const next = new Map(prev);
+            if (isCurrentlyLiked) {
+                next.delete(vidId);
+            } else {
+                next.set(vidId, {
+                    video_id: vidId,
+                    title: v?.title || '',
+                    channel_title: v?.channelTitle || v?.channel_title || '',
+                    channel_id: v?.channelId || v?.channel_id || '',
+                    published_at: v?.publishedAt || v?.published_at || new Date().toISOString(),
+                    thumbnail: v?.thumbnail || '',
+                    is_favorite: false
+                });
+            }
+            return next;
+        });
         
         try {
             await api.toggleYTLiked({
                 video_id: vidId,
                 title: v?.title || '',
                 channel_title: v?.channelTitle || v?.channel_title || '',
-                thumbnail: v?.thumbnail || ''
+                channel_id: v?.channelId || v?.channel_id || '',
+                published_at: v?.publishedAt || v?.published_at || new Date().toISOString(),
+                thumbnail: v?.thumbnail || '',
+                liked: !isCurrentlyLiked
             });
         } catch (err) {
+            console.error('Failed to toggle like:', err);
             // Revert on error
             setLikedVideoIds(prev => {
                 const next = new Set(prev);
                 isCurrentlyLiked ? next.add(vidId) : next.delete(vidId);
                 return next;
             });
+            setLikedVideosMap(prev => {
+                const next = new Map(prev);
+                if (isCurrentlyLiked && originalMapItem) {
+                    next.set(vidId, originalMapItem);
+                } else {
+                    next.delete(vidId);
+                }
+                return next;
+            });
         }
     };
 
 
-    const toggleFavoriteVideo = async (vidId) => {
-        const v = library.find(l => (l.video_id || l.id) === vidId) || likedVideosMap.get(vidId);
-        if (!v) return;
-        const isFav = v.is_favorite;
-        setLibrary(prev => prev.map(item => (item.video_id || item.id) === vidId ? { ...item, is_favorite: !isFav } : item));
-        try {
-            await api.toggleYTLike(vidId, !isFav);
-        } catch (err) {
-            console.error('Failed to toggle favorite:', err);
-            setLibrary(prev => prev.map(item => (item.video_id || item.id) === vidId ? { ...item, is_favorite: isFav } : item));
-        }
-    };
     // Load initial data from Google Sheets
     const loadSyncData = useCallback(async () => {
         try {
@@ -258,11 +311,18 @@ export default function Videos() {
         try {
             const targets = sel ? chans.filter(c => c.id === sel) : chans;
             const results = await Promise.all(targets.map(c => getChannelVideos(c.uploadsId, sel ? 20 : 8)));
-            const flat = results.flat().sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+            const flat = results.map(r => r.items).flat().sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 
             // Pending = flat MINUS (already saved in library OR ignored)
             const waiting = flat.filter(v => !savedSet.has(v.id) && !ignored.has(v.id));
             setPending(waiting);
+            
+            // Only support pagination when viewing a single channel
+            if (sel && results.length === 1) {
+                setNextPageToken(results[0].nextPageToken);
+            } else {
+                setNextPageToken(null);
+            }
         } catch {
             setError('Failed to load videos. Check your API key or network.');
         } finally {
@@ -277,7 +337,27 @@ export default function Videos() {
             const savedIds = new Set((library || []).map(v => v.video_id || v.id));
             fetchVideos(channels || [], selected, dismissed || new Set(), savedIds);
         }
-    }, [channels, selected, dismissed, library, loading]); // eslint-disable-line
+    }, [channels, selected, dismissed, library, loading, fetchVideos]);
+
+    const loadMore = async () => {
+        if (!selected || !nextPageToken) return;
+        const target = channels.find(c => c.id === selected);
+        if (!target) return;
+        
+        setLoadingMore(true);
+        try {
+            const result = await getChannelVideos(target.uploadsId, 20, nextPageToken);
+            const savedSet = new Set((library || []).map(v => v.video_id || v.id));
+            const newItems = result.items.filter(v => !savedSet.has(v.id) && !dismissed.has(v.id));
+            
+            setPending(prev => [...prev, ...newItems]);
+            setNextPageToken(result.nextPageToken);
+        } catch (err) {
+            console.error('Failed to load more:', err);
+        } finally {
+            setLoadingMore(false);
+        }
+    };
 
     const handleAdd = async () => {
         if (!addQuery.trim()) return;
@@ -310,6 +390,64 @@ export default function Videos() {
             setError('Error searching channel. Try again.');
         } finally {
             setAdding(false);
+        }
+    };
+
+    const handleAddChannelById = async (channelId) => {
+        if (!channelId || channels.find(c => c.id === channelId)) return;
+        setAdding(true);
+        try {
+            const ch = await getChannelById(channelId);
+            if (!ch) return;
+
+            const sub = ch.statistics?.subscriberCount;
+            const subs = sub
+                ? (sub >= 1_000_000 ? `${(sub / 1_000_000).toFixed(1)}M subs`
+                    : sub >= 1_000 ? `${(sub / 1_000).toFixed(0)}K subs`
+                        : `${sub} subs`) : '';
+
+            const newCh = {
+                id: ch.id, 
+                title: ch.snippet?.title || 'Unknown',
+                thumbnail: ch.snippet?.thumbnails?.default?.url,
+                uploadsId: ch.contentDetails?.relatedPlaylists?.uploads,
+                subs: subs || '',
+            };
+
+            await api.saveYTChannel(newCh);
+            setChannels(prev => [...prev, newCh]);
+        } catch (err) {
+            console.error('Failed to add channel by id:', err);
+        } finally {
+            setAdding(false);
+        }
+    };
+
+    const handleGlobalSearch = async () => {
+        if (!globalSearchQuery.trim()) return;
+        setIsSearching(true);
+        try {
+            const result = await searchGlobalVideos(globalSearchQuery, 20);
+            setSearchResults(result.items);
+            setSearchNextPageToken(result.nextPageToken);
+        } catch (err) {
+            console.error('Global search failed:', err);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const handleGlobalLoadMore = async () => {
+        if (!globalSearchQuery.trim() || !searchNextPageToken) return;
+        setIsSearching(true);
+        try {
+            const result = await searchGlobalVideos(globalSearchQuery, 20, searchNextPageToken);
+            setSearchResults(prev => [...prev, ...result.items]);
+            setSearchNextPageToken(result.nextPageToken);
+        } catch (err) {
+            console.error('Global search load more failed:', err);
+        } finally {
+            setIsSearching(false);
         }
     };
 
@@ -353,6 +491,39 @@ export default function Videos() {
         }
     };
 
+    const handleDelegateVideo = (video) => {
+        const vidId = video.video_id || (typeof video.id === 'object' ? video.id.videoId : video.id);
+        if (delegatedVideoIds.has(vidId)) return; // Already delegated
+        
+        setDelegatingVideo(video);
+        setDelegateDate('');
+    };
+
+    const confirmDelegateVideo = async () => {
+        if (!delegatingVideo) return;
+        const vidId = delegatingVideo.video_id || (typeof delegatingVideo.id === 'object' ? delegatingVideo.id.videoId : delegatingVideo.id);
+
+        try {
+            await api.saveDelegationItem({
+                id: `DLG-YT-${Date.now()}`,
+                title: delegatingVideo.title,
+                link: `https://youtube.com/watch?v=${vidId}`,
+                category: 'Video',
+                importance: 'Medium',
+                due_date: delegateDate || '',
+                added_at: new Date().toISOString()
+            });
+            setDelegatedVideoIds(prev => {
+                const next = new Set(prev);
+                next.add(vidId);
+                return next;
+            });
+            setDelegatingVideo(null);
+        } catch (err) {
+            console.error('Failed to delegate video:', err);
+        }
+    };
+
     const handleDismiss = async (videoId) => {
         try {
             await api.saveYTDismissed(videoId);
@@ -373,7 +544,7 @@ export default function Videos() {
             <div className="vault-mobile-nav mobile-only" style={{ marginBottom: '1.25rem' }}>
                 <div className="vault-segments">
                     <button className={activeTab === 'feed' ? 'active' : ''} onClick={() => setActiveTab('feed')}>🔥 Feed</button>
-                    <button className={activeTab === 'saved' ? 'active' : ''} onClick={() => setActiveTab('saved')}>📚 Library</button>
+                    <button className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}>🔍 Search</button>
                     <button className={activeTab === 'liked' ? 'active' : ''} onClick={() => setActiveTab('liked')}>❤️ Liked</button>
                     <button className={activeTab === 'channels' ? 'active' : ''} onClick={() => setActiveTab('channels')}>📡 Channels</button>
                 </div>
@@ -406,10 +577,10 @@ export default function Videos() {
                             🌐 All Feed
                         </button>
                         <button 
-                            className={`yt-all-btn ${activeTab === 'saved' ? 'active' : ''}`} 
-                            onClick={() => { setActiveTab('saved'); setSelected(null); }}
+                            className={`yt-all-btn ${activeTab === 'search' ? 'active' : ''}`} 
+                            onClick={() => { setActiveTab('search'); setSelected(null); }}
                         >
-                            📚 Saved Library
+                            🔍 Search YouTube
                         </button>
                         <button 
                             className={`yt-all-btn ${activeTab === 'liked' ? 'active' : ''}`} 
@@ -477,6 +648,16 @@ export default function Videos() {
                     </div>
                 )}
 
+                {/* Content Type Filters (only show when a specific channel is selected on the feed) */}
+                {activeTab === 'feed' && selected && (
+                    <div className="yt-content-filters fade-in" style={{ display: 'flex', gap: '8px', padding: '0 1.5rem', marginBottom: '1rem', overflowX: 'auto' }}>
+                        <button className={`yt-filter-chip ${contentFilter === 'all' ? 'active' : ''}`} onClick={() => setContentFilter('all')}>All</button>
+                        <button className={`yt-filter-chip ${contentFilter === 'videos' ? 'active' : ''}`} onClick={() => setContentFilter('videos')}>Videos</button>
+                        <button className={`yt-filter-chip ${contentFilter === 'live' ? 'active' : ''}`} onClick={() => setContentFilter('live')}>Live</button>
+                        <button className={`yt-filter-chip ${contentFilter === 'shorts' ? 'active' : ''}`} onClick={() => setContentFilter('shorts')}>Shorts</button>
+                    </div>
+                )}
+
                 {loading && (
                     <div className="yt-loading">
                         {[...Array(8)].map((_, i) => (
@@ -502,10 +683,16 @@ export default function Videos() {
                             <div className="yt-pending-section">
                                 <div className="yt-pending-header">
                                     <span className="yt-pending-title">🕐 Newly Added</span>
-                                    <span className="yt-pending-count">{pending.length}</span>
                                 </div>
                                 <div className="yt-pending-grid">
-                                    {pending.map(v => (
+                                    {pending.filter(v => {
+                                        if (!selected) return true; // Only filter when a channel is selected
+                                        if (contentFilter === 'all') return true;
+                                        if (contentFilter === 'live') return v.isLive;
+                                        if (contentFilter === 'shorts') return v.isShort;
+                                        if (contentFilter === 'videos') return !v.isLive && !v.isShort;
+                                        return true;
+                                    }).map(v => (
                                         <PendingCard
                                             key={v.id}
                                             video={v}
@@ -515,13 +702,27 @@ export default function Videos() {
                                         />
                                     ))}
                                 </div>
+                                
+                                {/* Load More Button for single channel view */}
+                                {selected && nextPageToken && (
+                                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.5rem' }}>
+                                        <button 
+                                            className="btn btn-secondary" 
+                                            onClick={loadMore} 
+                                            disabled={loadingMore}
+                                            style={{ minWidth: '140px', borderRadius: '100px' }}
+                                        >
+                                            {loadingMore ? <div className="spinner-sm" style={{ borderColor: 'currentColor', borderTopColor: 'transparent' }}/> : 'Load More'}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
 
-                        {/* Saved Library Section — shows in the global 'All Feed' (below new) or as a dedicated Library tab */}
-                        {(activeTab === 'saved' || (activeTab === 'feed' && !selected)) && filteredLibrary.length > 0 && (
-                            <div className={pending.length > 0 && activeTab === 'feed' ? 'yt-approved-section' : ''} style={{ marginTop: activeTab === 'saved' ? 0 : '1.5rem' }}>
-                                <div className="yt-approved-header">📚 {activeTab === 'saved' ? 'Saved Library' : 'Saved from Library'}</div>
+                        {/* Saved Library Section — shows in the global 'All Feed' (below new) */}
+                        {(activeTab === 'feed' && !selected) && filteredLibrary.length > 0 && (
+                            <div className={pending.length > 0 ? 'yt-approved-section' : ''} style={{ marginTop: '1.5rem' }}>
+                                <div className="yt-approved-header">📚 Saved from Library</div>
                                 <div className="yt-video-grid">
                                     {filteredLibrary.map(v => (
                                         <VideoCard
@@ -530,18 +731,109 @@ export default function Videos() {
                                             onPlay={setActiveVideo}
                                             isLiked={likedVideoIds.has(v.video_id || v.id)}
                                             onLike={toggleLikeVideo}
-                                            isFavorite={v.is_favorite}
-                                            onFavorite={toggleFavoriteVideo}
+                                            isChannelSaved={channels.some(c => c.id === (v.channelId || v.channel_id))}
+                                            onSaveChannel={handleAddChannelById}
+                                            onDelegate={handleDelegateVideo}
+                                            isDelegated={delegatedVideoIds.has(v.video_id || v.id)}
                                         />
                                     ))}
                                 </div>
                             </div>
                         )}
 
+                        {/* Global Search Section */}
+                        {activeTab === 'search' && (
+                            <div className="yt-approved-section fade-in">
+                                <div className="yt-approved-header" style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem', width: '100%', maxWidth: '600px' }}>
+                                    <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                        <input 
+                                            type="text" 
+                                            className="field-input" 
+                                            style={{ width: '100%', padding: '12px 40px 12px 16px', borderRadius: '100px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+                                            placeholder="Search YouTube for any topic..."
+                                            value={globalSearchQuery}
+                                            onChange={e => setGlobalSearchQuery(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleGlobalSearch()}
+                                        />
+                                        {globalSearchQuery && (
+                                            <button
+                                                onClick={() => {
+                                                    setGlobalSearchQuery('');
+                                                    setSearchResults([]);
+                                                    setSearchNextPageToken('');
+                                                }}
+                                                style={{
+                                                    position: 'absolute', right: '12px', background: 'none', border: 'none',
+                                                    color: 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: '4px',
+                                                    fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                }}
+                                                title="Clear search"
+                                            >
+                                                ✕
+                                            </button>
+                                        )}
+                                    </div>
+                                    <button 
+                                        className="btn btn-primary" 
+                                        style={{ borderRadius: '100px', padding: '0 24px' }}
+                                        onClick={handleGlobalSearch}
+                                        disabled={isSearching}
+                                    >
+                                        {isSearching && searchResults.length === 0 ? '...' : 'Search'}
+                                    </button>
+                                </div>
+                                
+                                {searchResults.length > 0 ? (
+                                    <>
+                                        <div className="yt-video-grid">
+                                            {searchResults.map(v => (
+                                                <VideoCard 
+                                                    key={v.id.videoId} 
+                                                    video={v} 
+                                                    onPlay={setActiveVideo} 
+                                                    isLiked={likedVideoIds.has(v.id.videoId)} 
+                                                    onLike={toggleLikeVideo}
+                                                    isChannelSaved={channels.some(c => c.id === v.snippet?.channelId)}
+                                                    onSaveChannel={handleAddChannelById}
+                                                    onDelegate={handleDelegateVideo}
+                                                    isDelegated={delegatedVideoIds.has(v.id.videoId)}
+                                                />
+                                            ))}
+                                        </div>
+                                        {searchNextPageToken && (
+                                            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.5rem' }}>
+                                                <button 
+                                                    className="btn btn-secondary" 
+                                                    onClick={handleGlobalLoadMore} 
+                                                    disabled={isSearching}
+                                                    style={{ minWidth: '140px', borderRadius: '100px' }}
+                                                >
+                                                    {isSearching ? <div className="spinner-sm" style={{ borderColor: 'currentColor', borderTopColor: 'transparent' }}/> : 'Load More'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    !isSearching && globalSearchQuery && (
+                                        <div className="empty-state">
+                                            <span className="empty-emoji">🔍</span>
+                                            <p>No results found for "{globalSearchQuery}"</p>
+                                        </div>
+                                    )
+                                )}
+                                {!globalSearchQuery && searchResults.length === 0 && (
+                                    <div className="empty-state" style={{ marginTop: '2rem' }}>
+                                        <span className="empty-emoji">🌎</span>
+                                        <p>Search all of YouTube to find new videos.</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* Liked List Section — shows whenever tab is 'liked' */}
                         {activeTab === 'liked' && (
                             <div className="yt-approved-section">
-                                <div className="yt-approved-header">❤️ Favorite Videos</div>
+                                <div className="yt-approved-header">❤️ Liked Videos</div>
                                 {likedVideoIds.size === 0 ? (
                                     <div className="empty-state">
                                         <span className="empty-emoji">🤍</span>
@@ -559,8 +851,10 @@ export default function Videos() {
                                                     onPlay={setActiveVideo}
                                                     isLiked={true}
                                                     onLike={toggleLikeVideo}
-                                                    isFavorite={v.is_favorite}
-                                                    onFavorite={toggleFavoriteVideo}
+                                                    isChannelSaved={channels.some(c => c.id === (v.channelId || v.channel_id))}
+                                                    onSaveChannel={handleAddChannelById}
+                                                    onDelegate={handleDelegateVideo}
+                                                    isDelegated={delegatedVideoIds.has(v.video_id || v.id)}
                                                 />
                                             );
                                         })}
@@ -581,8 +875,48 @@ export default function Videos() {
 
             {/* Global Modal Player */}
             <YTPlayerModal videoId={activeVideo} onClose={() => setActiveVideo(null)} />
+
+            {/* Delegation Date Modal */}
+            {delegatingVideo && (
+                <div className="modal-overlay" onClick={() => setDelegatingVideo(null)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                        <div className="modal-header">
+                            <h3>Delegate Video</h3>
+                            <button className="icon-btn" onClick={() => setDelegatingVideo(null)}>✕</button>
+                        </div>
+                        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                <img src={delegatingVideo.thumbnail} alt="" style={{ width: '120px', borderRadius: '8px', aspectRatio: '16/9', objectFit: 'cover' }} />
+                                <p style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                    {delegatingVideo.title}
+                                </p>
+                            </div>
+                            <div className="field-group">
+                                <label style={{ marginBottom: '8px', display: 'block', fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
+                                    Due Date & Time (Optional)
+                                </label>
+                                <input
+                                    type="datetime-local"
+                                    className="field-input"
+                                    value={delegateDate}
+                                    onChange={e => setDelegateDate(e.target.value)}
+                                    style={{ width: '100%', colorScheme: 'dark' }}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
+                                <button className="btn btn-secondary" onClick={() => setDelegatingVideo(null)} style={{ flex: 1, justifyContent: 'center' }}>
+                                    Cancel
+                                </button>
+                                <button className="btn btn-primary" onClick={confirmDelegateVideo} style={{ flex: 1, justifyContent: 'center' }}>
+                                    Delegate
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
 
-
+// Force HMR reload

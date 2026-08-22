@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAudio } from '../../context/AudioContext';
 
 export default function YTPlayerModal({ videoId, onClose }) {
@@ -28,7 +29,7 @@ export default function YTPlayerModal({ videoId, onClose }) {
 
     if (!videoId) return null;
 
-    return (
+    return createPortal(
         <div className="yt-modal-overlay" onClick={onClose}>
             <div className="yt-modal-content" onClick={e => e.stopPropagation()}>
                 <button className="yt-modal-close" onClick={onClose}>✕</button>
@@ -44,6 +45,7 @@ export default function YTPlayerModal({ videoId, onClose }) {
                     ></iframe>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

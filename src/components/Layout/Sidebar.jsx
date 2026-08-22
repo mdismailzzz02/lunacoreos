@@ -8,7 +8,7 @@ const TABS = [
     { id: 'lifeos', icon: '🧬', label: 'LifeOS React' },
     { id: 'luna', icon: '✨', label: 'Luna AI' },
     { id: 'mail', icon: '✉️', label: 'Gmail Inbox' },
-    { id: 'horoscope', icon: '♾️', label: 'Horoscope' },
+
     { id: 'journal', icon: '📖', label: 'Journal' },
     { id: 'studynotes', icon: '📝', label: 'Study Notes' },
     { id: 'writing', icon: '✍️', label: 'Writing' },
@@ -22,7 +22,7 @@ const TABS = [
     
     // Remaining items in between
     { id: 'todos', icon: '🎯', label: 'Todos' },
-    { id: 'insights', icon: '✨', label: 'Insights' },
+
     { id: 'readinglist', icon: '📚', label: 'Reading List' },
 
     { id: 'watchlist', icon: '🎞️', label: 'Watchlist' },

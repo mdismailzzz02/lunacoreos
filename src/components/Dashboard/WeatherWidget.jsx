@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { 
     Cloud, Sun, Moon, CloudRain, CloudSnow, CloudLightning, CloudFog, CloudSun, CloudMoon, MapPin, 
-    Droplets, Wind, Thermometer, SunDim, Sunrise, Sunset, Search, X, Activity, Settings
+    Droplets, Wind, Thermometer, SunDim, Sunrise, Sunset, Search, X, Activity, Settings, Navigation
 } from 'lucide-react';
 
 const CACHE_KEY = 'lunacore_weatherapi_data';
@@ -205,6 +205,38 @@ export default function WeatherWidget() {
         }
     };
 
+    const detectLocation = () => {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported by your browser');
+            return;
+        }
+        setSearching(true);
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                try {
+                    const apiKey = import.meta.env.VITE_WEATHERAPI_KEY;
+                    const res = await fetch(`https://api.weatherapi.com/v1/search.json?key=${apiKey}&q=${lat},${lon}`);
+                    const json = await res.json();
+                    if (json && json.length > 0) {
+                        selectLocation(json[0]);
+                    } else {
+                        selectLocation({ lat, lon, name: 'Precise Location' });
+                    }
+                } catch(err) {
+                    selectLocation({ lat, lon, name: 'Precise Location' });
+                }
+            },
+            (err) => {
+                console.error(err);
+                alert('Could not detect location. Please ensure you have granted location permissions to your browser.');
+                setSearching(false);
+            },
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+    };
+
     const selectLocation = (loc) => {
         setSearchMode(false);
         setSearchQuery('');
@@ -293,6 +325,18 @@ export default function WeatherWidget() {
                         />
                         <button onClick={() => setSearchMode(false)} className="btn-icon" style={{ background: 'transparent' }}><X size={18} /></button>
                     </div>
+
+                    {!searchQuery && (
+                        <button 
+                            onClick={detectLocation}
+                            className="btn btn-secondary interactive-scale"
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', justifyContent: 'center', background: 'var(--surface-light)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer' }}
+                        >
+                            <Navigation size={16} color="var(--accent)" />
+                            <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>Use Precise GPS Location</span>
+                        </button>
+                    )}
+
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto' }}>
                         {searching && <span style={{ color: 'var(--text-muted)' }}>Searching...</span>}
                         {searchResults.map((r, i) => (

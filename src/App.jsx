@@ -3,7 +3,6 @@ import AppShell from './components/Layout/AppShell';
 import Dashboard from './components/Dashboard/Dashboard';
 import JournalPage from './components/Journal/JournalPage';
 import TodosPage from './components/Todos/TodosPage';
-import InsightsPage from './components/Insights/InsightsPage';
 import HabitsPage from './components/Habits/HabitsPage';
 import MediaLibraryPage from './components/MediaLibrary/MediaLibraryPage';
 import Videos from './components/Videos/Videos';
@@ -30,7 +29,6 @@ import SettingsPage from './components/Settings/SettingsPage';
 import PasswordsPage from './components/Passwords/PasswordsPage';
 import LunaAIPage from './components/LunaAI/LunaAIPage';
 import LifeOSPage from './components/LifeOS/LifeOSPage';
-import HoroscopePage from './components/Horoscope/HoroscopePage';
 import * as api from './services/api';
 import { Preloader } from './services/preloader';
 import { OfflineCache } from './services/offlineCache';
@@ -219,7 +217,6 @@ export default function App() {
             case 'dashboard': return <Dashboard onNavigate={navigate} />;
             case 'journal': return <JournalPage />;
             case 'todos': return <TodosPage />;
-            case 'insights': return <InsightsPage />;
             case 'habits': return <HabitsPage />;
             case 'videos': return <Videos />;
             case 'media': return <MediaLibraryPage />;
@@ -244,9 +241,8 @@ export default function App() {
             case 'information': return <InformationPage />;
             case 'musicplayer': return <MusicPlayerPage />;
             case 'mail': return <MailPage />;
-            case 'passwords': return <PasswordsPage />;
+
             case 'lifeos': return <LifeOSPage />;
-            case 'horoscope': return <HoroscopePage />;
             default: 
                 return <Dashboard onNavigate={navigate} />;
         }

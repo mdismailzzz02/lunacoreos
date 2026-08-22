@@ -1,5 +1,5 @@
-const CACHE_NAME = 'lunas-diary-v1';
-const MEDIA_CACHE_NAME = 'lunas-media-v1';
+const CACHE_NAME = 'lunas-diary-v3';
+const MEDIA_CACHE_NAME = 'lunas-media-v3';
 
 // Assets to cache immediately on install
 const PRECACHE_ASSETS = [
@@ -53,7 +53,7 @@ self.addEventListener('fetch', (event) => {
     if (!url.startsWith('http')) return;
 
     // Bypass Vite HMR and dev server requests
-    if (url.includes('?t=') || url.includes('@vite') || url.includes('.jsx')) {
+    if (url.includes('?t=') || url.includes('@vite') || url.includes('.jsx') || url.includes('/src/')) {
         return;
     }
 
@@ -66,8 +66,8 @@ self.addEventListener('fetch', (event) => {
     }
 
     // 3. API Strategy: Network Only
-    // Never cache Supabase API calls, otherwise users see stale data (double-refresh bug)
-    if (url.includes('supabase.co') || url.includes('script.google.com')) {
+    // Never cache API calls, otherwise users see stale data (double-refresh bug)
+    if (url.includes('supabase.co') || url.includes('script.google.com') || url.includes('googleapis.com')) {
         event.respondWith(fetch(event.request));
         return;
     }

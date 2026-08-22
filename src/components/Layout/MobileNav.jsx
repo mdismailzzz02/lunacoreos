@@ -8,7 +8,7 @@ export default function MobileNav({ active, onNavigate, onToggleMenu }) {
         { id: 'dashboard', icon: '🌸', label: 'Home' },
         { id: 'journal', icon: '📖', label: 'Journal' },
         { id: 'vault', icon: '💎', label: 'Vault' },
-        { id: 'insights', icon: '✨', label: 'Insights' },
+
     ];
 
     return (

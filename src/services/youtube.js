@@ -40,21 +40,133 @@ export async function searchChannel(query) {
     return detail.items?.[0] ?? null;
 }
 
-// Get the latest N videos from a channel's uploads playlist
-export async function getChannelVideos(uploadsPlaylistId, maxResults = 12) {
-    const data = await ytFetch('playlistItems', {
+export async function getChannelById(id) {
+    try {
+        const detail = await ytFetch('channels', {
+            part: 'snippet,contentDetails,statistics',
+            id,
+        });
+        return detail.items?.[0] ?? null;
+    } catch (_) {
+        return null;
+    }
+}
+
+export async function getChannelVideos(uploadsPlaylistId, maxResults = 25, pageToken = '') {
+    const params = {
         part: 'snippet',
         playlistId: uploadsPlaylistId,
         maxResults,
+    };
+    if (pageToken) params.pageToken = pageToken;
+
+    const data = await ytFetch('playlistItems', params);
+    
+    const items = data.items ?? [];
+    if (items.length === 0) return { items: [], nextPageToken: null };
+
+    const videoIds = items.map(item => item.snippet.resourceId.videoId).join(',');
+    
+    let videosData = { items: [] };
+    try {
+        videosData = await ytFetch('videos', {
+            part: 'snippet,contentDetails,liveStreamingDetails',
+            id: videoIds,
+        });
+    } catch (err) {
+        console.warn('Failed to fetch rich video details:', err);
+    }
+
+    const detailsMap = new Map();
+    (videosData.items ?? []).forEach(v => {
+        detailsMap.set(v.id, v);
     });
-    return (data.items ?? []).map(item => ({
-        id: item.snippet.resourceId.videoId,
-        title: item.snippet.title,
-        thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
-        publishedAt: item.snippet.publishedAt,
-        channelTitle: item.snippet.channelTitle,
-        channelId: item.snippet.channelId,
-    }));
+
+    const processedItems = items.map(item => {
+        const vid = item.snippet.resourceId.videoId;
+        const details = detailsMap.get(vid) || {};
+        
+        // Detection logic
+        const isLive = details.snippet?.liveBroadcastContent === 'live';
+        const duration = details.contentDetails?.duration || '';
+        const isShort = duration.includes('M') ? false : (duration.includes('S') && parseInt(duration.replace('PT', '').replace('S', '')) <= 60);
+
+        return {
+            id: vid,
+            title: item.snippet.title,
+            thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
+            publishedAt: item.snippet.publishedAt,
+            channelTitle: item.snippet.channelTitle,
+            channelId: item.snippet.channelId,
+            isLive,
+            isShort,
+            duration
+        };
+    });
+
+    return {
+        items: processedItems,
+        nextPageToken: data.nextPageToken || null
+    };
+}
+
+// Search for videos globally
+export async function searchGlobalVideos(query, maxResults = 20, pageToken = '') {
+    const params = {
+        part: 'snippet',
+        type: 'video',
+        q: query,
+        maxResults,
+    };
+    if (pageToken) params.pageToken = pageToken;
+
+    const data = await ytFetch('search', params);
+    
+    const items = data.items ?? [];
+    if (items.length === 0) return { items: [], nextPageToken: null };
+
+    const videoIds = items.map(item => item.id.videoId).join(',');
+    
+    let videosData = { items: [] };
+    try {
+        videosData = await ytFetch('videos', {
+            part: 'snippet,contentDetails,liveStreamingDetails',
+            id: videoIds,
+        });
+    } catch (err) {
+        console.warn('Failed to fetch rich video details for search:', err);
+    }
+
+    const detailsMap = new Map();
+    (videosData.items ?? []).forEach(v => {
+        detailsMap.set(v.id, v);
+    });
+
+    const processedItems = items.map(item => {
+        const vid = item.id.videoId;
+        const details = detailsMap.get(vid) || {};
+        
+        const isLive = details.snippet?.liveBroadcastContent === 'live';
+        const duration = details.contentDetails?.duration || '';
+        const isShort = duration.includes('M') ? false : (duration.includes('S') && parseInt(duration.replace('PT', '').replace('S', '')) <= 60);
+
+        return {
+            id: vid,
+            title: item.snippet.title,
+            thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
+            publishedAt: item.snippet.publishedAt,
+            channelTitle: item.snippet.channelTitle,
+            channelId: item.snippet.channelId,
+            isLive,
+            isShort,
+            duration
+        };
+    });
+
+    return {
+        items: processedItems,
+        nextPageToken: data.nextPageToken || null
+    };
 }
 
 // ── LocalStorage channel store ─────────────────────────────────

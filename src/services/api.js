@@ -168,32 +168,7 @@ export const deleteTodo = async (todo_id) => {
     if (error) throw error;
 };
 
-// ─── Insights ────────────────────────────────────────────────
-export const getInsights = async (params = {}) => {
-    const { data, error } = await supabase.from('insights').select('*');
-    if (error) throw error;
-    return data;
-};
 
-export const createInsight = async (params) => {
-    const { data, error } = await supabase.from('insights').insert([params]).select();
-    if (error) throw error;
-    return data[0];
-};
-
-export const updateInsight = async (params) => {
-    const { id, ...updates } = params;
-    const { data, error } = await supabase.from('insights').update(updates).eq('id', id).select();
-    if (error) throw error;
-    return data[0];
-};
-
-export const linkInsightToTodo = async (params) => {
-    const { insight_id, todo_id } = params;
-    const { data, error } = await supabase.from('insights').update({ related_todo_id: todo_id }).eq('id', insight_id).select();
-    if (error) throw error;
-    return data[0];
-};
 
 // ─── Habits ──────────────────────────────────────────────────
 export const getHabits = async (params = {}) => {
@@ -1247,9 +1222,9 @@ export const getYTLiked = async () => {
 };
 
 export const toggleYTLiked = async (params) => {
-    const { video_id, liked } = params;
+    const { video_id, liked, ...dbParams } = params;
     if (liked) {
-        return saveVideo(params);
+        return saveVideo({ video_id, ...dbParams });
     } else {
         const { error } = await supabase.from('yt_liked').delete().eq('video_id', video_id);
         if (error) throw error;
@@ -1792,9 +1767,28 @@ export const syncMusicLibrary = async (params = {}, onStatus) => {
     return { message: `Found ${data.length} audio files in Vault.`, files_added: 0 };
 };
 
-export const updateMusicHistory = async () => {
-    // We don't store playback position on Vault files to keep the schema clean
-    return null;
+export const updateMusicHistory = async (fileId, position) => {
+    if (!fileId) return null;
+    const { data, error } = await supabase
+        .from('music_history')
+        .upsert([{ file_id: fileId, last_position: position, updated_at: new Date().toISOString() }], { onConflict: 'file_id' })
+        .select();
+    if (error) {
+        console.warn('Failed to update music history:', error.message);
+        return null;
+    }
+    return data[0];
+};
+
+export const getMusicHistory = async (fileId) => {
+    if (!fileId) return null;
+    const { data, error } = await supabase
+        .from('music_history')
+        .select('last_position')
+        .eq('file_id', fileId)
+        .single();
+    if (error) return null;
+    return data;
 };
 
 export const getMusicBytes = async () => { throw new Error('getMusicBytes is removed. Use R2 playback_url.'); };
