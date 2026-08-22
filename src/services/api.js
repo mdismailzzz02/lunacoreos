@@ -1,4 +1,4 @@
-import { requestDriveAccess } from './googleAuth'; // kept for Music Player — Drive removed from Vault
+// Drive integration removed from Vault/Music Player
 import { supabase } from './supabaseClient';
 import { decode } from 'base64-arraybuffer';
 export { supabase };
@@ -2071,12 +2071,7 @@ export async function getStreamableUrl(url, mode = 'stream') {
     if (mode === 'large' || mode === 'view') return `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
 
     // For Drive playback, use uc?export=open pattern
-    try {
-        await requestDriveAccess();
-        return `https://drive.google.com/uc?export=open&id=${id}`;
-    } catch (err) {
-        return `https://drive.google.com/uc?export=open&id=${id}`;
-    }
+    return `https://drive.google.com/uc?export=open&id=${id}`;
 }
 
 

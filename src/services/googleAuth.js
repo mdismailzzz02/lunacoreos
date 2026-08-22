@@ -1,11 +1,11 @@
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-const SCOPES = 'https://www.googleapis.com/auth/drive https://mail.google.com/';
+const SCOPES = 'https://mail.google.com/';
 
 // We import supabase from the centralized client to avoid circular dependencies
 import { supabase } from './supabaseClient';
 
-const TOKEN_KEY = 'luna_drive_token';
-const TOKEN_EXPIRY_KEY = 'luna_drive_token_expiry';
+const TOKEN_KEY = 'luna_google_token';
+const TOKEN_EXPIRY_KEY = 'luna_google_token_expiry';
 const TOKEN_LIFETIME_MS = 55 * 60 * 1000; // 55 min
 let refreshInterval = null;
 
@@ -17,30 +17,6 @@ let popupOpen = false;
 let cachedToken = null;
 let tokenExpiry = null;
 
-export const getDriveToken = async () => {
-    // 1. Return cached token if still valid (with 60s buffer)
-    if (cachedToken && tokenExpiry && Date.now() < tokenExpiry - 60000) {
-        return cachedToken;
-    }
-
-    try {
-        // 2. Call the secure Supabase Edge Function (The Key stays hidden in the backend!)
-        const { data, error } = await supabase.functions.invoke('drive-auth');
-
-        if (error || !data?.access_token) {
-            console.warn('[Auth] Edge Function auth failed, falling back to cached session:', error?.message);
-            throw new Error('Edge Function failed');
-        }
-
-        cachedToken = data.access_token;
-        tokenExpiry = Date.now() + (data.expires_in || 3600) * 1000;
-        console.log('[Auth] Secure Drive token acquired via Edge Function.');
-        return cachedToken;
-    } catch (err) {
-        // If Edge Function isn't deployed yet or fails, we return null to trigger fallbacks
-        return null;
-    }
-};
 
 // ── Persistence ───────────────────────────────────────────────
 function loadCachedToken() {
@@ -63,7 +39,7 @@ function saveToken(token) {
     startBackgroundRefresh();
 }
 
-export const clearDriveToken = () => {
+export const clearGoogleToken = () => {
     accessToken = null;
     cachedToken = null;
     sessionStorage.removeItem(TOKEN_KEY);
@@ -84,7 +60,7 @@ function startBackgroundRefresh() {
         if (remaining > 0 && remaining < 10 * 60 * 1000) {
             console.log('[Auth] Token nearing expiry. Triggering proactive silent refresh...');
             try {
-                await requestDriveAccess(true); // Call with silent flag
+                await requestGoogleAccess(true); // Call with silent flag
             } catch (err) {
                 console.warn('[Auth] Proactive refresh failed, will retry or wait for next manual request:', err);
             }
@@ -195,12 +171,7 @@ const gsiReady = new Promise((resolve) => {
 
 export const initGoogleAuth = () => gsiReady;
 
-// ── Token Request ─────────────────────────────────────────────
-export const requestDriveAccess = async (isSilent = false) => {
-    // 0. NEW: SECURE EDGE FUNCTION PATH (Priority)
-    const secureToken = await getDriveToken();
-    if (secureToken) return secureToken;
-
+export const requestGoogleAccess = async (isSilent = false) => {
     // 1. Fast path: check if we have a valid in-memory token
     if (accessToken) {
         const expiry = parseInt(sessionStorage.getItem(TOKEN_EXPIRY_KEY) || '0', 10);
@@ -273,7 +244,7 @@ export const requestDriveAccess = async (isSilent = false) => {
 };
 
 export const forceGoogleReauth = async () => {
-    clearDriveToken();
+    clearGoogleToken();
     // Also sign out of Supabase to clear provider_token if it exists, but actually we just need GSI
     await gsiReady;
     
@@ -307,120 +278,3 @@ export const loginWithSupabase = async () => {
     if (error) throw error;
 };
 
-// ── Drive Folder Scanner ──────────────────────────────────────
-export const scanDriveFolder = async (folderId, filter = '') => {
-    const token = await requestDriveAccess();
-    let allFiles = [];
-    let pageToken = null;
-
-    const baseQuery = `'${folderId}' in parents and trashed = false`;
-    const query = filter ? `${baseQuery} and (${filter})` : baseQuery;
-    const fields = 'nextPageToken, files(id, name, mimeType, size, webViewLink, thumbnailLink)';
-
-    do {
-        const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${encodeURIComponent(fields)}&pageSize=1000${pageToken ? `&pageToken=${pageToken}` : ''}`;
-        let res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-
-        if (res.status === 401) {
-            await clearDriveToken();
-            const freshToken = await requestDriveAccess();
-            res = await fetch(url, { headers: { Authorization: `Bearer ${freshToken}` } });
-        }
-
-        if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.error?.message || 'Failed to scan Drive folder');
-        }
-
-        const data = await res.json();
-        allFiles = allFiles.concat(data.files || []);
-        pageToken = data.nextPageToken;
-    } while (pageToken);
-
-    return allFiles;
-};
-
-export const scanDriveFolderIdsOnly = async (folderId, sinceDate = null) => {
-    const token = await requestDriveAccess();
-    let allFiles = [];
-    let pageToken = null;
-
-    let baseQuery = `'${folderId}' in parents and trashed = false`;
-    if (sinceDate) {
-        baseQuery += ` and modifiedTime > '${sinceDate}'`;
-    }
-    const fields = 'nextPageToken, files(id, name, mimeType)';
-
-    do {
-        const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(baseQuery)}&fields=${encodeURIComponent(fields)}&pageSize=1000${pageToken ? `&pageToken=${pageToken}` : ''}`;
-        let res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-
-        if (res.status === 401) {
-            await clearDriveToken();
-            const freshToken = await requestDriveAccess();
-            res = await fetch(url, { headers: { Authorization: `Bearer ${freshToken}` } });
-        }
-
-        if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.error?.message || 'Failed to scan Drive folder');
-        }
-
-        const data = await res.json();
-        allFiles = allFiles.concat(data.files || []);
-        pageToken = data.nextPageToken;
-    } while (pageToken);
-
-    return {
-        files: allFiles,
-        fetchedAt: new Date().toISOString()
-    };
-};
-
-// ── Drive File Uploader ───────────────────────────────────────
-export const uploadFileToDrive = async (base64Data, filename, mimeType, folderId) => {
-    const token = await requestDriveAccess();
-
-    // Strip the data:image/png;base64, prefix if present
-    const base64Clean = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
-    const binaryString = atob(base64Clean);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-    }
-    const blob = new Blob([bytes], { type: mimeType });
-
-    const metadata = {
-        name: filename,
-        parents: [folderId]
-    };
-
-    const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    form.append('file', blob);
-
-    const url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink';
-    
-    let res = await fetch(url, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: form
-    });
-
-    if (res.status === 401) {
-        await clearDriveToken();
-        const freshToken = await requestDriveAccess();
-        res = await fetch(url, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${freshToken}` },
-            body: form
-        });
-    }
-
-    if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error?.message || 'Failed to upload to Drive');
-    }
-
-    return await res.json();
-};

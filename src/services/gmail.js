@@ -1,4 +1,4 @@
-import { requestDriveAccess } from './googleAuth';
+import { requestGoogleAccess } from './googleAuth';
 
 const BASE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
@@ -6,7 +6,7 @@ const BASE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me';
  * Helper to get active Google token
  */
 const getToken = async (isSilent = false) => {
-    const token = await requestDriveAccess(isSilent);
+    const token = await requestGoogleAccess(isSilent);
     if (!token) throw new Error('Google Authentication required');
     return token;
 };

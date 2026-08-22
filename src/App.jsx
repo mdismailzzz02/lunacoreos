@@ -109,8 +109,18 @@ export default function App() {
 
         initAuth();
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
             console.log(`[Auth Event] ${_event}`, session ? 'User present' : 'No user');
+            
+            if (_event === 'SIGNED_OUT') {
+                // If a race condition happened but was recovered, the session might still be valid in storage
+                const { data: check } = await supabase.auth.getSession();
+                if (check?.session) {
+                    console.log('[Auth] Ignored SIGNED_OUT because session is still valid.');
+                    return;
+                }
+            }
+
             const isUnlocked = sessionStorage.getItem('luna_vault_unlocked') === 'true';
             if (session?.user && !isUnlocked) {
                 console.log('[Vault] 🔒 Locked — master key required.');
