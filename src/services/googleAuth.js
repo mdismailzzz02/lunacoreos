@@ -101,15 +101,37 @@ const gsiReady = new Promise((resolve) => {
 
     const tryInit = () => {
         if (window.google?.accounts?.oauth2) {
-            tokenClient = window.google.accounts.oauth2.initTokenClient({
+            tokenClient = window.google.accounts.oauth2.initCodeClient({
                 client_id: CLIENT_ID,
                 scope: SCOPES,
-                callback: (response) => {
+                ux_mode: 'popup',
+                callback: async (response) => {
                     if (response.error) {
                         pendingResolvers.forEach(([, reject]) => reject(response));
-                    } else {
-                        saveToken(response.access_token);
+                        pendingResolvers = [];
+                        popupOpen = false;
+                        return;
+                    }
+                    try {
+                        const { data, error } = await supabase.functions.invoke('exchange-google-code', {
+                            body: { code: response.code }
+                        });
+                        if (error) throw error;
+                        
+                        if (data.refresh_token) {
+                            const { data: config } = await supabase.from('config').select('*').eq('config_id', 'MAIN_CONFIG').maybeSingle();
+                            const currentContent = config?.content || {};
+                            await supabase.from('config').upsert([{ 
+                                config_id: 'MAIN_CONFIG', 
+                                content: { ...currentContent, google_refresh_token: data.refresh_token } 
+                            }]);
+                        }
+                        
+                        saveToken(data.access_token);
                         pendingResolvers.forEach(([resolve]) => resolve(accessToken));
+                    } catch (err) {
+                        console.error('[Auth] Code exchange failed:', err);
+                        pendingResolvers.forEach(([, reject]) => reject(err));
                     }
                     pendingResolvers = [];
                     popupOpen = false;
@@ -123,15 +145,37 @@ const gsiReady = new Promise((resolve) => {
         script.async = true;
         script.defer = true;
         script.onload = () => {
-            tokenClient = window.google.accounts.oauth2.initTokenClient({
+            tokenClient = window.google.accounts.oauth2.initCodeClient({
                 client_id: CLIENT_ID,
                 scope: SCOPES,
-                callback: (response) => {
+                ux_mode: 'popup',
+                callback: async (response) => {
                     if (response.error) {
                         pendingResolvers.forEach(([, reject]) => reject(response));
-                    } else {
-                        saveToken(response.access_token);
+                        pendingResolvers = [];
+                        popupOpen = false;
+                        return;
+                    }
+                    try {
+                        const { data, error } = await supabase.functions.invoke('exchange-google-code', {
+                            body: { code: response.code }
+                        });
+                        if (error) throw error;
+                        
+                        if (data.refresh_token) {
+                            const { data: config } = await supabase.from('config').select('*').eq('config_id', 'MAIN_CONFIG').maybeSingle();
+                            const currentContent = config?.content || {};
+                            await supabase.from('config').upsert([{ 
+                                config_id: 'MAIN_CONFIG', 
+                                content: { ...currentContent, google_refresh_token: data.refresh_token } 
+                            }]);
+                        }
+                        
+                        saveToken(data.access_token);
                         pendingResolvers.forEach(([resolve]) => resolve(accessToken));
+                    } catch (err) {
+                        console.error('[Auth] Code exchange failed:', err);
+                        pendingResolvers.forEach(([, reject]) => reject(err));
                     }
                     pendingResolvers = [];
                     popupOpen = false;
@@ -188,6 +232,22 @@ export const requestDriveAccess = async (isSilent = false) => {
         }
     }
 
+    // 5. Check for permanent refresh token in database (New Flow)
+    try {
+        const { data: config } = await supabase.from('config').select('content').eq('config_id', 'MAIN_CONFIG').maybeSingle();
+        if (config?.content?.google_refresh_token) {
+            const { data, error } = await supabase.functions.invoke('refresh-drive-token', {
+                body: { refresh_token: config.content.google_refresh_token }
+            });
+            if (!error && data?.access_token) {
+                saveToken(data.access_token);
+                return data.access_token;
+            }
+        }
+    } catch (err) {
+        console.warn('[Auth] Failed to restore from DB refresh token:', err);
+    }
+
     if (isSilent) throw new Error('Silent refresh not possible');
 
     // 5. Final Fallback: GSI Popup
@@ -203,7 +263,8 @@ export const requestDriveAccess = async (isSilent = false) => {
     return new Promise((resolve, reject) => {
         pendingResolvers.push([resolve, reject]);
         try {
-            tokenClient.requestAccessToken({ prompt: '' });
+            // requestCode is used for initCodeClient
+            tokenClient.requestCode();
         } catch (err) {
             popupOpen = false;
             reject(new Error('Google Identity Services failed.'));
@@ -222,7 +283,7 @@ export const forceGoogleReauth = async () => {
     return new Promise((resolve, reject) => {
         pendingResolvers.push([resolve, reject]);
         try {
-            tokenClient.requestAccessToken({ prompt: 'consent' });
+            tokenClient.requestCode();
         } catch (err) {
             popupOpen = false;
             reject(new Error('Google Identity Services failed.'));
