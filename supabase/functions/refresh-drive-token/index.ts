@@ -4,7 +4,7 @@ const ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://localhost:5174",
   "https://llseujnjhjrwmzhwfmoq.supabase.co",
-  "https://lunacoreos.onrender.com"
+  "https://lunacoreos.onrender.com", "https://lunacore.onrender.com"
 ];
 
 function getCorsHeaders(req: Request) {
