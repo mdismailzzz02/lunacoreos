@@ -247,8 +247,6 @@ export const getVaultCollections = async (mode = 'normal') => {
     let query = supabase.from('vault_collections').select('*').order('created_at', { ascending: true });
     if (mode === 'normal') {
         query = query.eq('is_hidden', false).eq('is_secret', false);
-    } else if (mode === 'hidden') {
-        query = query.eq('is_secret', false); // show normal + hidden
     } else if (mode === 'secret') {
         query = query.eq('is_hidden', false); // show normal + secret
     }

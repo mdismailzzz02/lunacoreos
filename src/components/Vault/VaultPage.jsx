@@ -36,7 +36,7 @@ function CreateCollectionModal({ onAdd, onClose, vaultMode }) {
         if (!name.trim()) { setErr('Please enter a collection name.'); return; }
         setSaving(true);
         try {
-            const is_hidden = vaultMode === 'hidden' ? isSpecial : false;
+            const is_hidden = false;
             const is_secret = vaultMode === 'secret' ? isSpecial : false;
             const col = await createVaultCollection({ name: name.trim(), type, is_hidden, is_secret });
             onAdd(col);
@@ -76,7 +76,7 @@ function CreateCollectionModal({ onAdd, onClose, vaultMode }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem', background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '10px' }}>
                             <input type="checkbox" id="special-col" checked={isSpecial} onChange={e => setIsSpecial(e.target.checked)} style={{ cursor: 'pointer' }} />
                             <label htmlFor="special-col" style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>
-                                {vaultMode === 'secret' ? 'Make this collection secret 🕵️' : 'Make this collection totally hidden 👻'}
+                                Make this collection secret 🕵️
                             </label>
                         </div>
                     )}
@@ -176,7 +176,7 @@ function VaultPage() {
     const [activeTab, setActiveTab] = useState(window.innerWidth < 768 ? 'folders_menu' : null);
     const [showAdd, setShowAdd] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [vaultMode, setVaultMode] = useState('normal'); // 'normal', 'hidden', 'secret'
+    const [vaultMode, setVaultMode] = useState('normal'); // 'normal', 'secret'
     const [pendingMode, setPendingMode] = useState(null); // mode to unlock
     const [secretClicks, setSecretClicks] = useState(0);
     const [pendingDelete, setPendingDelete] = useState(null);
@@ -218,7 +218,7 @@ function VaultPage() {
             return;
         }
         
-        // mode is either 'hidden' or 'secret'
+        // mode is 'secret'
         const newClicks = secretClicks + 1;
         setSecretClicks(newClicks);
         if (newClicks >= 3) {
@@ -350,22 +350,13 @@ function VaultPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span 
-                                onClick={() => handleSecretClick('hidden')} 
+                                onClick={() => handleSecretClick('secret')} 
                                 style={{ cursor: 'pointer', fontSize: '1.5rem', userSelect: 'none' }}
-                                title={vaultMode === 'hidden' ? "Lock Hidden Vault" : "..."}
+                                title={vaultMode === 'secret' ? "Lock Secret Vault" : "..."}
                             >
-                                {vaultMode === 'hidden' ? '👻' : vaultMode === 'secret' ? '🕵️' : '🔒'}
+                                {vaultMode === 'secret' ? '🕵️' : '🔒'}
                             </span>
                             <h2 className="vault-title" style={{ margin: 0 }}>VAULT_CORE</h2>
-                            {vaultMode === 'normal' && (
-                                <span 
-                                    onClick={() => handleSecretClick('secret')} 
-                                    style={{ cursor: 'pointer', fontSize: '1.2rem', userSelect: 'none', opacity: 0.3, marginLeft: '4px' }}
-                                    title="🕵️"
-                                >
-                                    ◈
-                                </span>
-                            )}
                         </div>
                         <div style={{ display: 'flex', gap: '8px' }}>
                             <button onClick={loadCollections} className="btn btn-ghost btn-xs" title="Reload collections" style={{ padding: '4px', opacity: 0.5 }}>🔄</button>
@@ -501,9 +492,9 @@ function VaultPage() {
             {showAdd && <CreateCollectionModal onAdd={handleAddCollection} onClose={() => setShowAdd(false)} vaultMode={vaultMode} />}
             {pendingMode && (
                 <SecondaryVaultLock 
-                    lockId={pendingMode === 'hidden' ? 'vault_hidden' : 'vault_secret'} 
-                    title={pendingMode === 'hidden' ? 'Hidden Vault' : 'Secret Vault'}
-                    icon={pendingMode === 'hidden' ? '👻' : '🕵️'}
+                    lockId={'vault_secret'} 
+                    title={'Secret Vault'}
+                    icon={'🕵️'}
                     onSuccess={() => { setVaultMode(pendingMode); setPendingMode(null); }} 
                     onClose={() => setPendingMode(null)} 
                 />
