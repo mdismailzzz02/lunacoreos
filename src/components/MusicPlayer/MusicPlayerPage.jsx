@@ -562,31 +562,39 @@ export default function MusicPlayerPage() {
                                                         <Plus size={14} />
                                                     </button>
                                                     {activeTrackPopover === track.id && (
-                                                        <div className="mp-track-popover" style={{ 
-                                                            position: 'absolute', 
-                                                            right: 0, 
-                                                            top: isNearBottom ? 'auto' : '100%', 
-                                                            bottom: isNearBottom ? '100%' : 'auto',
-                                                            zIndex: 50, 
-                                                            background: '#1c1c21', 
-                                                            border: '1px solid #333', 
-                                                            borderRadius: 8, 
-                                                            padding: 4, 
-                                                            width: 160, 
-                                                            boxShadow: '0 4px 12px rgba(0,0,0,0.5)' 
-                                                        }}>
-                                                            <div style={{ fontSize: '0.65rem', color: '#888', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: 1 }}>Add to Playlist</div>
-                                                            {playlists.length === 0 && <div style={{ fontSize: '0.75rem', padding: '8px', color: '#aaa' }}>No playlists exist</div>}
-                                                            {playlists.map(pl => (
-                                                                <div 
-                                                                    key={pl.id} 
-                                                                    className="mp-folder-option" 
-                                                                    style={{ padding: '6px 8px', borderRadius: 4 }}
-                                                                    onClick={(e) => { e.stopPropagation(); handleAddToPlaylist(pl.id, track); }}
-                                                                >
-                                                                    {pl.name}
+                                                        <div style={{
+                                                            position: 'fixed',
+                                                            inset: 0,
+                                                            zIndex: 9999,
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            background: 'rgba(0,0,0,0.5)',
+                                                            backdropFilter: 'blur(2px)'
+                                                        }} onClick={(e) => { e.stopPropagation(); setActiveTrackPopover(null); }}>
+                                                            <div className="mp-track-popover" style={{ 
+                                                                background: '#1c1c21', 
+                                                                border: '1px solid #333', 
+                                                                borderRadius: 12, 
+                                                                padding: 12, 
+                                                                width: 260, 
+                                                                boxShadow: '0 8px 32px rgba(0,0,0,0.5)' 
+                                                            }} onClick={e => e.stopPropagation()}>
+                                                                <div style={{ fontSize: '0.75rem', color: '#888', padding: '4px 8px 12px', textTransform: 'uppercase', letterSpacing: 1, textAlign: 'center', fontWeight: 'bold' }}>Add to Playlist</div>
+                                                                {playlists.length === 0 && <div style={{ fontSize: '0.85rem', padding: '12px', color: '#aaa', textAlign: 'center' }}>No playlists exist</div>}
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                                    {playlists.map(pl => (
+                                                                        <div 
+                                                                            key={pl.id} 
+                                                                            className="mp-folder-option" 
+                                                                            style={{ padding: '10px 12px', borderRadius: 6, fontSize: '0.9rem', cursor: 'pointer', transition: 'background 0.1s' }}
+                                                                            onClick={(e) => { e.stopPropagation(); handleAddToPlaylist(pl.id, track); setActiveTrackPopover(null); }}
+                                                                        >
+                                                                            {pl.name}
+                                                                        </div>
+                                                                    ))}
                                                                 </div>
-                                                            ))}
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>
