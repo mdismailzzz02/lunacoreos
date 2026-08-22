@@ -62,14 +62,24 @@ export default function WritingPage() {
     const saveDraft = async (closeEditor = false) => {
         if (!editorData.title.trim()) return;
 
+        // Prevent race conditions with pending autosaves
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+
         const currentId = editingIdRef.current;
+        if (!currentId) return; // Editor already closed
+
         const isNew = currentId === 'new';
         const generatedId = isNew ? Date.now().toString() : currentId;
         
-        // Update ref synchronously so overlapping autosaves don't create duplicates
-        if (isNew && !closeEditor) {
+        // Always update the ref for new items so any concurrent saves use the same ID
+        if (isNew) {
             editingIdRef.current = generatedId;
-            setEditingId(generatedId);
+            // Only update the state if we are keeping the editor open
+            if (!closeEditor) {
+                setEditingId(generatedId);
+            }
         }
 
         const newDraft = {
@@ -98,7 +108,7 @@ export default function WritingPage() {
             }
         } catch (err) {
             setSaveStatus('Failed to save');
-            // If it failed and was new, revert the ref so we try again next time
+            // Revert ref if it failed and we wanted to keep it open
             if (isNew && !closeEditor) {
                 editingIdRef.current = 'new';
                 setEditingId('new');
