@@ -109,7 +109,7 @@ export default function MediaGrid({ onNavigate }) {
         
         if (isLiked) {
             setYtLiked(prev => prev.filter(l => (l.video_id || l.id) !== vidId));
-            try { await api.toggleYTLike(vidId, null, false); } catch(err){}
+            try { await api.toggleYTLiked({ video_id: vidId, liked: false }); } catch(err){}
         } else {
             const newLike = {
                 video_id: vidId,
@@ -118,7 +118,7 @@ export default function MediaGrid({ onNavigate }) {
                 liked_at: new Date().toISOString()
             };
             setYtLiked(prev => [newLike, ...prev]);
-            try { await api.toggleYTLike(vidId, newLike, true); } catch(err){}
+            try { await api.toggleYTLiked({ ...newLike, liked: true }); } catch(err){}
         }
     };
 
@@ -129,17 +129,17 @@ export default function MediaGrid({ onNavigate }) {
         
         if (isLiked) {
             setTwitchLiked(prev => prev.filter(l => (l.video_id || l.channel_name) !== vidId));
-            try { await api.toggleTwitchLike(vidId, null, false); } catch(err){}
+            try { await api.toggleTwitchLiked({ video_id: vidId, liked: false }); } catch(err){}
         } else {
             const newLike = {
-                video_id: isStream ? null : vidId,
+                video_id: vidId, // Use vidId as video_id so upsert/delete works consistently
                 channel_name: isStream ? vidId : (v.user_name || v.channel_name),
                 title: v.title || '',
                 thumbnail: isStream ? v.thumbnail_url?.replace('{width}', '320').replace('{height}', '180') : (v.thumbnail_url?.replace('%{width}', '320').replace('%{height}', '180') || v.thumbnail),
                 liked_at: new Date().toISOString()
             };
             setTwitchLiked(prev => [newLike, ...prev]);
-            try { await api.toggleTwitchLike(vidId, newLike, true); } catch(err){}
+            try { await api.toggleTwitchLiked({ ...newLike, liked: true }); } catch(err){}
         }
     };
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { 
     Cloud, Sun, Moon, CloudRain, CloudSnow, CloudLightning, CloudFog, CloudSun, CloudMoon, MapPin, 
-    Droplets, Wind, Thermometer, SunDim, Sunrise, Sunset, Search, X, Activity, Settings, Navigation
+    Droplets, Wind, Thermometer, SunDim, Sunrise, Sunset, Search, X, Activity, Settings, Navigation, RefreshCw
 } from 'lucide-react';
 
 const CACHE_KEY = 'lunacore_weatherapi_data';
@@ -121,69 +121,68 @@ export default function WeatherWidget() {
     const [searchResults, setSearchResults] = useState([]);
     const [searching, setSearching] = useState(false);
 
-    useEffect(() => {
-        let mounted = true;
+    const fetchWeather = async (forceLoc = null, forceRefresh = false) => {
+        const apiKey = import.meta.env.VITE_WEATHERAPI_KEY;
+        
+        if (!apiKey) {
+            setError('MISSING_KEY');
+            setLoading(false);
+            return;
+        }
 
-        const loadData = async (forceLoc = null) => {
-            const apiKey = import.meta.env.VITE_WEATHERAPI_KEY;
+        try {
+            if (!forceLoc && !forceRefresh) {
+                const cached = localStorage.getItem(CACHE_KEY);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (Date.now() - parsed.timestamp < CACHE_TTL) {
+                        setData(parsed.data); setLoading(false);
+                        return;
+                    }
+                }
+            }
+
+            setLoading(true);
+
+            let query = 'auto:ip';
             
-            if (!apiKey) {
-                if (mounted) {
-                    setError('MISSING_KEY');
-                    setLoading(false);
+            if (forceLoc) {
+                query = `${forceLoc.lat},${forceLoc.lon}`;
+            } else {
+                const locPref = localStorage.getItem('lunacore_weather_loc');
+                if (locPref) {
+                    const p = JSON.parse(locPref);
+                    query = `${p.lat},${p.lon}`;
                 }
-                return;
             }
 
-            try {
-                // Check cache first if no force location
-                if (!forceLoc) {
-                    const cached = localStorage.getItem(CACHE_KEY);
-                    if (cached) {
-                        const parsed = JSON.parse(cached);
-                        if (Date.now() - parsed.timestamp < CACHE_TTL) {
-                            if (mounted) { setData(parsed.data); setLoading(false); }
-                            return;
-                        }
-                    }
-                }
+            const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${query}&days=7&aqi=yes&alerts=no`;
+            const res = await fetch(url);
+            
+            if (!res.ok) throw new Error('WeatherAPI returned error');
+            
+            const json = await res.json();
 
-                setLoading(true);
-
-                let query = 'auto:ip'; // WeatherAPI supports auto IP lookup!
-                
-                if (forceLoc) {
-                    query = `${forceLoc.lat},${forceLoc.lon}`;
-                } else {
-                    const locPref = localStorage.getItem('lunacore_weather_loc');
-                    if (locPref) {
-                        const p = JSON.parse(locPref);
-                        query = `${p.lat},${p.lon}`;
-                    }
-                }
-
-                const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${query}&days=7&aqi=yes&alerts=no`;
-                const res = await fetch(url);
-                
-                if (!res.ok) throw new Error('WeatherAPI returned error');
-                
-                const json = await res.json();
-
-                if (mounted && json) {
-                    setData(json);
-                    localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: json }));
-                }
-            } catch (err) {
-                console.error('Weather error:', err);
-                if (mounted) setError('FETCH_ERROR');
-            } finally {
-                if (mounted) setLoading(false);
+            if (json) {
+                setData(json);
+                localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: json }));
             }
-        };
+        } catch (err) {
+            console.error('Weather error:', err);
+            setError('FETCH_ERROR');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-        loadData();
-        return () => { mounted = false; };
+    useEffect(() => {
+        fetchWeather();
     }, []);
+
+    const handleSync = (e) => {
+        if (e) e.stopPropagation();
+        fetchWeather(null, true);
+    };
 
     const handleSearch = async (e) => {
         const val = e.target.value;
@@ -357,6 +356,14 @@ export default function WeatherWidget() {
                             <Cloud size={16} />
                         </div>
                         <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)' }}>Weather</h3>
+                        <button 
+                            onClick={handleSync}
+                            className="interactive-scale"
+                            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px', opacity: 0.7 }}
+                            title="Force Sync Weather"
+                        >
+                            <RefreshCw size={12} className={loading ? "spin" : ""} />
+                        </button>
                     </div>
                     
                     <div style={{ display: 'flex', flexDirection: 'column' }}>

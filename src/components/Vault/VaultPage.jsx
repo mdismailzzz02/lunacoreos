@@ -360,10 +360,10 @@ function VaultPage() {
                             {vaultMode === 'normal' && (
                                 <span 
                                     onClick={() => handleSecretClick('secret')} 
-                                    style={{ cursor: 'pointer', fontSize: '1.2rem', userSelect: 'none', opacity: 0.3, marginLeft: '4px' }}
-                                    title="🕵️"
+                                    style={{ cursor: 'pointer', fontSize: '1.2rem', userSelect: 'none', opacity: 0.5, marginLeft: '4px' }}
+                                    title="Secret Mode"
                                 >
-                                    ◈
+                                    🕵️
                                 </span>
                             )}
                         </div>
