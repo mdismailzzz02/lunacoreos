@@ -679,124 +679,173 @@ export const syncVaultCollection = async (collectionId) => {
         await supabase.from('vault_collections').delete().eq('id', id);
     };
 
-    // 1. Load collection metadata
-    const { data: col, error: colErr } = await supabase
+    // 1. Load root collection metadata
+    const { data: rootCol, error: colErr } = await supabase
         .from('vault_collections').select('*').eq('id', collectionId).single();
     if (colErr) throw colErr;
 
-    const basePrefix = normalizeR2Prefix(col.key_prefix);
+    let totalAddedFiles = 0;
+    let totalAddedFolders = 0;
+    let totalRemoved = 0;
+    let totalRemovedKeys = [];
+    let totalSkipped = 0;
+    let totalRawObjects = 0;
 
-    // 2. Get the last successful sync marker for this collection. If it exists, only ingest
-    // files newer than that timestamp rather than re-scanning the whole tree every time.
-    const { data: syncState } = await supabase
-        .from('vault_sync_log')
-        .select('last_synced_at')
-        .eq('collection_id', collectionId)
-        .maybeSingle();
+    // Helper for recursive sync
+    const syncTree = async (colId, colPrefix, colType, isHidden, isSecret) => {
+        // 2. Get the last successful sync marker for this specific collection.
+        const { data: syncState } = await supabase
+            .from('vault_sync_log')
+            .select('last_synced_at')
+            .eq('collection_id', colId)
+            .maybeSingle();
 
-    const lastSyncedAt = syncState?.last_synced_at ? new Date(syncState.last_synced_at) : null;
+        const lastSyncedAt = syncState?.last_synced_at ? new Date(syncState.last_synced_at) : null;
 
-    // 3. Get immediate contents under the prefix (delimiter = "/").
-    let allObjects = [];
-    let allPrefixes = [];
-    let nextToken = null;
-    do {
-        const res = await listR2Objects(basePrefix, nextToken, 200, "/");
-        allObjects = allObjects.concat(res.objects || []);
-        allPrefixes = allPrefixes.concat(res.prefixes || []);
-        nextToken = res.nextToken || null;
-    } while (nextToken);
+        // 3. Get immediate contents under the prefix (delimiter = "/").
+        let allObjects = [];
+        let allPrefixes = [];
+        let nextToken = null;
+        do {
+            const res = await listR2Objects(colPrefix, nextToken, 1000, "/");
+            allObjects = allObjects.concat(res.objects || []);
+            allPrefixes = allPrefixes.concat(res.prefixes || []);
+            nextToken = res.nextToken || null;
+        } while (nextToken);
 
-    const currentR2Keys = new Set((allObjects || []).filter(obj => obj && obj.key && obj.size > 0).map(obj => obj.key));
-    const currentR2Prefixes = new Set((allPrefixes || []).filter(p => p && p !== basePrefix));
+        const currentR2Keys = new Set((allObjects || []).filter(obj => obj && obj.key && obj.size > 0).map(obj => obj.key));
+        const currentR2Prefixes = new Set((allPrefixes || []).filter(p => p && p !== colPrefix));
 
-    let addedFiles = 0;
-    let addedFolders = 0;
-
-    // Delta-sync: if a sync marker exists, only consider objects newer than that timestamp.
-    const rawObjects = (allObjects || []).filter(obj => {
-        if (!obj || !obj.key || obj.size <= 0 || obj.key === basePrefix) return false;
-        if (!lastSyncedAt || !obj.lastModified) return true;
-        const modifiedAt = new Date(obj.lastModified);
-        return modifiedAt > lastSyncedAt;
-    });
-
-    const { data: existingFiles } = await supabase
-        .from('vault_files')
-        .select('id, r2_key, is_trashed')
-        .eq('collection_id', collectionId);
-    const existingKeys = new Set((existingFiles || []).map(f => f.r2_key));
-
-    const missingActiveKeys = (existingFiles || [])
-        .filter(file => !file.is_trashed && !currentR2Keys.has(file.r2_key))
-        .map(file => file.r2_key);
-
-    if (missingActiveKeys.length > 0) {
-        console.log('[syncVaultCollection] removing stale active files from Supabase:', missingActiveKeys.length, missingActiveKeys.slice(0, 10));
-        const { error: deleteErr } = await supabase
-            .from('vault_files')
-            .delete()
-            .eq('collection_id', collectionId)
-            .in('r2_key', missingActiveKeys);
-
-        if (deleteErr) throw deleteErr;
-    }
-
-    const seen = new Set();
-    const fileRows = [];
-
-    for (const obj of rawObjects) {
-        if (seen.has(obj.key)) continue;
-        seen.add(obj.key);
-
-        const filename = obj.key.split('/').pop() || obj.key;
-        const ext = filename.split('.').pop()?.toLowerCase();
-        const mimeMap = {
-            jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-            gif: 'image/gif', webp: 'image/webp', mp4: 'video/mp4',
-            mov: 'video/quicktime', mp3: 'audio/mpeg', m4a: 'audio/mp4',
-            wav: 'audio/wav', pdf: 'application/pdf',
-            txt: 'text/plain', js: 'text/javascript', ts: 'text/typescript',
-        };
-        const mime = mimeMap[ext] || 'application/octet-stream';
-
-        fileRows.push({
-            collection_id: collectionId,
-            filename,
-            r2_key: obj.key,
-            size_bytes: obj.size,
-            mime_type: mime,
-            uploaded_at: obj.lastModified || new Date().toISOString()
+        // Delta-sync: if a sync marker exists, only consider objects newer than that timestamp.
+        const rawObjects = (allObjects || []).filter(obj => {
+            if (!obj || !obj.key || obj.size <= 0 || obj.key === colPrefix) return false;
+            if (!lastSyncedAt || !obj.lastModified) return true;
+            const modifiedAt = new Date(obj.lastModified);
+            return modifiedAt > lastSyncedAt;
         });
-    }
 
-    if (fileRows.length > 0) {
-        const BATCH_SIZE = 50;
-        for (let i = 0; i < fileRows.length; i += BATCH_SIZE) {
-            const slice = fileRows.slice(i, i + BATCH_SIZE);
-            const { error: insErr } = await supabase
+        totalRawObjects += rawObjects.length;
+
+        const { data: existingFiles } = await supabase
+            .from('vault_files')
+            .select('id, r2_key, is_trashed')
+            .eq('collection_id', colId);
+        const existingKeys = new Set((existingFiles || []).map(f => f.r2_key));
+
+        const missingActiveKeys = (existingFiles || [])
+            .filter(file => !file.is_trashed && !currentR2Keys.has(file.r2_key))
+            .map(file => file.r2_key);
+
+        if (missingActiveKeys.length > 0) {
+            console.log('[syncVaultCollection] removing stale active files from Supabase:', missingActiveKeys.length, missingActiveKeys.slice(0, 10));
+            const { error: deleteErr } = await supabase
                 .from('vault_files')
-                .upsert(slice, { onConflict: 'r2_key' });
+                .delete()
+                .eq('collection_id', colId)
+                .in('r2_key', missingActiveKeys);
 
-            if (insErr) throw insErr;
-            addedFiles += slice.length;
+            if (deleteErr) throw deleteErr;
+            totalRemoved += missingActiveKeys.length;
+            totalRemovedKeys.push(...missingActiveKeys);
         }
-    }
 
-    await supabase
-        .from('vault_sync_log')
-        .upsert({
-            collection_id: collectionId,
-            last_synced_at: new Date().toISOString()
-        }, { onConflict: 'collection_id' });
+        const seen = new Set();
+        const fileRows = [];
+
+        for (const obj of rawObjects) {
+            if (seen.has(obj.key)) continue;
+            seen.add(obj.key);
+
+            const filename = obj.key.split('/').pop() || obj.key;
+            const ext = filename.split('.').pop()?.toLowerCase();
+            const mimeMap = {
+                jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+                gif: 'image/gif', webp: 'image/webp', mp4: 'video/mp4',
+                mov: 'video/quicktime', mp3: 'audio/mpeg', m4a: 'audio/mp4',
+                wav: 'audio/wav', pdf: 'application/pdf',
+                txt: 'text/plain', js: 'text/javascript', ts: 'text/typescript',
+            };
+            const mime = mimeMap[ext] || 'application/octet-stream';
+
+            fileRows.push({
+                collection_id: colId,
+                filename,
+                r2_key: obj.key,
+                size_bytes: obj.size,
+                mime_type: mime,
+                uploaded_at: obj.lastModified || new Date().toISOString()
+            });
+        }
+
+        if (fileRows.length > 0) {
+            const BATCH_SIZE = 50;
+            for (let i = 0; i < fileRows.length; i += BATCH_SIZE) {
+                const slice = fileRows.slice(i, i + BATCH_SIZE);
+                const { error: insErr } = await supabase
+                    .from('vault_files')
+                    .upsert(slice, { onConflict: 'r2_key' });
+
+                if (insErr) throw insErr;
+                totalAddedFiles += slice.length;
+            }
+        }
+        
+        totalSkipped += Math.max(0, rawObjects.length - fileRows.length);
+
+        await supabase
+            .from('vault_sync_log')
+            .upsert({
+                collection_id: colId,
+                last_synced_at: new Date().toISOString()
+            }, { onConflict: 'collection_id' });
+
+        // Recursive Subfolder Processing
+        for (const subPrefix of currentR2Prefixes) {
+            // Find if sub-collection exists
+            let { data: existingSubCol } = await supabase
+                .from('vault_collections')
+                .select('*')
+                .eq('key_prefix', subPrefix)
+                .eq('parent_id', colId)
+                .maybeSingle();
+
+            if (!existingSubCol) {
+                // Auto-create sub-collection
+                const parts = subPrefix.split('/');
+                const folderName = subPrefix.endsWith('/') ? parts[parts.length - 2] : parts[parts.length - 1];
+                const { data: newCol, error: createErr } = await supabase
+                    .from('vault_collections')
+                    .insert([{
+                        name: folderName,
+                        type: colType,
+                        key_prefix: subPrefix,
+                        is_hidden: isHidden,
+                        is_secret: isSecret,
+                        parent_id: colId
+                    }])
+                    .select()
+                    .single();
+                
+                if (createErr) throw createErr;
+                existingSubCol = newCol;
+                totalAddedFolders++;
+            }
+
+            // Recurse
+            await syncTree(existingSubCol.id, subPrefix, existingSubCol.type, existingSubCol.is_hidden, existingSubCol.is_secret);
+        }
+    };
+
+    const basePrefix = normalizeR2Prefix(rootCol.key_prefix);
+    await syncTree(collectionId, basePrefix, rootCol.type, rootCol.is_hidden, rootCol.is_secret);
 
     return {
-        added: addedFiles,
-        addedFolders: 0,
-        removed: missingActiveKeys.length,
-        removedKeys: missingActiveKeys,
-        skipped: Math.max(0, rawObjects.length - addedFiles),
-        total: rawObjects.length
+        added: totalAddedFiles,
+        addedFolders: totalAddedFolders,
+        removed: totalRemoved,
+        removedKeys: totalRemovedKeys,
+        skipped: totalSkipped,
+        total: totalRawObjects
     };
 };
 
