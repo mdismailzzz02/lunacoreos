@@ -15,18 +15,12 @@ const TABS = [
     { id: 'bookmarks', icon: '❤️', label: 'Bookmarks' },
     { id: 'delegation', icon: '🤝', label: 'Delegation' },
     { id: 'musicplayer', icon: '🎵', label: 'Music Player' },
-    { id: 'videos', icon: '🎬', label: 'YouTube' },
-    { id: 'twitch', icon: '🎮', label: 'Twitch' },
     { id: 'vault', icon: '💎', label: 'Vault', isRed: true },
     { id: 'media', icon: '🎨', label: 'Media Library' },
     
     // Remaining items in between
-    { id: 'todos', icon: '🎯', label: 'Todos' },
 
     { id: 'readinglist', icon: '📚', label: 'Reading List' },
-
-    { id: 'watchlist', icon: '🎞️', label: 'Watchlist' },
-    { id: 'lifemap', icon: '🧭', label: 'Life Map' },
     { id: 'timecapsule', icon: '📦', label: 'Time Capsule' },
     { id: 'yearlyreview', icon: '🎆', label: 'Yearly Review' },
     { id: 'passwords', icon: '🔑', label: 'Passwords' },

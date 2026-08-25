@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import * as api from '../../services/api';
 import WeatherWidget from './WeatherWidget';
-import TodosCompact from './TodosCompact';
 import DelegationAlerts from './DelegationAlerts';
 import JournalNudge from './JournalNudge';
 import ProductivityHeatmap from './ProductivityHeatmap';
-import MediaGrid from './MediaGrid';
 import ActiveGoals from './ActiveGoals';
 import TimeCapsuleAlert from './TimeCapsuleAlert';
 
@@ -56,7 +54,6 @@ export default function Dashboard({ onNavigate }) {
             {/* Second Row: Today's essentials */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
                 <WeatherWidget />
-                <TodosCompact onNavigate={onNavigate} />
                 <DelegationAlerts onNavigate={onNavigate} />
                 <JournalNudge onNavigate={onNavigate} />
             </div>
@@ -66,15 +63,6 @@ export default function Dashboard({ onNavigate }) {
                 <ProductivityHeatmap />
             </div>
 
-            {/* Fourth Row: Media Hub (Books & Shows) */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <h2 style={{ fontSize: '1.1rem', margin: 0, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                    Media Hub
-                </h2>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem' }}>
-                    <MediaGrid onNavigate={onNavigate} />
-                </div>
-            </div>
         </div>
     );
 }
