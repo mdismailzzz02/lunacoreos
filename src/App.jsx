@@ -67,7 +67,7 @@ function ExitTerminal({ onDismiss, onTerminate }) {
             background: 'rgba(0,0,0,0.85)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             backdropFilter: 'blur(20px)',
-            fontFamily: 'Menlo, Monaco, "Courier New", monospace'
+            fontFamily: '"Geist Mono", ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace'
         }}>
             <div style={{
                 width: '100%', maxWidth: '900px', minHeight: '550px',
@@ -89,7 +89,7 @@ function ExitTerminal({ onDismiss, onTerminate }) {
                         <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ffbd2e', border: '1px solid #dea123' }}></span>
                         <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#27c93f', border: '1px solid #1aab29' }}></span>
                     </div>
-                    <div style={{ flex: 1, textAlign: 'center', color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.85rem', fontWeight: 500, letterSpacing: '0.5px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
+                    <div style={{ flex: 1, textAlign: 'center', color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.85rem', fontWeight: 500, letterSpacing: '0.5px', fontFamily: '"Geist", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
                         LunaCore Security Daemon — active
                     </div>
                 </div>
@@ -626,7 +626,7 @@ export default function App() {
                                 // Auth failed — remove the flag we pre-set
                                 sessionStorage.removeItem('luna_vault_unlocked');
                                 setUnlockState({ isError: true, onComplete: () => {
-                                    setAuthError('access denied: invalid master key');
+                                    setActiveGame('menu');
                                     form.reset();
                                     setUnlockState(null);
                                 }});
@@ -639,8 +639,9 @@ export default function App() {
                             }
                         } catch (err) {
                             console.error('Vault login failed:', err);
+                            sessionStorage.removeItem('luna_vault_unlocked');
                             setUnlockState({ isError: true, onComplete: () => {
-                                setAuthError('decryption failed: internal error');
+                                setActiveGame('menu');
                                 form.reset();
                                 setUnlockState(null);
                             }});
@@ -921,7 +922,7 @@ export default function App() {
                         justify-content: center;
                         background: transparent;
                         color: #fff;
-                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                        font-family: "Geist", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
                     }
                     .terminal-window {
                         width: 100%;
@@ -936,7 +937,7 @@ export default function App() {
                         border-radius: 12px;
                         box-shadow: 0 30px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.2);
                         overflow: hidden;
-                        font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+                        font-family: "Geist Mono", ui-monospace, 'SF Mono', 'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace;
                         z-index: 10;
                         transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
                         position: relative;
@@ -1075,7 +1076,7 @@ export default function App() {
                         font-size: 0.85rem;
                         font-weight: 500;
                         letter-spacing: 0.5px;
-                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                        font-family: "Geist", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
                     }
                     .terminal-body {
                         padding: 24px;
@@ -1109,7 +1110,7 @@ export default function App() {
                         border: none;
                         outline: none;
                         color: #e0e0e0;
-                        font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+                        font-family: "Geist Mono", ui-monospace, 'SF Mono', 'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace;
                         font-size: 0.95rem;
                         letter-spacing: 0.2rem;
                     }

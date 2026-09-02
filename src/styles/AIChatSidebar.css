@@ -17,7 +17,7 @@
     z-index: 100;
     display: flex;
     flex-direction: column;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
 }
 
 .slide-in-right {
@@ -323,7 +323,7 @@
     outline: none;
     color: white;
     font-size: 0.88rem;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     placeholder-color: rgba(255,255,255,0.3);
     line-height: 1.4;
 }

@@ -803,7 +803,7 @@ function PwdStyles() {
             padding: 1.5rem 2rem;
             max-width: 1400px;
             margin: 0 auto;
-            font-family: 'Inter', 'Segoe UI', sans-serif;
+            font-family: "Geist", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             color: #e2e8f0;
             position: relative;
         }

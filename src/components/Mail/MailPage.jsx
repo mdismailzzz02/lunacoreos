@@ -301,7 +301,7 @@ export default function MailPage() {
                                     className="mail-iframe"
                                     srcDoc={`
                                         <style>
-                                            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; color: #fff; background: transparent; padding: 1rem; overscroll-behavior: contain; }
+                                            body { font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; color: #fff; background: transparent; padding: 1rem; overscroll-behavior: contain; }
                                             a { color: #60a5fa; }
                                             img { max-width: 100%; height: auto; }
                                         </style>

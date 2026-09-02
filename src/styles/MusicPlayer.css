@@ -16,7 +16,7 @@
   gap: 1.25rem;
   background: transparent !important;
   color: #fff;
-  font-family: 'Inter', -apple-system, sans-serif;
+  font-family: var(--font-ui);
 }
 
 /* Header & Actions */
