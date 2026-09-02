@@ -24,12 +24,12 @@ const TABS = [
 
 export default function LifeOSPage() {
   const [activeTab, setActiveTab] = useState(
-    () => localStorage.getItem('luna_lifeos_tab') || 'dashboard'
+    () => sessionStorage.getItem('luna_lifeos_tab') || 'dashboard'
   );
 
   const switchTab = (id) => {
     setActiveTab(id);
-    localStorage.setItem('luna_lifeos_tab', id);
+    sessionStorage.setItem('luna_lifeos_tab', id);
   };
 
   return (

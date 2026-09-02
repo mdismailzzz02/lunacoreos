@@ -21,8 +21,8 @@ export default function DashboardOverview() {
   const [isLoading, setIsLoading] = useState(true);
   
   // 'week', 'month', 'year'
-  const [gridRange, setGridRange] = useState(() => localStorage.getItem('luna_dashboard_range') || 'week');
-  const [gridFilter, setGridFilter] = useState(() => localStorage.getItem('luna_dashboard_filter') || 'all');
+  const [gridRange, setGridRange] = useState(() => sessionStorage.getItem('luna_dashboard_range') || 'week');
+  const [gridFilter, setGridFilter] = useState(() => sessionStorage.getItem('luna_dashboard_filter') || 'all');
 
   // Carousel State
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -30,8 +30,8 @@ export default function DashboardOverview() {
   const pauseTimeoutRef = useRef(null);
 
   useEffect(() => {
-    localStorage.setItem('luna_dashboard_range', gridRange);
-    localStorage.setItem('luna_dashboard_filter', gridFilter);
+    sessionStorage.setItem('luna_dashboard_range', gridRange);
+    sessionStorage.setItem('luna_dashboard_filter', gridFilter);
   }, [gridRange, gridFilter]);
 
   useEffect(() => {

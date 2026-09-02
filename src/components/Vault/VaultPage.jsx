@@ -10,6 +10,10 @@ import {
     createVaultCollection,
     deleteVaultCollection,
 } from '../../services/api';
+import { 
+    Image, FileText, Code, Plus, Lock, Ghost, EyeOff, 
+    RefreshCw, Search, Users, Trash2, Folder, X, PlusCircle 
+} from 'lucide-react';
 
 // ─── Bytes → Human-Readable ────────────────────────────────────
 function fmtBytes(bytes) {
@@ -20,7 +24,7 @@ function fmtBytes(bytes) {
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
-const TYPE_ICONS = { gallery: '🖼️', documents: '📄', code: '💻' };
+const TYPE_ICONS = { gallery: <Image size={16} />, documents: <FileText size={16} />, code: <Code size={16} /> };
 const TOTAL_FREE_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
 
 // ─── Create Collection Modal ────────────────────────────────────
@@ -49,7 +53,7 @@ function CreateCollectionModal({ onAdd, onClose, vaultMode }) {
     return ReactDOM.createPortal(
         <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 99998, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
             <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-card, #1a1a2e)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '20px', padding: '2rem', width: '100%', maxWidth: '420px', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
-                <h3 style={{ marginBottom: '1.25rem', fontWeight: 700 }}>➕ New Collection</h3>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.25rem', fontWeight: 700 }}><PlusCircle size={20} /> New Collection</h3>
                 <form onSubmit={handleSubmit}>
                     <input type="text" placeholder="Collection name" value={name} onChange={e => setName(e.target.value)}
                         style={{ width: '100%', padding: '0.85rem 1rem', borderRadius: '10px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '0.9rem', outline: 'none', marginBottom: '0.75rem', boxSizing: 'border-box' }} />
@@ -75,8 +79,8 @@ function CreateCollectionModal({ onAdd, onClose, vaultMode }) {
                     {vaultMode !== 'normal' && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem', background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '10px' }}>
                             <input type="checkbox" id="special-col" checked={isSpecial} onChange={e => setIsSpecial(e.target.checked)} style={{ cursor: 'pointer' }} />
-                            <label htmlFor="special-col" style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>
-                                {vaultMode === 'secret' ? 'Make this collection secret 🕵️' : 'Make this collection totally hidden 👻'}
+                            <label htmlFor="special-col" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>
+                                {vaultMode === 'secret' ? <><EyeOff size={14} /> Make this collection secret</> : <><Ghost size={14} /> Make this collection totally hidden</>}
                             </label>
                         </div>
                     )}
@@ -138,14 +142,14 @@ function NavBtn({ active, onClick, icon, label, subLabel, onRemove, indent = 0 }
                 className={`vault-nav-btn ${active ? 'active' : ''}`}
                 title={label}
             >
-                <span style={{ fontSize: '0.9rem', flexShrink: 0 }}>{icon}</span>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', flexShrink: 0 }}>{icon}</span>
                 <div className="nav-text-container">
                     <div className="nav-text-static">{label}</div>
                     {subLabel && <div style={{ fontSize: '0.55rem', opacity: 0.55, marginTop: '2px' }}>{subLabel}</div>}
                 </div>
             </button>
             {onRemove && (
-                <button onClick={onRemove} className="vault-remove-btn" title="Remove Collection">✕</button>
+                <button onClick={onRemove} className="vault-remove-btn" title="Remove Collection"><X size={12} /></button>
             )}
         </div>
     );
@@ -210,7 +214,31 @@ function VaultPage() {
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { loadCollections(); }, [vaultMode]);
+    useEffect(() => { 
+        setActiveTab(null);
+        loadCollections(); 
+    }, [vaultMode]);
+
+    useEffect(() => {
+        const checkHiddenTrigger = () => {
+            const trigger = sessionStorage.getItem('luna_trigger_hidden_vault');
+            if (trigger === 'true' || trigger === 'verified') {
+                sessionStorage.removeItem('luna_trigger_hidden_vault');
+                if (vaultMode === 'normal') {
+                    if (trigger === 'verified') {
+                        setVaultMode('hidden'); // Pre-verified by VaultLock
+                    } else {
+                        setPendingMode('hidden');
+                    }
+                }
+            }
+        };
+
+        checkHiddenTrigger(); // Check on mount
+        
+        window.addEventListener('luna:open_hidden_vault', checkHiddenTrigger);
+        return () => window.removeEventListener('luna:open_hidden_vault', checkHiddenTrigger);
+    }, [vaultMode]);
 
     const handleSecretClick = (mode) => {
         if (vaultMode !== 'normal') {
@@ -327,9 +355,9 @@ function VaultPage() {
             <div className={`vault-mobile-nav mobile-only ${isCollectionActive ? 'hidden' : ''}`} style={{ padding: '1rem', background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)' }}>
                 <div className="vault-segments" style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '12px' }}>
 
-                    <button style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'folders_menu' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('folders_menu')}>🗂️ Collections</button>
-                    <button style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'people' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('people')}>👥 People</button>
-                    <button style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'trash' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('trash')}>🗑️ Trash</button>
+                    <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'folders_menu' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('folders_menu')}><Folder size={14} /> Collections</button>
+                    <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'people' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('people')}><Users size={14} /> People</button>
+                    <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'trash' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('trash')}><Trash2 size={14} /> Trash</button>
                 </div>
             </div>
 
@@ -339,7 +367,7 @@ function VaultPage() {
                     <button className="back-btn" onClick={() => setActiveTab('folders_menu')} style={{ background: 'transparent', border: 'none', color: '#a78bfa', fontSize: '1rem', cursor: 'pointer' }}>
                         ‹ Back
                     </button>
-                    <span style={{ fontWeight: 700 }}>{TYPE_ICONS[activeCollection?.type] || '📁'} {activeCollection?.name}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700 }}>{TYPE_ICONS[activeCollection?.type] || <Folder size={16} />} {activeCollection?.name}</span>
                 </div>
             )}
 
@@ -351,31 +379,31 @@ function VaultPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span 
                                 onClick={() => handleSecretClick('hidden')} 
-                                style={{ cursor: 'pointer', fontSize: '1.5rem', userSelect: 'none' }}
+                                style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
                                 title={vaultMode === 'hidden' ? "Lock Hidden Vault" : "..."}
                             >
-                                {vaultMode === 'hidden' ? '👻' : vaultMode === 'secret' ? '🕵️' : '🔒'}
+                                {vaultMode === 'hidden' ? <Ghost size={20} color="#a78bfa" /> : vaultMode === 'secret' ? <EyeOff size={20} color="#a78bfa" /> : <Lock size={20} color="#f59e0b" />}
                             </span>
-                            <h2 className="vault-title" style={{ margin: 0 }}>VAULT_CORE</h2>
+                            <h2 className="vault-title" style={{ margin: 0 }}>VAULT</h2>
                             {vaultMode === 'normal' && (
                                 <span 
                                     onClick={() => handleSecretClick('secret')} 
-                                    style={{ cursor: 'pointer', fontSize: '1.2rem', userSelect: 'none', opacity: 0.5, marginLeft: '4px' }}
+                                    style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none', opacity: 0.5, marginLeft: '4px' }}
                                     title="Secret Mode"
                                 >
-                                    🕵️
+                                    <EyeOff size={16} />
                                 </span>
                             )}
                         </div>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                            <button onClick={loadCollections} className="btn btn-ghost btn-xs" title="Reload collections" style={{ padding: '4px', opacity: 0.5 }}>🔄</button>
+                            <button onClick={loadCollections} className="btn btn-ghost btn-xs" title="Reload collections" style={{ padding: '4px', opacity: 0.5 }}><RefreshCw size={14} /></button>
                         </div>
                     </div>
                     {/* Search bar */}
                     <input
                         className="vault-search-bar"
                         type="text"
-                        placeholder="🔍  Search collections…"
+                        placeholder="Search collections…"
                         value={collectionSearch}
                         onChange={e => setCollectionSearch(e.target.value)}
                     />
@@ -387,14 +415,14 @@ function VaultPage() {
                         <NavBtn
                             active={activeTab === 'people'}
                             onClick={() => setActiveTab('people')}
-                            icon="👥"
+                            icon={<Users size={16} />}
                             label="People & Groups"
                         />
 
                         <NavBtn
                             active={activeTab === 'trash'}
                             onClick={() => setActiveTab('trash')}
-                            icon="🗑️"
+                            icon={<Trash2 size={16} />}
                             label="Trash"
                         />
 
@@ -418,7 +446,7 @@ function VaultPage() {
                                         key={col.id}
                                         active={activeTab === col.id}
                                         onClick={() => setActiveTab(col.id)}
-                                        icon={TYPE_ICONS[col.type] || '📁'}
+                                        icon={TYPE_ICONS[col.type] || <Folder size={16} />}
                                         label={col.name}
                                         subLabel={col.file_count ? `${col.file_count.toLocaleString()} files · ${fmtBytes(col.size_bytes)}` : null}
                                         onRemove={() => handleRemoveCollection(col.id)}
@@ -427,8 +455,8 @@ function VaultPage() {
                             );
                         })()}
 
-                        <button className="vault-add-btn" onClick={() => setShowAdd(true)}>
-                            + New Collection
+                        <button className="vault-add-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} onClick={() => setShowAdd(true)}>
+                            <Plus size={16} /> New Collection
                         </button>
                     </div>
 
@@ -446,7 +474,7 @@ function VaultPage() {
                         {/* Mobile search bar */}
                         <input
                             type="text"
-                            placeholder="🔍  Search collections…"
+                            placeholder="Search collections…"
                             value={collectionSearch}
                             onChange={e => setCollectionSearch(e.target.value)}
                             style={{
@@ -458,7 +486,7 @@ function VaultPage() {
                         />
                         <div className="mobile-folders-grid">
                             <div className="add-folder-card" onClick={() => setShowAdd(true)}>
-                                <div className="add-icon">+</div>
+                                <div className="add-icon"><Plus size={24} /></div>
                                 <span>New Collection</span>
                             </div>
                             {loading ? (
@@ -474,10 +502,10 @@ function VaultPage() {
                                 ) : (
                                     filtered.map(col => (
                                         <div key={col.id} className="folder-card" onClick={() => setActiveTab(col.id)}>
-                                            <div className="folder-icon-wrapper">{TYPE_ICONS[col.type] || '📁'}</div>
+                                            <div className="folder-icon-wrapper">{TYPE_ICONS[col.type] || <Folder size={24} />}</div>
                                             <div className="folder-name">{col.name}</div>
                                             {col.file_count > 0 && <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', marginTop: '4px' }}>{col.file_count} files</div>}
-                                            <button className="folder-remove" onClick={(e) => { e.stopPropagation(); handleRemoveCollection(col.id); }}>✕</button>
+                                            <button className="folder-remove" onClick={(e) => { e.stopPropagation(); handleRemoveCollection(col.id); }}><X size={12} /></button>
                                         </div>
                                     ))
                                 );
@@ -503,7 +531,6 @@ function VaultPage() {
                 <SecondaryVaultLock 
                     lockId={pendingMode === 'hidden' ? 'vault_hidden' : 'vault_secret'} 
                     title={pendingMode === 'hidden' ? 'Hidden Vault' : 'Secret Vault'}
-                    icon={pendingMode === 'hidden' ? '👻' : '🕵️'}
                     onSuccess={() => { setVaultMode(pendingMode); setPendingMode(null); }} 
                     onClose={() => setPendingMode(null)} 
                 />
@@ -512,7 +539,6 @@ function VaultPage() {
                 <SecondaryVaultLock 
                     lockId="vault" 
                     title="Delete Folder"
-                    icon="🗑️"
                     onSuccess={confirmDelete} 
                     onClose={() => setPendingDelete(null)} 
                 />

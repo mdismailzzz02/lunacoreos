@@ -4,6 +4,7 @@ import WeatherWidget from './WeatherWidget';
 import DelegationAlerts from './DelegationAlerts';
 import JournalNudge from './JournalNudge';
 import ProductivityHeatmap from './ProductivityHeatmap';
+import MediaGrid from './MediaGrid';
 import ActiveGoals from './ActiveGoals';
 import TimeCapsuleAlert from './TimeCapsuleAlert';
 
@@ -63,6 +64,15 @@ export default function Dashboard({ onNavigate }) {
                 <ProductivityHeatmap />
             </div>
 
+            {/* Fourth Row: Media Hub (Books & Shows) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <h2 style={{ fontSize: '1.1rem', margin: 0, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    Media Hub
+                </h2>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem' }}>
+                    <MediaGrid onNavigate={onNavigate} />
+                </div>
+            </div>
         </div>
     );
 }

@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Rss, Newspaper, Compass, X, Plus, ExternalLink, Bookmark } from 'lucide-react';
+import AppleLoader from '../Layout/AppleLoader';
 import * as api from '../../services/api';
 import { Readability } from '@mozilla/readability';
 import DOMPurify from 'dompurify';
@@ -152,17 +154,10 @@ export default function InformationPage() {
         }
     };
 
-    if (loading) {
-        return (
-            <div className="empty-feed" style={{ height: '100%' }}>
-                <div className="spinner" />
-                <p>Syncing your feeds…</p>
-            </div>
-        );
-    }
+    if (loading) return <AppleLoader />;
 
     return (
-        <div className="information-layout">
+        <div className="information-layout apple-page-loaded">
             {/* Sources Sidebar */}
             <aside className="information-sidebar">
                 <div className="inf-header">

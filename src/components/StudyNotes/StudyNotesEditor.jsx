@@ -35,7 +35,8 @@ import {
     Maximize,
     Minimize,
     Grid3x3,
-    BookOpen
+    BookOpen,
+    ArrowLeft
 } from 'lucide-react';
 
 import CodeBlockComponent from './CodeBlockComponent';
@@ -143,6 +144,7 @@ export default function StudyNotesEditor({
     onSave,
     onTriggerAutoSave,
     onDelete,
+    onSelectNote,
 }) {
     const fileInputRef = useRef(null);
     const codeInputRef = useRef(null);
@@ -171,6 +173,12 @@ export default function StudyNotesEditor({
         };
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
+
+    useEffect(() => {
+        const handleRefresh = () => setRefreshMedia(prev => prev + 1);
+        document.addEventListener('sn-refresh-media', handleRefresh);
+        return () => document.removeEventListener('sn-refresh-media', handleRefresh);
     }, []);
 
     const toggleFullscreen = () => {
@@ -759,8 +767,10 @@ export default function StudyNotesEditor({
     };
 
     return (
-        <div className={`sn-editor-surface ${isReadOnlyFullscreen ? 'sn-readonly-mode' : ''} ${isFullscreen ? 'sn-is-fullscreen' : ''}`} ref={editorSurfaceRef}>
-            
+        <>
+            {/* EDITOR PANEL */}
+            <section className="sn-editor-panel">
+                <div className={`sn-editor-surface ${isReadOnlyFullscreen ? 'sn-readonly-mode' : ''} ${isFullscreen ? 'sn-is-fullscreen' : ''}`} ref={editorSurfaceRef}>
             {/* 1. TOP NAV: Minimalist transparent header for status and controls */}
             <div className="sn-editor-top-nav">
                 <div className="sn-editor-breadcrumbs">
@@ -893,24 +903,11 @@ export default function StudyNotesEditor({
                         )}
                     </div>
                     
-                    {/* MEDIA ATTACHMENTS AT BOTTOM OF PAGE */}
-                    <div className="sn-document-attachments">
-                        <MediaShelfWrapper 
-                            key={note.note_id}
-                            refreshKey={refreshMedia}
-                            sourceId={note.note_id} 
-                            onMediaChange={(refs) => {
-                                onSave({ 
-                                    audio_urls: refs.audio_refs,
-                                    image_urls: refs.image_refs,
-                                    file_urls: refs.file_refs
-                                });
-                            }}
-                        />
-                    </div>
                 </div>
             </div>
         </div>
+        </section>
+        </>
     );
 }
 

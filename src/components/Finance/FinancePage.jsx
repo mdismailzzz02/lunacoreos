@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import * as api from '../../services/api';
+import { Wallet } from 'lucide-react';
 
 export default function FinancePage() {
     const [transactions, setTransactions] = useState([]);
@@ -56,7 +57,10 @@ export default function FinancePage() {
         <div className="fade-in" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                    <h1 style={{ margin: 0, fontSize: '2rem' }}>💰 Finance Tracker</h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <Wallet size={32} color="var(--accent)" strokeWidth={2} />
+                    <h1 style={{ margin: 0, fontSize: '2rem' }}>Finance Tracker</h1>
+                </div>
                     <p style={{ margin: '5px 0 0 0', opacity: 0.6 }}>Mindful spending. Wealth building. Peace of mind.</p>
                 </div>
                 <button

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Sparkles } from 'lucide-react';
 import * as api from '../../services/api';
 import { getAiReflection } from '../../services/gemini';
 import { useDashboard } from '../../hooks/useDashboard';
@@ -109,7 +110,7 @@ export default function ThoughtDumpPage() {
                 <div style={{ background: 'linear-gradient(135deg, rgba(162, 155, 254, 0.1), rgba(108, 92, 231, 0.1))', padding: '1.5rem', borderRadius: '24px', border: '1px solid rgba(162, 155, 254, 0.2)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: reflection ? '1rem' : 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <span style={{ fontSize: '1.5rem' }}>✨</span>
+                            <Sparkles size={20} color="#a29bfe" />
                             <span style={{ fontWeight: 'bold' }}>AI Reflection</span>
                         </div>
                         <button

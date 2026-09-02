@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as faceapi from 'face-api.js';
+import { ScanFace } from 'lucide-react';
 import { getVaultFiles, getR2PresignedGet } from '../../services/api';
 
 /**
@@ -198,7 +199,9 @@ export default function FaceScanner({ collectionId, images, onComplete, onCancel
                 }
             `}</style>
             
-            <h3 style={{ marginBottom: '0.5rem', fontWeight: 800, fontSize: '1.4rem' }}>🧬 AI Face Recognition</h3>
+            <h3 style={{ marginBottom: '0.5rem', fontWeight: 800, fontSize: '1.4rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                <ScanFace size={24} color="var(--accent)" /> AI Face Recognition
+            </h3>
             <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', marginBottom: '2rem', minHeight: '3em' }}>
                 {log}
             </p>

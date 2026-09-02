@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useHabits } from '../../hooks/useHabits';
-import { SkeletonCard } from '../Shared/Skeleton';
+import { Flame, Check, X, Calendar as CalendarIcon, TrendingUp, AlertCircle } from 'lucide-react';
+import AppleLoader from '../Layout/AppleLoader';
 
 const COLORS = ['#4caf7d', '#e8a045', '#6baed6', '#e05c5c', '#a78bfa', '#f472b6', '#34d399'];
 
@@ -69,12 +70,15 @@ export default function HabitsPage() {
         setForm({ name: '', icon: '⭐', color: COLORS[0], frequency: 'daily', custom_days: '', unit: 'times', target_value: '1', category: '', notes: '' });
     };
 
-    if (loading) return <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>{[...Array(3)].map((_, i) => <SkeletonCard key={i} />)}</div>;
+    if (loading) return <AppleLoader />;
 
     return (
-        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <div className="fade-in apple-page-loaded" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: '1.3rem', fontWeight: 700 }}>🔥 Habits</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <Flame size={24} color="var(--accent)" strokeWidth={2} />
+                    <h2 style={{ fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>Habits</h2>
+                </div>
                 <button className="btn btn-primary btn-sm" onClick={() => setShowForm(true)}>+ New Habit</button>
             </div>
 
@@ -195,7 +199,9 @@ export default function HabitsPage() {
                             </div>
                             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                                 <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
-                                <button type="submit" className="btn btn-primary">Create Habit 🔥</button>
+                                <button type="submit" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    Create Habit <Flame size={16} />
+                                </button>
                             </div>
                         </form>
                     </div>

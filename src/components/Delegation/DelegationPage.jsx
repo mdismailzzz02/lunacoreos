@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as api from '../../services/api';
+import { Inbox, Trash2, Edit2, Link as LinkIcon, CheckCircle, Circle, Archive, Clock, Brain, RefreshCw, X, AlertCircle, Calendar as CalendarIcon } from 'lucide-react';
+import AppleLoader from '../Layout/AppleLoader';
 
 const CATEGORIES = ['All', 'Live Stream', 'VOD', 'Video', 'Reading', 'Movie', 'TV Show', 'Podcast', 'Other'];
 const IMPORTANCE = ['High', 'Medium', 'Low'];
@@ -143,7 +145,7 @@ function DelegationCard({ item, rank, totalItems, onDelete, onRankUp, onRankDown
                     color: confirming ? '#ff6b6b' : 'rgba(255,255,255,0.35)',
                     cursor: 'pointer', fontSize: '0.78rem', transition: 'all 0.2s'
                 }}>
-                    {confirming ? 'Confirm?' : '✕ Done'}
+                    {confirming ? 'Confirm?' : <span style={{display: 'flex', alignItems: 'center'}}><X size={14} style={{ marginRight: '4px' }}/> Done</span>}
                 </button>
             </div>
         </div>
@@ -199,8 +201,10 @@ function QuickAddModal({ onClose, onSave }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
             <div style={{ background: 'var(--card-bg)', borderRadius: '24px', padding: '2rem', width: '480px', maxWidth: '92vw', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h2 style={{ margin: 0, fontSize: '1.2rem' }}>📥 Add to Delegation</h2>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+                    <h2 style={{ margin: 0, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Inbox size={20} color="var(--accent)" /> Add to Delegation
+                    </h2>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><X size={20} /></button>
                 </div>
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {F('Title *', 'title', 'text', { ph: 'e.g. "Watch this stream later"' })}
@@ -212,7 +216,7 @@ function QuickAddModal({ onClose, onSave }) {
                     </div>
                     {/* Due date/time picker */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        <label style={{ fontSize: '0.78rem', opacity: 0.55, fontWeight: 600 }}>📅 Due Date & Time (optional)</label>
+                        <label style={{ fontSize: '0.78rem', opacity: 0.55, fontWeight: 600, display: 'flex', alignItems: 'center' }}><CalendarIcon size={14} style={{ marginRight: '6px' }} /> Due Date & Time (optional)</label>
                         <input
                             type="datetime-local"
                             value={form.due_date}
@@ -223,13 +227,13 @@ function QuickAddModal({ onClose, onSave }) {
                     {F('Note (optional)', 'note', 'text', { as: 'textarea', ph: 'Why is this important?' })}
                     {error && (
                         <p style={{ margin: 0, color: '#ff6b6b', fontSize: '0.8rem', padding: '0.5rem 0.75rem', background: 'rgba(255,107,107,0.1)', borderRadius: '8px', border: '1px solid rgba(255,107,107,0.3)' }}>
-                            ⚠️ {error}
+                            <AlertCircle size={14} style={{ marginRight: '6px' }} /> {error}
                         </p>
                     )}
                     <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem' }}>
                         <button type="button" onClick={onClose} style={{ flex: 1, padding: '0.85rem', borderRadius: '12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer' }}>Cancel</button>
                         <button type="submit" disabled={saving} style={{ flex: 2, padding: '0.85rem', borderRadius: '12px', background: 'linear-gradient(135deg, #a970ff, #7c4dff)', border: 'none', color: 'white', fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
-                            {saving ? 'Delegating…' : '📥 Delegate This'}
+                            {saving ? 'Delegating…' : <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Inbox size={14} color="currentColor" /> Delegate This</span>}
                         </button>
                     </div>
                 </form>
@@ -318,13 +322,15 @@ export default function DelegationPage() {
         return acc;
     }, {});
 
+    if (loading) return <AppleLoader />;
+
     return (
-        <div className="fade-in" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.75rem', maxWidth: '1200px', margin: '0 auto' }}>
+        <div className="fade-in apple-page-loaded" style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
                     <h1 style={{ margin: 0, fontSize: '1.9rem', background: 'linear-gradient(135deg, #a970ff, #7c4dff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                        📥 Delegation
+                        <Inbox size={14} color="currentColor" style={{ marginRight: '6px' }} /> Delegation
                     </h1>
                     <p style={{ margin: '5px 0 0 0', opacity: 0.45, fontSize: '0.88rem' }}>
                         {items.length} item{items.length !== 1 ? 's' : ''} · Things that matter, but can wait
@@ -366,14 +372,10 @@ export default function DelegationPage() {
             </div>
 
             {/* Grid */}
-            {loading ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.2rem' }}>
-                    {[...Array(6)].map((_, i) => <div key={i} className="skeleton" style={{ height: '175px', borderRadius: '20px' }} />)}
-                </div>
-            ) : filtered.length === 0 ? (
+            {filtered.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '5rem', opacity: 0.35, border: '2px dashed rgba(255,255,255,0.1)', borderRadius: '24px' }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📥</div>
-                    <p>Nothing delegated yet.<br />Use the "📥 Delegation" toggle when saving streams, videos, or bookmarks!</p>
+                    <div style={{ marginBottom: '1rem' }}><Inbox size={48} color="var(--text-muted)" /></div>
+                    <p>Nothing delegated yet.<br />Use the Delegation toggle when saving streams, videos, or bookmarks!</p>
                 </div>
             ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.2rem' }}>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import * as api from '../../services/api';
+import { PenTool, Lock } from 'lucide-react';
 import SecondaryVaultLock from '../Vault/SecondaryVaultLock';
 
 export default function WritingPage() {
@@ -196,8 +197,9 @@ export default function WritingPage() {
                     onClick={handleSecretClick} 
                     style={{ cursor: writingMode === 'normal' ? 'pointer' : 'default', userSelect: 'none' }}
                 >
-                    <h1 style={{ margin: 0, fontSize: '2rem', transition: 'color 0.3s', color: writingMode === 'secret' ? '#ef4444' : 'inherit' }}>
-                        {writingMode === 'secret' ? '🤫 Secret Writings' : '✍️ Long-form Writing'}
+                    <h1 style={{ margin: 0, fontSize: '2rem', transition: 'color 0.3s', color: writingMode === 'secret' ? '#ef4444' : 'inherit', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        {writingMode === 'secret' ? <Lock size={32} color="#ef4444" strokeWidth={2} /> : <PenTool size={32} color="var(--accent)" strokeWidth={2} />}
+                        {writingMode === 'secret' ? 'Secret Writings' : 'Long-form Writing'}
                     </h1>
                     <p style={{ margin: '5px 0 0 0', opacity: 0.6, color: writingMode === 'secret' ? '#fca5a5' : 'inherit' }}>
                         {writingMode === 'secret' ? 'For your eyes only. Fully encrypted.' : 'Essays, stories, and deep dives. No distractions.'}

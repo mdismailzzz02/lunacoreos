@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import * as api from '../../services/api';
+import { Flame } from 'lucide-react';
 
 export default function StreaksPage() {
     const [streaks, setStreaks] = useState([]);
@@ -129,7 +130,10 @@ export default function StreaksPage() {
         <div className="fade-in" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                    <h1 style={{ margin: 0, fontSize: '2rem' }}>🔥 Streaks</h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <Flame size={32} color="var(--accent)" strokeWidth={2} />
+                    <h1 style={{ margin: 0, fontSize: '2rem' }}>Streaks</h1>
+                </div>
                     <p style={{ margin: '5px 0 0 0', opacity: 0.6 }}>Consistency is the only rule. Track your wins.</p>
                 </div>
                 <button

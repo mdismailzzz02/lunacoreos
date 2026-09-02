@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
     LayoutGrid, 
     Plus, 
     Search,
     Trash2,
-    ChevronDown
+    ChevronDown,
+    FileText,
+    Paperclip
 } from 'lucide-react';
 import DateCalendar from '../Journal/DateCalendar';
+import MediaAttachmentsPanel from '../Shared/MediaAttachmentsPanel';
 
 export default function StudyNotesSidebar({
     folders,
@@ -28,10 +31,21 @@ export default function StudyNotesSidebar({
     selectedDate,
     onDateSelect,
     showCalendar = false,
+    activeNote,
+    onSaveNote,
+    moduleName = "Notes",
 }) {
     const [creatingFolder, setCreatingFolder] = useState(false);
     const [newFolderName, setNewFolderName] = useState('');
     const [calendarExpanded, setCalendarExpanded] = useState(false);
+    const [sidebarTab, setSidebarTab] = useState('notes'); // 'notes' | 'attachments'
+    const [refreshMedia, setRefreshMedia] = useState(0);
+
+    useEffect(() => {
+        const handleRefresh = () => setRefreshMedia(prev => prev + 1);
+        document.addEventListener('sn-refresh-media', handleRefresh);
+        return () => document.removeEventListener('sn-refresh-media', handleRefresh);
+    }, []);
 
     const handleCreateFolder = () => {
         if (!newFolderName.trim()) return;
@@ -55,32 +69,63 @@ export default function StudyNotesSidebar({
 
     return (
         <aside className="sn-sidebar">
-            {/* CALENDAR SECTION — COLLAPSIBLE */}
-            {showCalendar && journalNotes && (
-                <div className="sn-sidebar-section sn-calendar-section">
-                    <div className="sn-calendar-header">
-                        <span className="sn-calendar-title">📅 Calendar</span>
-                        <button 
-                            className={`sn-calendar-toggle ${calendarExpanded ? 'expanded' : ''}`}
-                            onClick={() => setCalendarExpanded(!calendarExpanded)}
-                        >
-                            <ChevronDown size={16} />
-                        </button>
-                    </div>
-                    {calendarExpanded && (
-                        <div className="sn-calendar-content">
-                            <DateCalendar 
-                                journalNotes={journalNotes} 
-                                onDateSelect={onDateSelect}
-                                selectedDate={selectedDate}
-                            />
+            <div style={{ display: 'flex', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '8px', margin: '16px 16px 8px 16px' }}>
+                <button onClick={() => setSidebarTab('notes')} style={{ flex: 1, padding: '6px', borderRadius: '6px', border: 'none', background: sidebarTab === 'notes' ? 'var(--sn-surface-hover)' : 'transparent', color: sidebarTab === 'notes' ? 'var(--sn-text)' : 'var(--sn-text-muted)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}>
+                    <FileText size={14} /> {moduleName.toUpperCase()}
+                </button>
+                <button onClick={() => setSidebarTab('attachments')} style={{ flex: 1, padding: '6px', borderRadius: '6px', border: 'none', background: sidebarTab === 'attachments' ? 'var(--sn-surface-hover)' : 'transparent', color: sidebarTab === 'attachments' ? 'var(--sn-text)' : 'var(--sn-text-muted)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}>
+                    <Paperclip size={14} /> ATTACHMENTS
+                </button>
+            </div>
+
+            {sidebarTab === 'attachments' ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '16px' }}>
+                    {activeNote ? (
+                        <MediaAttachmentsPanel 
+                            sourceId={activeNote.note_id} 
+                            refreshKey={refreshMedia}
+                            onMediaChange={(refs) => {
+                                onSaveNote && onSaveNote({ 
+                                    audio_urls: refs.audio_refs,
+                                    image_urls: refs.image_refs,
+                                    file_urls: refs.file_refs
+                                });
+                            }} 
+                        />
+                    ) : (
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sn-text-muted)', fontSize: '0.85rem', textAlign: 'center' }}>
+                            Select {moduleName === 'Journals' ? 'a journal' : 'a note'} to view attachments
                         </div>
                     )}
                 </div>
-            )}
+            ) : (
+                <>
+                    {/* CALENDAR SECTION — COLLAPSIBLE */}
+                    {showCalendar && journalNotes && (
+                        <div className="sn-sidebar-section sn-calendar-section">
+                            <div className="sn-calendar-header">
+                                <span className="sn-calendar-title">📅 Calendar</span>
+                                <button 
+                                    className={`sn-calendar-toggle ${calendarExpanded ? 'expanded' : ''}`}
+                                    onClick={() => setCalendarExpanded(!calendarExpanded)}
+                                >
+                                    <ChevronDown size={16} />
+                                </button>
+                            </div>
+                            {calendarExpanded && (
+                                <div className="sn-calendar-content">
+                                    <DateCalendar 
+                                        journalNotes={journalNotes} 
+                                        onDateSelect={onDateSelect}
+                                        selectedDate={selectedDate}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )}
 
-            {/* SECTION 1 — FOLDERS */}
-            <div className="sn-sidebar-section">
+                    {/* SECTION 1 — FOLDERS */}
+                    <div className="sn-sidebar-section">
                 <div className="sn-folders-header">
                     <span className="sn-label-folders">FOLDERS</span>
                     <Plus size={20} className="sn-add-folder-btn" onClick={() => setCreatingFolder(v => !v)} />
@@ -92,7 +137,7 @@ export default function StudyNotesSidebar({
                         onClick={() => onSelectFolder(null)}
                     >
                         <LayoutGrid size={14} />
-                        <span className="sn-folder-name">All Notes</span>
+                        <span className="sn-folder-name">All {moduleName}</span>
                         <span className="sn-folder-qty">{notes.length}</span>
                     </div>
                     {folders.map(f => (
@@ -146,7 +191,7 @@ export default function StudyNotesSidebar({
                     <div className="sn-search-wrapper">
                         <Search size={12} color="#6b6882" />
                         <input 
-                            placeholder="Search notes..." 
+                            placeholder={`Search ${moduleName.toLowerCase()}...`}
                             value={search}
                             onChange={e => onSearch(e.target.value)}
                         />
@@ -191,9 +236,11 @@ export default function StudyNotesSidebar({
                     </div>
                 )}
                 <div className="sn-new-note-text-btn" onClick={onNewNote}>
-                    + New Note
+                    + New {moduleName === 'Journals' ? 'Journal' : 'Note'}
                 </div>
             </div>
+            </>
+            )}
         </aside>
     );
 }

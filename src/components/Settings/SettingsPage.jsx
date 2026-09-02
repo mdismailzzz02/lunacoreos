@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import * as api from '../../services/api';
+import { Settings } from 'lucide-react';
 import { forceGoogleReauth } from '../../services/googleAuth';
 import { useToast } from '../../context/ToastContext';
-import { Save, User, Palette, Film, Brain, Globe, Key, Mail } from 'lucide-react';
+import { Save, User, Palette, Film, Brain, Globe, Mail } from 'lucide-react';
+import AppleLoader from '../Layout/AppleLoader';
 import { supabase } from '../../services/supabaseClient';
 
 export default function SettingsPage() {
@@ -84,12 +86,15 @@ export default function SettingsPage() {
         }
     };
 
-    if (loading) return <div className="spinner" />;
+    if (loading) return <AppleLoader />;
 
     return (
-        <div className="fade-in" style={{ maxWidth: '800px', margin: '0 auto', padding: '1rem' }}>
-            <div style={{ marginBottom: '2rem' }}>
-                <h1 style={{ fontSize: '2rem', fontWeight: 800, margin: 0 }}>⚙️ System Settings</h1>
+        <div className="fade-in apple-page-loaded" style={{ maxWidth: '800px', margin: '0 auto', padding: '1rem' }}>
+            <div className="fade-in" style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+                    <Settings size={32} color="var(--accent)" strokeWidth={2} />
+                    <h1 style={{ fontSize: '2rem', fontWeight: 800, margin: 0 }}>System Settings</h1>
+                </div>
                 <p style={{ opacity: 0.6, marginTop: '0.5rem' }}>Customize your LunaCore OS experience.</p>
             </div>
 

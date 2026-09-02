@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import * as api from '../../services/api';
+import { CalendarDays } from 'lucide-react';
 
 const DEFAULT_QUESTIONS = [
     { id: 'wins', label: 'Top 3 Wins this Year', placeholder: 'What are you most proud of achieving?' },
@@ -105,7 +106,10 @@ export default function YearlyReviewPage() {
         <div className="fade-in" style={{ padding: '1rem', maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                    <h1 style={{ margin: 0, fontSize: '2.5rem' }}>🔮 Yearly Review</h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center' }}>
+                    <CalendarDays size={40} color="var(--accent)" strokeWidth={2} />
+                    <h1 style={{ margin: 0, fontSize: '2.5rem' }}>Yearly Review</h1>
+                </div>
                     <p style={{ margin: '10px 0 0 0', opacity: 0.6 }}>The grand arc of your life. One year at a time.</p>
                 </div>
                 <button

@@ -13,7 +13,13 @@ const PRECACHE_ASSETS = [
 // URLs to intercept and cache-first
 const MEDIA_PATTERNS = [
     'drive.google.com/thumbnail',
-    'docs.google.com/uc'
+    'docs.google.com/uc',
+    '.mp3',
+    '.m4a',
+    'somafm.com',
+    'freecodecamp.org',
+    'rainwave.cc',
+    'nightride.fm'
 ];
 
 self.addEventListener('install', (event) => {
@@ -57,18 +63,16 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // 2. Media Strategy: Network Only (Bypass Cache)
-    // We explicitly do NOT cache Drive images/media to save user disk space.
+    // 2. Media Strategy: Bypass SW Completely
+    // Do not use event.respondWith() here, otherwise the SW proxies the stream and crashes on infinite live radio!
     const isMedia = MEDIA_PATTERNS.some(p => url.includes(p)) || url.includes('lh3.googleusercontent.com');
     if (isMedia) {
-        event.respondWith(fetch(event.request));
         return;
     }
 
-    // 3. API Strategy: Network Only
+    // 3. API Strategy: Bypass SW Completely
     // Never cache API calls, otherwise users see stale data (double-refresh bug)
     if (url.includes('supabase.co') || url.includes('script.google.com') || url.includes('googleapis.com')) {
-        event.respondWith(fetch(event.request));
         return;
     }
 

@@ -4,6 +4,7 @@ import StudyNotesSidebar from '../StudyNotes/StudyNotesSidebar';
 import StudyNotesEditor from '../StudyNotes/StudyNotesEditor';
 import DateCalendar from './DateCalendar';
 import CustomNameDialog from './CustomNameDialog';
+import AppleLoader from '../Layout/AppleLoader';
 import '../StudyNotes/StudyNotes.css';
 import * as api from '../../services/api';
 import { OfflineCache } from '../../services/offlineCache';
@@ -24,8 +25,8 @@ const loadJson = (key, fallback) => {
 
 export default function JournalPage() {
     const { entries, loading, create, updateSilently, remove } = useJournal();
-    const [activeNoteId, setActiveNoteId] = useState(() => loadJson(ACTIVE_NOTE_KEY, null));
-    const [activeFolderId, setActiveFolderId] = useState(() => loadJson(ACTIVE_FOLDER_KEY, null));
+    const [activeNoteId, setActiveNoteId] = useState(() => sessionStorage.getItem(ACTIVE_NOTE_KEY) || null);
+    const [activeFolderId, setActiveFolderId] = useState(() => sessionStorage.getItem(ACTIVE_FOLDER_KEY) || null);
     const [search, setSearch] = useState('');
     const [selectedDate, setSelectedDate] = useState(null);
     const [showNameDialog, setShowNameDialog] = useState(false);
@@ -38,13 +39,13 @@ export default function JournalPage() {
     const saveQueue = useRef(Promise.resolve());
 
     useEffect(() => {
-        if (activeNoteId) localStorage.setItem(ACTIVE_NOTE_KEY, activeNoteId);
-        else localStorage.removeItem(ACTIVE_NOTE_KEY);
+        if (activeNoteId) sessionStorage.setItem(ACTIVE_NOTE_KEY, activeNoteId);
+        else sessionStorage.removeItem(ACTIVE_NOTE_KEY);
     }, [activeNoteId]);
 
     useEffect(() => {
-        if (activeFolderId) localStorage.setItem(ACTIVE_FOLDER_KEY, activeFolderId);
-        else localStorage.removeItem(ACTIVE_FOLDER_KEY);
+        if (activeFolderId) sessionStorage.setItem(ACTIVE_FOLDER_KEY, activeFolderId);
+        else sessionStorage.removeItem(ACTIVE_FOLDER_KEY);
     }, [activeFolderId]);
 
     useEffect(() => {
@@ -317,87 +318,11 @@ export default function JournalPage() {
         }
     };
 
-    if (loading) return (
-        <div className="sn-loading-portal">
-            <style>{`
-                .sn-loading-portal {
-                    position: fixed;
-                    inset: 0;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    background: transparent;
-                    z-index: 10000;
-                }
-                .sn-moon-loader {
-                    position: relative;
-                    width: 90px;
-                    height: 90px;
-                    margin-bottom: 1.5rem;
-                }
-                .sn-moon-core {
-                    position: absolute;
-                    inset: 0;
-                    font-size: 3.8rem;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    z-index: 2;
-                    filter: drop-shadow(0 0 12px rgba(167, 139, 250, 0.4));
-                }
-                .sn-moon-ring {
-                    position: absolute;
-                    inset: -8px;
-                    border: 2px solid transparent;
-                    border-top: 2px solid #a78bfa;
-                    border-right: 2px solid rgba(167, 139, 250, 0.2);
-                    border-radius: 50%;
-                    animation: sn-spin 2s linear infinite;
-                }
-                .sn-moon-ring-outer {
-                    position: absolute;
-                    inset: -20px;
-                    border: 1px solid transparent;
-                    border-bottom: 1px solid #ff4d8d;
-                    border-left: 1px solid rgba(255, 77, 141, 0.2);
-                    border-radius: 50%;
-                    animation: sn-spin-reverse 3s linear infinite;
-                    opacity: 0.6;
-                }
-                @keyframes sn-spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
-                @keyframes sn-spin-reverse {
-                    0% { transform: rotate(360deg); }
-                    100% { transform: rotate(0deg); }
-                }
-                .sn-loading-text {
-                    font-size: 0.7rem;
-                    font-weight: 800;
-                    color: #a78bfa;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5em;
-                    animation: sn-blink 1.5s ease-in-out infinite;
-                    opacity: 0.9;
-                }
-                @keyframes sn-blink {
-                    0%, 100% { opacity: 0.4; transform: translateY(0); }
-                    50% { opacity: 1; transform: translateY(-2px); }
-                }
-            `}</style>
-            <div className="sn-moon-loader">
-                <div className="sn-moon-ring"></div>
-                <div className="sn-moon-ring-outer"></div>
-                <div className="sn-moon-core">🌘</div>
-            </div>
-            <div className="sn-loading-text">Syncing journal...</div>
-        </div>
-    );
+    if (loading) return <AppleLoader />;
 
     return (
-        <div className="sn-page">
+        <>
+            <div className="sn-page apple-page-loaded">
             <StudyNotesSidebar
                 folders={folders}
                 notes={filteredNotes}
@@ -418,6 +343,7 @@ export default function JournalPage() {
                 selectedDate={selectedDate}
                 onDateSelect={setSelectedDate}
                 showCalendar={true}
+                moduleName="Journals"
             />
 
             <section className="sn-editor-panel">
@@ -452,5 +378,6 @@ export default function JournalPage() {
                 onCancel={() => setShowNameDialog(false)}
             />
         </div>
+        </>
     );
 }

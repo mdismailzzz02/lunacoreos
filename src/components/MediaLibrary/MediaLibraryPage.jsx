@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Image as ImageIcon } from 'lucide-react';
 import { useMedia } from '../../hooks/useMedia';
 import Lightbox from '../Shared/Lightbox';
 import SmartThumbnail from '../Shared/SmartThumbnail';
@@ -105,7 +106,10 @@ export default function MediaLibraryPage({ guestMode = false }) {
     return (
         <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-                <h2 style={{ fontSize: '1.3rem', fontWeight: 700 }}>🖼️ Media Library</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <ImageIcon size={24} color="var(--accent)" strokeWidth={2} />
+                    <h2 style={{ fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>Media Library</h2>
+                </div>
                 {!guestMode && (
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <label className="btn btn-primary btn-sm" style={{ cursor: 'pointer' }}>

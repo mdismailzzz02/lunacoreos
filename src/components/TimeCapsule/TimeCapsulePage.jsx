@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import * as api from '../../services/api';
+import { Hourglass } from 'lucide-react';
 
 export default function TimeCapsulePage() {
     const [capsules, setCapsules] = useState([]);
@@ -51,7 +52,10 @@ export default function TimeCapsulePage() {
         <div className="fade-in" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                    <h1 style={{ margin: 0, fontSize: '2rem' }}>⏳ Time Capsule</h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center' }}>
+                    <Hourglass size={32} color="var(--accent)" strokeWidth={2} />
+                    <h1 style={{ margin: 0, fontSize: '2rem' }}>Time Capsule</h1>
+                </div>
                     <p style={{ margin: '5px 0 0 0', opacity: 0.6 }}>Locked messages for your future self</p>
                 </div>
                 <button

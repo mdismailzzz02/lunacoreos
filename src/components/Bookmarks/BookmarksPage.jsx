@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as api from '../../services/api';
+import { Bookmark, Inbox, X, AlertCircle, Trash2, Edit2, ExternalLink, Globe } from 'lucide-react';
+import AppleLoader from '../Layout/AppleLoader';
 
 export default function BookmarksPage() {
     const [bookmarks, setBookmarks] = useState([]);
@@ -133,17 +135,22 @@ export default function BookmarksPage() {
     const getFavicon = (url) => {
         try {
             const domain = new URL(url).hostname;
-            return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+            return `https://icons.duckduckgo.com/ip3/${domain}.ico`;
         } catch (e) {
             return null;
         }
     };
 
+    if (loading) return <AppleLoader />;
+
     return (
-        <div className="fade-in" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <div className="fade-in apple-page-loaded" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
-                    <h1 style={{ margin: 0, fontSize: '2rem' }}>🔖 Smart Bookmarks</h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <Bookmark size={32} color="var(--accent)" strokeWidth={2} />
+                    <h1 style={{ margin: 0, fontSize: '2rem' }}>Smart Bookmarks</h1>
+                </div>
                     <p style={{ margin: '5px 0 0 0', opacity: 0.6 }}>Your personal internet index. Tags, notes, and searching.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '1rem' }}>
@@ -163,10 +170,7 @@ export default function BookmarksPage() {
                 </div>
             </div>
 
-            {loading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
-            ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
                     {filtered.length === 0 && (
                         <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '4rem', opacity: 0.5, border: '2px dashed rgba(255,255,255,0.1)', borderRadius: '20px' }}>
                             {searchQuery ? 'No bookmarks match your search.' : 'No bookmarks yet. Save something interesting!'}
@@ -219,7 +223,7 @@ export default function BookmarksPage() {
                                     e.target.style.opacity = '0.4';
                                     e.target.style.background = 'rgba(255, 107, 107, 0.1)';
                                 }
-                            }} title="Delete bookmark">✕</button>
+                            }} title="Delete bookmark"><X size={14} color="currentColor" /></button>
 
                             <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEdit(b); }} style={{
                                 position: 'absolute',
@@ -249,7 +253,7 @@ export default function BookmarksPage() {
                                     e.target.style.opacity = '0.4';
                                     e.target.style.background = 'rgba(162, 155, 254, 0.1)';
                                 }
-                            }} title="Edit bookmark">✎</button>
+                            }} title="Edit bookmark"><Edit2 size={14} color="currentColor" /></button>
 
                             <a href={b.url} target="_blank" rel="noopener noreferrer" style={{
                                 textDecoration: 'none',
@@ -259,8 +263,9 @@ export default function BookmarksPage() {
                                 gap: '1rem'
                             }}>
                                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                    <div style={{ width: '48px', height: '48px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                                        <img src={getFavicon(b.url)} alt="" style={{ width: '24px', height: '24px' }} onError={e => e.target.style.display = 'none'} />
+                                    <div style={{ width: '48px', height: '48px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+                                        <Globe size={20} color="rgba(255,255,255,0.2)" style={{ position: 'absolute' }} />
+                                        <img src={getFavicon(b.url)} alt="" style={{ width: '24px', height: '24px', position: 'relative', zIndex: 1 }} onError={e => e.target.style.display = 'none'} />
                                     </div>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <h3 style={{ margin: 0, fontSize: '1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title || b.url}</h3>
@@ -287,7 +292,6 @@ export default function BookmarksPage() {
                         </div>
                     ))}
                 </div>
-            )}
 
             {showAdd && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
@@ -330,7 +334,7 @@ export default function BookmarksPage() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#aaa', cursor: 'pointer' }}>
                                     <input type="checkbox" checked={delegateBookmark} onChange={e => setDelegateBookmark(e.target.checked)} />
-                                    📥 Also add to Delegation
+                                    <Inbox size={14} color="currentColor" style={{ marginRight: '6px' }} /> Also add to Delegation
                                 </label>
                                 {delegateBookmark && (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', marginLeft: '22px' }}>
@@ -346,7 +350,7 @@ export default function BookmarksPage() {
                             </div>
                             {error && (
                                 <p style={{ margin: 0, color: '#ff6b6b', fontSize: '0.8rem', padding: '0.5rem 0.75rem', background: 'rgba(255,107,107,0.1)', borderRadius: '8px', border: '1px solid rgba(255,107,107,0.3)' }}>
-                                    ⚠️ {error}
+                                    <AlertCircle size={14} style={{ marginRight: '6px' }} /> {error}
                                 </p>
                             )}
                             <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>

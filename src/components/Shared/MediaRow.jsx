@@ -4,6 +4,7 @@ import { useAudio } from '../../context/AudioContext';
 import Lightbox from './Lightbox';
 import SmartThumbnail from './SmartThumbnail';
 import * as api from '../../services/api';
+import { Mic, Square, Upload, Camera, FileUp, Eye } from 'lucide-react';
 
 // Opens a Supabase media item securely using a blob URL so the raw signed
 // URL never appears in the browser address bar, history, or DOM href.
@@ -225,9 +226,30 @@ function AudioBox({ items = [], onUpload, onRecord, onRemove }) {
 
     return (
         <div className="media-box">
-            <div className="media-box-title">🎙️ Audio</div>
+            <div className="media-box-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>AUDIO</span>
+                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {recording ? (
+                        <div className="rec-indicator" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '2px 6px', background: 'var(--danger)', color: 'white', borderRadius: '4px', fontSize: '0.7rem' }}>
+                            <div className="rec-dot" style={{ width: '6px', height: '6px', background: 'white' }} /> 
+                            {Math.floor(recTime / 60)}:{String(recTime % 60).padStart(2, '0')}
+                            <button onClick={stopRecord} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', padding: 0, display: 'flex', marginLeft: '4px' }} title="Stop Recording">
+                                <Square size={12} fill="currentColor" />
+                            </button>
+                        </div>
+                    ) : (
+                        <button onClick={startRecord} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', borderRadius: '4px' }} title="Record Audio" onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                            <Mic size={14} />
+                        </button>
+                    )}
+                    <label style={{ cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'flex', alignItems: 'center', borderRadius: '4px', margin: 0 }} title="Upload Audio" onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                        <Upload size={14} />
+                        <input type="file" accept="audio/*" hidden onChange={e => onUpload && onUpload(e.target.files[0], 'audio')} />
+                    </label>
+                </div>
+            </div>
             <audio ref={audioRef} style={{ display: 'none' }} preload="metadata" />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, overflowY: 'auto', marginTop: '4px' }}>
                 {items.map(item => (
                     <div key={item.media_id} className="audio-bar">
                         {brokenAudio.has(item.media_id) ? (
@@ -256,20 +278,6 @@ function AudioBox({ items = [], onUpload, onRecord, onRemove }) {
                 ))}
                 {items.length === 0 && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No audio yet</span>}
             </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {recording ? (
-                    <div className="rec-indicator">
-                        <div className="rec-dot" /> {Math.floor(recTime / 60)}:{String(recTime % 60).padStart(2, '0')}
-                        <button className="btn btn-danger btn-sm" onClick={stopRecord}>⏹ Stop</button>
-                    </div>
-                ) : (
-                    <button className="btn btn-ghost btn-sm" onClick={startRecord}>🔴 Record</button>
-                )}
-                <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
-                    ⬆ Upload
-                    <input type="file" accept="audio/*" hidden onChange={e => onUpload && onUpload(e.target.files[0], 'audio')} />
-                </label>
-            </div>
         </div>
     );
 }
@@ -286,8 +294,20 @@ function ImagesBox({ items = [], onUpload, onRemove }) {
 
     return (
         <div className="media-box">
-            <div className="media-box-title">📷 Images</div>
-            <div className="image-grid" style={{ flex: 1 }}>
+            <div className="media-box-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>IMAGES</span>
+                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    <label style={{ cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'flex', alignItems: 'center', borderRadius: '4px', margin: 0 }} title="Capture Image" onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                        <Camera size={14} />
+                        <input type="file" accept="image/*" capture="environment" hidden onChange={e => onUpload && onUpload(e.target.files[0], 'image')} />
+                    </label>
+                    <label style={{ cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'flex', alignItems: 'center', borderRadius: '4px', margin: 0 }} title="Upload Image" onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                        <Upload size={14} />
+                        <input type="file" accept="image/*" hidden onChange={e => onUpload && onUpload(e.target.files[0], 'image')} />
+                    </label>
+                </div>
+            </div>
+            <div className="image-grid" style={{ flex: 1, marginTop: '4px' }}>
                 {items.map((item, i) => (
                     <SmartThumbnail
                         key={item.media_id}
@@ -297,16 +317,6 @@ function ImagesBox({ items = [], onUpload, onRemove }) {
                     />
                 ))}
                 {items.length === 0 && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', gridColumn: '1/-1' }}>No images yet</span>}
-            </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-                <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
-                    📷 Capture
-                    <input type="file" accept="image/*" capture="environment" hidden onChange={e => onUpload && onUpload(e.target.files[0], 'image')} />
-                </label>
-                <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
-                    ⬆ Upload
-                    <input type="file" accept="image/*" hidden onChange={e => onUpload && onUpload(e.target.files[0], 'image')} />
-                </label>
             </div>
             {lb !== null && (
                 <Lightbox images={items} startIndex={lb} onClose={() => setLb(null)} />
@@ -332,8 +342,16 @@ function FilesBox({ items = [], onUpload, onRemove }) {
 
     return (
         <div className="media-box">
-            <div className="media-box-title">📎 Files</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, overflowY: 'auto' }}>
+            <div className="media-box-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>FILES</span>
+                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    <label style={{ cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'flex', alignItems: 'center', borderRadius: '4px', margin: 0 }} title="Upload File" onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                        <FileUp size={14} />
+                        <input type="file" hidden onChange={e => onUpload && onUpload(e.target.files[0], 'file')} />
+                    </label>
+                </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, overflowY: 'auto', marginTop: '4px' }}>
                 {items.map(item => (
                     <div key={item.media_id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         {/* File card — use secure JS open for Supabase items */}
@@ -352,11 +370,11 @@ function FilesBox({ items = [], onUpload, onRemove }) {
                             <button
                                 onClick={() => setPreviewItem(item)}
                                 title="Preview"
-                                style={{ flexShrink: 0, background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa', borderRadius: '8px', padding: '3px 8px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap', transition: 'all 0.15s' }}
+                                style={{ display: 'flex', alignItems: 'center', flexShrink: 0, background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa', borderRadius: '8px', padding: '3px 8px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap', transition: 'all 0.15s' }}
                                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(167,139,250,0.28)'; }}
                                 onMouseLeave={e => { e.currentTarget.style.background = 'rgba(167,139,250,0.15)'; }}
                             >
-                                👁 View
+                                <Eye size={12} style={{ marginRight: '4px' }} /> View
                             </button>
                         )}
 
@@ -373,10 +391,6 @@ function FilesBox({ items = [], onUpload, onRemove }) {
                 ))}
                 {items.length === 0 && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No files yet</span>}
             </div>
-            <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
-                ⬆ Upload
-                <input type="file" hidden onChange={e => onUpload && onUpload(e.target.files[0], 'file')} />
-            </label>
 
             {previewItem && <FilePreviewModal item={previewItem} onClose={() => setPreviewItem(null)} />}
         </div>
@@ -388,7 +402,7 @@ export default function MediaRow({ active, mediaItems = { audio: [], images: [],
     if (!active) return null;
 
     return (
-        <div className="media-row">
+        <div className="media-row" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
             <AudioBox items={mediaItems.audio} onUpload={onUpload} onRecord={onRecord} onRemove={onRemove} />
             <ImagesBox items={mediaItems.images} onUpload={onUpload} onRemove={onRemove} />
             <FilesBox items={mediaItems.files} onUpload={onUpload} onRemove={onRemove} />

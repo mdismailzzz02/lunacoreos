@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     Plus, Search, Key, Eye, EyeOff, Copy, Pencil, Trash2,
     Upload, X, Check, ChevronDown, ExternalLink, ShieldCheck,
-    ShieldAlert, Shield, RefreshCw, Globe, Lock, Zap
+    ShieldAlert, Shield, RefreshCw, Globe, Lock, Zap, KeyRound
 } from 'lucide-react';
 import {
     deriveKeyFromMaster, hasSessionKey, encryptPassword,
@@ -88,7 +88,9 @@ function UnlockPrompt({ onUnlocked }) {
             justifyContent: 'center', minHeight: '60vh', gap: '1.5rem',
         }}>
             <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '3.5rem', marginBottom: '0.5rem' }}>🔑</div>
+                <div style={{ marginBottom: '1rem', color: 'var(--accent)' }}>
+                    <KeyRound size={56} strokeWidth={1.5} />
+                </div>
                 <h2 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--text-primary, #fff)' }}>
                     Unlock Password Vault
                 </h2>

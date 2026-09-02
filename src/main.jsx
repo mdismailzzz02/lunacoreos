@@ -7,8 +7,7 @@ import './styles/global.css'
 import './styles/animations.css'
 import './styles/preloader.css'
 import './styles/mobile.css'
-import './styles/candy-theme.css'
-import './styles/scifi-sidebar.css'
+import './styles/macos-theme.css'
 
 // ── Suppress expected Three.js deprecation warning from R3F ──
 const origWarn = console.warn;

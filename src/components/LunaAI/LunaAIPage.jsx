@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Sparkles } from 'lucide-react';
 import { getTodos, getEntries, getWritings, getWatchlist, getReadingList, getHabits, getStreaks, getStudyNotes, getLifeMap, getWhoAmI } from '../../services/api';
 import { askLuna } from '../../services/aiService';
 
@@ -105,7 +106,10 @@ WhoAmI: ${whoami && whoami.length > 0 ? (whoami[0].content || '').substring(0, 2
     return (
         <div style={styles.container}>
             <div style={styles.header}>
-                <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#e0e0e0' }}>✨ Luna AI</h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <Sparkles size={24} color="#e8a045" />
+                    <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#e0e0e0' }}>Luna AI</h1>
+                </div>
                 <p style={{ margin: 0, color: '#8892a4', fontSize: '0.9rem' }}>Your personal co-pilot</p>
             </div>
 

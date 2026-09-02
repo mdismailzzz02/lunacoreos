@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import * as api from '../../services/api';
+import { Dna } from 'lucide-react';
 
 const DEFAULT_SECTIONS = [
     { section: 'Vision', content: 'Who do I want to become?' },
@@ -54,7 +55,10 @@ export default function WhoAmIPage() {
     return (
         <div className="fade-in" style={{ padding: '1rem', maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ textAlign: 'center' }}>
-                <h1 style={{ margin: 0, fontSize: '2.5rem' }}>🧬 Who Am I</h1>
+                <h1 style={{ margin: 0, fontSize: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+                    <Dna size={36} color="var(--accent)" strokeWidth={2} />
+                    Who Am I
+                </h1>
                 <p style={{ margin: '10px 0 0 0', opacity: 0.6 }}>Your personal identity wiki. A living document of self-discovery.</p>
             </div>
 

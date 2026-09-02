@@ -1,0 +1,453 @@
+/* ============================================================
+   Command Disk — Radial Navigation Overlay
+   ============================================================ */
+
+/* ── Backdrop ─────────────────────────────────────────────── */
+.cmd-disk-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    background: rgba(3, 5, 10, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.cmd-disk-backdrop.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* ── Disk Container ───────────────────────────────────────── */
+.cmd-disk {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+                opacity 0.25s ease;
+}
+
+.cmd-disk.open {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    pointer-events: all;
+}
+
+.cmd-disk.closing {
+    transform: translate(-50%, -50%) scale(0.85);
+    opacity: 0;
+    transition: transform 0.2s ease-in,
+                opacity 0.15s ease-in;
+}
+
+/* ── Center Logo ──────────────────────────────────────────── */
+.cmd-disk-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(232, 160, 69, 0.2) 0%, rgba(13, 17, 28, 0.95) 70%);
+    border: 2px solid rgba(232, 160, 69, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 30px rgba(232, 160, 69, 0.15),
+                inset 0 0 20px rgba(232, 160, 69, 0.05);
+}
+
+.cmd-disk-center:hover {
+    border-color: rgba(232, 160, 69, 0.7);
+    box-shadow: 0 0 40px rgba(232, 160, 69, 0.3),
+                inset 0 0 25px rgba(232, 160, 69, 0.1);
+    transform: translate(-50%, -50%) scale(1.08);
+}
+
+.cmd-disk-center img {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    filter: drop-shadow(0 0 8px rgba(232, 160, 69, 0.3));
+}
+
+/* ── Ring Container ───────────────────────────────────────── */
+.cmd-disk-ring {
+    position: relative;
+    width: 380px;
+    height: 380px;
+}
+
+/* ── Ring Item ────────────────────────────────────────────── */
+.cmd-disk-item {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 64px;
+    height: 64px;
+    margin-left: -32px;
+    margin-top: -32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border-radius: 50%;
+    background: rgba(13, 17, 28, 0.85);
+    border: 1.5px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+    transition: scale 0.25s ease, background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease;
+    z-index: 5;
+    /* Initial state for stagger animation */
+    opacity: 0;
+    scale: 0.3;
+}
+
+.cmd-disk.open .cmd-disk-item {
+    opacity: 1;
+    scale: 1;
+}
+
+.cmd-disk-item:hover {
+    background: rgba(232, 160, 69, 0.15);
+    border-color: rgba(232, 160, 69, 0.5);
+    box-shadow: 0 0 20px rgba(232, 160, 69, 0.2);
+    scale: 1.15;
+    z-index: 15;
+}
+
+.cmd-disk-item.active {
+    border-color: rgba(232, 160, 69, 0.6);
+    box-shadow: 0 0 15px rgba(232, 160, 69, 0.25),
+                inset 0 0 10px rgba(232, 160, 69, 0.08);
+    background: rgba(232, 160, 69, 0.12);
+}
+
+.cmd-disk-item.active::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid rgba(232, 160, 69, 0.3);
+    animation: cmd-glow-pulse 2s infinite;
+}
+
+.cmd-disk-item.is-red {
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.cmd-disk-item.is-red:hover {
+    border-color: rgba(239, 68, 68, 0.6);
+    background: rgba(239, 68, 68, 0.12);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
+}
+
+.cmd-disk-item.is-more {
+    background: rgba(139, 92, 246, 0.12);
+    border-color: rgba(139, 92, 246, 0.3);
+}
+
+.cmd-disk-item.is-more:hover {
+    background: rgba(139, 92, 246, 0.2);
+    border-color: rgba(139, 92, 246, 0.6);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.25);
+}
+
+.cmd-disk-item.is-more.expanded {
+    background: rgba(139, 92, 246, 0.25);
+    border-color: rgba(139, 92, 246, 0.7);
+}
+
+.cmd-disk-icon {
+    font-size: 1.35rem;
+    line-height: 1;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+}
+
+.cmd-disk-label {
+    font-size: 0.55rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.65);
+    text-align: center;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+    max-width: 58px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cmd-disk-item:hover .cmd-disk-label {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+/* ── Outer Ring ───────────────────────────────────────────── */
+.cmd-disk-outer-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 560px;
+    height: 560px;
+    margin-left: -280px;
+    margin-top: -280px;
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.cmd-disk-outer-ring.expanded {
+    pointer-events: all;
+    opacity: 1;
+    transform: scale(1);
+}
+
+.cmd-disk-outer-item {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 56px;
+    height: 56px;
+    margin-left: -28px;
+    margin-top: -28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border-radius: 50%;
+    background: rgba(13, 17, 28, 0.8);
+    border: 1.5px solid rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(8px);
+    cursor: pointer;
+    transition: scale 0.25s ease, background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease;
+    z-index: 5;
+    opacity: 0;
+    scale: 0.3;
+}
+
+.cmd-disk-outer-ring.expanded .cmd-disk-outer-item {
+    opacity: 1;
+    scale: 1;
+}
+
+.cmd-disk-outer-item:hover {
+    background: rgba(232, 160, 69, 0.15);
+    border-color: rgba(232, 160, 69, 0.5);
+    box-shadow: 0 0 18px rgba(232, 160, 69, 0.2);
+    scale: 1.18;
+    z-index: 15;
+}
+
+.cmd-disk-outer-item.active {
+    border-color: rgba(232, 160, 69, 0.5);
+    box-shadow: 0 0 12px rgba(232, 160, 69, 0.2);
+    background: rgba(232, 160, 69, 0.1);
+}
+
+.cmd-disk-outer-icon {
+    font-size: 1.15rem;
+    line-height: 1;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+}
+
+.cmd-disk-outer-label {
+    font-size: 0.5rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.55);
+    text-align: center;
+    white-space: nowrap;
+    max-width: 50px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cmd-disk-outer-item:hover .cmd-disk-outer-label {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+/* ── Decorative Rings ─────────────────────────────────────── */
+.cmd-disk-ring::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 280px;
+    height: 280px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 1px solid rgba(232, 160, 69, 0.08);
+    pointer-events: none;
+}
+
+.cmd-disk-ring::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 120px;
+    height: 120px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 1px solid rgba(232, 160, 69, 0.12);
+    pointer-events: none;
+}
+
+/* ── Spacebar Hint ────────────────────────────────────────── */
+.cmd-disk-hint {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0.45rem 1rem;
+    border-radius: 100px;
+    background: rgba(13, 17, 28, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(10px);
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.4);
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.cmd-disk.open ~ .cmd-disk-hint,
+.cmd-disk-backdrop.visible ~ .cmd-disk-hint {
+    opacity: 1;
+}
+
+.cmd-disk-hint kbd {
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    font-family: var(--font-mono, monospace);
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* ── Floating Music Pill ──────────────────────────────────── */
+.cmd-music-pill {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 1.5rem;
+    z-index: 900;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0.5rem 0.85rem;
+    border-radius: 100px;
+    background: rgba(13, 17, 28, 0.85);
+    border: 1px solid rgba(232, 160, 69, 0.2);
+    backdrop-filter: blur(16px);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    max-width: 260px;
+}
+
+.cmd-music-pill:hover {
+    border-color: rgba(232, 160, 69, 0.4);
+    box-shadow: 0 4px 25px rgba(0, 0, 0, 0.5),
+                0 0 15px rgba(232, 160, 69, 0.1);
+}
+
+.cmd-music-pill .pill-disc {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent, #e8a045);
+    flex-shrink: 0;
+}
+
+.cmd-music-pill .pill-disc.spinning {
+    animation: cmd-spin 3s linear infinite;
+}
+
+.cmd-music-pill .pill-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.cmd-music-pill .pill-title {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cmd-music-pill .pill-artist {
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.4);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cmd-music-pill .pill-controls {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.cmd-music-pill .pill-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cmd-music-pill .pill-btn:hover {
+    background: rgba(232, 160, 69, 0.2);
+    color: var(--accent, #e8a045);
+}
+
+/* ── Animations ───────────────────────────────────────────── */
+@keyframes cmd-glow-pulse {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 0.2; transform: scale(1.1); }
+}
+
+@keyframes cmd-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ── Hide on Mobile ───────────────────────────────────────── */
+@media (max-width: 768px) {
+    .cmd-disk-backdrop,
+    .cmd-disk,
+    .cmd-disk-hint {
+        display: none !important;
+    }
+    .cmd-music-pill {
+        bottom: 5rem; /* Above mobile nav */
+    }
+}

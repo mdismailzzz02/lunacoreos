@@ -1,32 +1,39 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAudio } from '../../context/AudioContext';
 import Dither from '../Shared/Dither';
-import { Disc, Settings, Play, Pause, SkipForward } from 'lucide-react';
+import {
+    Home, Dna, Sparkles, Mail, BookOpen, FileText, PenTool,
+    Heart, Users, Music, Play, Pause, SkipForward, Tv,
+    Gamepad2, Diamond, Image, Library, Package, Star,
+    KeyRound, Settings, Disc
+} from 'lucide-react';
 
 const TABS = [
-    { id: 'dashboard', icon: '🌸', label: 'Dashboard' },
-    { id: 'lifeos', icon: '🧬', label: 'LifeOS React' },
-    { id: 'luna', icon: '✨', label: 'Luna AI' },
-    { id: 'mail', icon: '✉️', label: 'Gmail Inbox' },
+    { id: 'dashboard', Icon: Home, label: 'Dashboard' },
+    { id: 'lifeos', Icon: Dna, label: 'LifeOS React' },
+    { id: 'luna', Icon: Sparkles, label: 'Luna AI' },
+    { id: 'mail', Icon: Mail, label: 'Gmail Inbox' },
 
-    { id: 'journal', icon: '📖', label: 'Journal' },
-    { id: 'studynotes', icon: '📝', label: 'Study Notes' },
-    { id: 'writing', icon: '✍️', label: 'Writing' },
-    { id: 'bookmarks', icon: '❤️', label: 'Bookmarks' },
-    { id: 'delegation', icon: '🤝', label: 'Delegation' },
-    { id: 'musicplayer', icon: '🎵', label: 'Music Player' },
-    { id: 'vault', icon: '💎', label: 'Vault', isRed: true },
-    { id: 'media', icon: '🎨', label: 'Media Library' },
+    { id: 'journal', Icon: BookOpen, label: 'Journal' },
+    { id: 'studynotes', Icon: FileText, label: 'Study Notes' },
+    { id: 'writing', Icon: PenTool, label: 'Writing' },
+    { id: 'bookmarks', Icon: Heart, label: 'Bookmarks' },
+    { id: 'delegation', Icon: Users, label: 'Delegation' },
+    { id: 'musicplayer', Icon: Music, label: 'Music Player' },
+    { id: 'videos', Icon: Tv, label: 'YouTube' },
+    { id: 'twitch', Icon: Gamepad2, label: 'Twitch' },
+    { id: 'vault', Icon: Diamond, label: 'Vault', isRed: true },
+    { id: 'media', Icon: Image, label: 'Media Library' },
     
     // Remaining items in between
 
-    { id: 'readinglist', icon: '📚', label: 'Reading List' },
-    { id: 'timecapsule', icon: '📦', label: 'Time Capsule' },
-    { id: 'yearlyreview', icon: '🎆', label: 'Yearly Review' },
-    { id: 'passwords', icon: '🔑', label: 'Passwords' },
+    { id: 'readinglist', Icon: Library, label: 'Reading List' },
+    { id: 'timecapsule', Icon: Package, label: 'Time Capsule' },
+    { id: 'yearlyreview', Icon: Star, label: 'Yearly Review' },
+    { id: 'passwords', Icon: KeyRound, label: 'Passwords' },
     
     // Settings at the very end
-    { id: 'system-settings', icon: '⚙️', label: 'Settings' },
+    { id: 'system-settings', Icon: Settings, label: 'Settings' },
 ];
 
 export default function Sidebar({ active, onNavigate, userName, isOffline, onPreload, preload, isOpen, onClose, onMusicClick }) {
@@ -38,14 +45,14 @@ export default function Sidebar({ active, onNavigate, userName, isOffline, onPre
         clearTimeout(hoverTimeout.current);
         hoverTimeout.current = setTimeout(() => {
             setIsHovered(true);
-        }, 150); // Small delay to avoid accidental triggers
+        }, 150);
     };
 
     const handleMouseLeave = () => {
         clearTimeout(hoverTimeout.current);
         hoverTimeout.current = setTimeout(() => {
             setIsHovered(false);
-        }, 200); // Slightly longer delay for exit to feel stable
+        }, 200);
     };
 
     return (
@@ -54,22 +61,10 @@ export default function Sidebar({ active, onNavigate, userName, isOffline, onPre
             {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
 
             <aside 
-                className={`sidebar scifi-sidebar ${isOpen ? 'open' : ''} ${isHovered ? 'is-expanded' : ''}`}
+                className={`sidebar ${isOpen ? 'open' : ''} ${isHovered ? 'is-expanded' : ''}`}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
             >
-                {/* Sharp Internal Dither Background */}
-                <div className="sidebar-internal-dither">
-                    <Dither 
-                        waveColor={[0.5, 0.5, 0.5]} 
-                        waveSpeed={0.03}
-                        waveAmplitude={0.2}
-                        waveFrequency={2}
-                        colorNum={4}
-                        pixelSize={2}
-                    />
-                </div>
-
             <div className="sidebar-logo">
                 <div className="logo-flex" onClick={() => onNavigate('dashboard')} style={{ cursor: 'pointer' }}>
                     <img src="/logo.png" alt="Logo" className="app-logo-img" style={{ borderRadius: '50%', objectFit: 'cover' }} />
@@ -126,7 +121,7 @@ export default function Sidebar({ active, onNavigate, userName, isOffline, onPre
                             }
                         }}
                     >
-                        <span className="nav-icon">{tab.icon}</span>
+                        <span className="nav-icon"><tab.Icon size={18} strokeWidth={1.8} /></span>
                         <span className={`nav-label ${tab.isRed ? 'text-red' : ''}`}>{tab.label}</span>
                     </div>
                 ))}

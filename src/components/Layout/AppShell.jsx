@@ -1,11 +1,15 @@
 import { useState } from 'react';
-import Sidebar from './Sidebar';
+import CommandDisk from './CommandDisk';
+import SmartActions from './SmartActions';
+import NavModePicker from './NavModePicker';
 import MusicPlayer from './MusicPlayer';
 import MobileHeader from './MobileHeader';
 import MobileNav from './MobileNav';
+import Sidebar from './Sidebar';
 
 export default function AppShell({ activeTab, onNavigate, userName, isOffline, preload, onPreload, children }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [navMode, setNavMode] = useState(() => localStorage.getItem('luna_nav_mode') || null);
     const progress = preload?.total > 0 ? (preload.current / preload.total) * 100 : 0;
 
     const handleMobileNavigate = (tab) => {
@@ -19,6 +23,11 @@ export default function AppShell({ activeTab, onNavigate, userName, isOffline, p
         }
     };
 
+    const handleNavModeSelect = (mode) => {
+        localStorage.setItem('luna_nav_mode', mode);
+        setNavMode(mode);
+    };
+
     return (
         <>
             <MobileHeader userName={userName} isOffline={isOffline} onMusicClick={handleMusicClick} />
@@ -26,7 +35,7 @@ export default function AppShell({ activeTab, onNavigate, userName, isOffline, p
             {/* ── Floating Preloader Pill ── */}
             {preload?.active && (
                 <div style={{
-                    position: 'fixed', bottom: '5.5rem', right: '1.25rem', // Adjusted for mobile nav
+                    position: 'fixed', bottom: '5.5rem', right: '1.25rem',
                     background: 'var(--surface, #1a1a2e)',
                     border: '1px solid rgba(167, 139, 250, 0.4)',
                     borderRadius: '100px',
@@ -58,7 +67,15 @@ export default function AppShell({ activeTab, onNavigate, userName, isOffline, p
                 </div>
             )}
 
+            {/* ── First-time Nav Mode Picker ── */}
+            {!navMode && <NavModePicker onSelect={handleNavModeSelect} />}
+
+            {/* ── Desktop Navigation (based on user choice) ── */}
+            {navMode === 'disk' && <CommandDisk activeTab={activeTab} onNavigate={onNavigate} />}
+            {navMode === 'smart' && <SmartActions activeTab={activeTab} onNavigate={onNavigate} />}
+
             <div className={`app-shell candy-theme ${isOffline ? 'is-offline' : ''} ${isMenuOpen ? 'menu-open' : ''}`}>
+                {/* Mobile: Keep traditional sidebar drawer */}
                 <Sidebar 
                     active={activeTab} 
                     onNavigate={handleMobileNavigate} 
@@ -88,4 +105,3 @@ export default function AppShell({ activeTab, onNavigate, userName, isOffline, p
         </>
     );
 }
-

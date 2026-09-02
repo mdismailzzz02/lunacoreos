@@ -111,10 +111,11 @@ export default function GridNodeView({ node, updateAttributes, deleteNode, selec
             const res = await api.uploadMedia({
                 file,
                 mime_type: file.type,
-                media_type: 'image', uploaded_from: 'studynotes_grid', source_id: 'grid'
+                media_type: 'image', uploaded_from: 'studynotes_grid', source_id: sessionStorage.getItem('luna_active_note') || 'grid'
             });
             if (res.drive_link) {
                 updateCell(selectedCellIdx, { type: 'image', imageSrc: res.drive_link, mediaId: res.media_id, filename: file.name });
+                document.dispatchEvent(new CustomEvent('sn-refresh-media'));
             }
         } catch (err) {
             console.error('Grid image upload failed:', err);
@@ -130,10 +131,11 @@ export default function GridNodeView({ node, updateAttributes, deleteNode, selec
             const res = await api.uploadMedia({
                 file,
                 mime_type: file.type,
-                media_type: 'video', uploaded_from: 'studynotes_grid', source_id: 'grid'
+                media_type: 'video', uploaded_from: 'studynotes_grid', source_id: sessionStorage.getItem('luna_active_note') || 'grid'
             });
             if (res.drive_link) {
                 updateCell(selectedCellIdx, { type: 'video', src: res.drive_link, mediaId: res.media_id, filename: file.name });
+                document.dispatchEvent(new CustomEvent('sn-refresh-media'));
             }
         } catch (err) {
             console.error('Grid video upload failed:', err);

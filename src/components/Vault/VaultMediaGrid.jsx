@@ -22,6 +22,7 @@ import {
     emptyTrash,
     supabase,
 } from '../../services/api';
+import { Heart } from 'lucide-react';
 import { SkeletonCard } from '../Shared/Skeleton';
 import FaceScanner from './FaceScanner';
 import FaceGroupsView from './FaceGroupsView';
@@ -180,7 +181,7 @@ function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
                 </div>
                 <div style={{ display: 'flex', gap: '1rem' }}>
                     <button onClick={(e) => { e.stopPropagation(); onLike(item); }} style={{ background: isLiked ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '48px', height: '48px', fontSize: '1.4rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {isLiked ? '❤️' : '🤍'}
+                        {isLiked ? <Heart size={16} fill="#ef4444" color="#ef4444" /> : <Heart size={16} color="currentColor" />}
                     </button>
                     <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '50%', width: '48px', height: '48px', fontSize: '1.4rem', cursor: 'pointer' }}>✕</button>
                 </div>
@@ -386,7 +387,7 @@ const VaultCard = React.memo(function VaultCard({ file, isLiked, onLike, onOpen,
                     onClick={(e) => { e.stopPropagation(); onLike(file); }}
                     style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)', transition: 'none', zIndex: 5 }}
                 >
-                    {isLiked ? '❤️' : '🤍'}
+                    {isLiked ? <Heart size={16} fill="#ef4444" color="#ef4444" /> : <Heart size={16} color="currentColor" />}
                 </button>
                 {/* Download button */}
                 <button
@@ -912,7 +913,13 @@ export default function VaultMediaGrid({ activeTab, collections, onTabChange, on
         const name = window.prompt('Enter subfolder name:');
         if (!name) return;
         try {
-            await createVaultCollection({ name, type: 'gallery', parent_id: col.id });
+            await createVaultCollection({ 
+                name, 
+                type: 'gallery', 
+                parent_id: col.id,
+                is_hidden: col.is_hidden || false,
+                is_secret: col.is_secret || false
+            });
             if (onCollectionsChanged) onCollectionsChanged();
         } catch (err) {
             alert('Failed to create subfolder');
@@ -1126,7 +1133,7 @@ export default function VaultMediaGrid({ activeTab, collections, onTabChange, on
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '10px', flexShrink: 0 }}>
                         <button onClick={() => setInnerTab('all')} style={{ padding: '6px 16px', borderRadius: '8px', border: 'none', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', background: innerTab === 'all' ? 'rgba(167,139,250,0.25)' : 'transparent', color: innerTab === 'all' ? '#c4b5fd' : 'rgba(255,255,255,0.35)' }}>ALL FILES</button>
-                        <button onClick={() => setInnerTab('favorites')} style={{ padding: '6px 16px', borderRadius: '8px', border: 'none', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', background: innerTab === 'favorites' ? 'rgba(239,68,68,0.2)' : 'transparent', color: innerTab === 'favorites' ? '#fca5a5' : 'rgba(255,255,255,0.35)' }}>❤️ FAVORITES {collectionLiked.length > 0 ? `(${collectionLiked.length})` : ''}</button>
+                        <button onClick={() => setInnerTab('favorites')} style={{ padding: '6px 16px', borderRadius: '8px', border: 'none', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', background: innerTab === 'favorites' ? 'rgba(239,68,68,0.2)' : 'transparent', color: innerTab === 'favorites' ? '#fca5a5' : 'rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', gap: '6px' }}><Heart size={14} fill={innerTab === 'favorites' ? '#fca5a5' : 'none'} color={innerTab === 'favorites' ? '#fca5a5' : 'rgba(255,255,255,0.35)'} /> FAVORITES {collectionLiked.length > 0 ? `(${collectionLiked.length})` : ''}</button>
                     </div>
                     {/* Search — always visible, searches folders + files at any depth */}
                     <div style={{ position: 'relative', flex: 1, minWidth: '160px' }}>
