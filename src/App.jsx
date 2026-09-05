@@ -26,7 +26,6 @@ import MailPage from './components/Mail/MailPage';
 import SettingsPage from './components/Settings/SettingsPage';
 import PasswordsPage from './components/Passwords/PasswordsPage';
 import LunaAIPage from './components/LunaAI/LunaAIPage';
-import LifeOSPage from './components/LifeOS/LifeOSPage';
 import * as api from './services/api';
 import { Preloader } from './services/preloader';
 import { OfflineCache } from './services/offlineCache';
@@ -293,19 +292,8 @@ export default function App() {
             setAuthLoading(false);
         });
 
-        // ── Session Heartbeat (only while tab is open) ────────────────────────
-        const heartbeat = setInterval(async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-                console.log('[Auth] Pulsing session heartbeat...');
-                const { error } = await supabase.auth.refreshSession();
-                if (error) console.warn('[Auth] Heartbeat refresh failed:', error);
-            }
-        }, 15 * 60 * 1000);
-
         return () => {
             subscription.unsubscribe();
-            clearInterval(heartbeat);
             window.removeEventListener('beforeunload', handleBeforeUnload);
         };
     }, []);
@@ -529,7 +517,6 @@ export default function App() {
             case 'musicplayer': return <MusicPlayerPage />;
             case 'mail': return <MailPage />;
 
-            case 'lifeos': return <LifeOSPage />;
             default:
                 return <Dashboard onNavigate={navigate} />;
         }

@@ -292,7 +292,7 @@ export default function MediaGrid({ onNavigate }) {
             </div>
 
             {/* 🟣 TWITCH COLUMN */}
-            <div className="dashboard-card fade-in" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="dashboard-card fade-in" style={{ display: 'none', padding: '1.5rem', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
                     <div className="icon-backdrop" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }}>
                         <Radio size={20} />

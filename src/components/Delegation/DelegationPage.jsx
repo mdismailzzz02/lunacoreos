@@ -325,8 +325,10 @@ export default function DelegationPage() {
     if (loading) return <AppleLoader />;
 
     return (
-        <div className="fade-in apple-page-loaded" style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
-            {/* Header */}
+        <div className="fade-in apple-page-loaded" style={{ display: 'flex', flexDirection: 'column', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
+            {/* Sticky Header Wrapper */}
+            <div style={{ position: 'sticky', top: 0, zIndex: 100, backgroundColor: '#1c1c1e', padding: '2rem 1.5rem 1.5rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 -50px 0 0 #1c1c1e', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
                     <h1 style={{ margin: 0, fontSize: '1.9rem', background: 'linear-gradient(135deg, #a970ff, #7c4dff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
@@ -370,9 +372,11 @@ export default function DelegationPage() {
                     ))}
                 </div>
             </div>
+            </div>
 
             {/* Grid */}
-            {filtered.length === 0 ? (
+            <div style={{ padding: '3rem 1.5rem 2rem 1.5rem' }}>
+                {filtered.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '5rem', opacity: 0.35, border: '2px dashed rgba(255,255,255,0.1)', borderRadius: '24px' }}>
                     <div style={{ marginBottom: '1rem' }}><Inbox size={48} color="var(--text-muted)" /></div>
                     <p>Nothing delegated yet.<br />Use the Delegation toggle when saving streams, videos, or bookmarks!</p>
@@ -394,6 +398,7 @@ export default function DelegationPage() {
             )}
 
             {showAdd && <QuickAddModal onClose={() => setShowAdd(false)} onSave={handleSave} />}
+        </div>
         </div>
     );
 }

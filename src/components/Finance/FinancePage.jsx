@@ -6,11 +6,12 @@ import AddTransactionModal from './AddTransactionModal';
 import BudgetPanel from './BudgetPanel';
 import RecurringPanel from './RecurringPanel';
 import AccountsPanel from './AccountsPanel';
+import WishlistPanel from './WishlistPanel';
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 
 export default function FinancePage() {
-    const [activeTab, setActiveTab] = useState('overview'); // overview, transactions, budgets, recurring, goals, accounts
+    const [activeTab, setActiveTab] = useState('overview'); // overview, transactions, budgets, recurring, goals, accounts, wishlist
     const [loading, setLoading] = useState(true);
     
     // Data State
@@ -116,51 +117,53 @@ export default function FinancePage() {
     }
 
     return (
-        <div className="fade-in" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '2rem', height: '100%', overflowY: 'auto' }}>
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
-                <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <Wallet size={32} color="var(--accent, #a29bfe)" strokeWidth={2} />
-                        <h1 style={{ margin: 0, fontSize: '2rem', color: '#fff' }}>Wealth Command</h1>
-                    </div>
-                    <p style={{ margin: '5px 0 0 0', opacity: 0.6, color: '#fff' }}>Control your capital. Direct your destiny.</p>
+        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column' }}>
+            {/* Sticky Header Wrapper */}
+            <div style={{ position: 'sticky', top: 0, zIndex: 100, backgroundColor: '#1c1c1e', padding: '1rem 1.5rem 0.5rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 -50px 0 0 #1c1c1e', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
+                
+                {/* Title */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <Wallet size={20} color="var(--accent, #a29bfe)" strokeWidth={2} />
+                    <h1 style={{ margin: 0, fontSize: '1.2rem', color: '#fff', whiteSpace: 'nowrap' }}>Wealth Command</h1>
                 </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button onClick={handleExport} style={{ padding: '0.8rem 1.2rem', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                        <Download size={16} /> Export CSV
-                    </button>
-                    <button onClick={() => setShowAdd(true)} style={{ padding: '0.8rem 1.5rem', borderRadius: '12px', background: 'var(--brand-color, #a29bfe)', border: 'none', color: 'white', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', boxShadow: '0 4px 15px rgba(162, 155, 254, 0.3)' }}>
-                        <Plus size={18} /> Transaction
-                    </button>
-                </div>
-            </div>
 
-            {/* Navigation Tabs */}
-            <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', overflowX: 'auto' }}>
-                {['overview', 'transactions', 'budgets', 'recurring', 'goals', 'accounts'].map(tab => (
-                    <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        style={{
-                            background: activeTab === tab ? 'rgba(255,255,255,0.1)' : 'transparent',
-                            color: activeTab === tab ? '#fff' : 'rgba(255,255,255,0.5)',
-                            border: 'none',
-                            padding: '0.6rem 1.2rem',
-                            borderRadius: '8px',
-                            cursor: 'pointer',
-                            textTransform: 'capitalize',
-                            fontWeight: activeTab === tab ? '600' : '400',
-                            transition: '0.2s'
-                        }}
-                    >
-                        {tab}
+                {/* Navigation Tabs */}
+                <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', flex: 1, justifyContent: 'center', padding: '0 1rem' }}>
+                    {['overview', 'transactions', 'wishlist', 'budgets', 'recurring', 'goals', 'accounts'].map(tab => (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            style={{
+                                background: activeTab === tab ? 'rgba(255,255,255,0.1)' : 'transparent',
+                                color: activeTab === tab ? '#fff' : 'rgba(255,255,255,0.5)',
+                                border: 'none',
+                                padding: '0.4rem 0.8rem',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                textTransform: 'capitalize',
+                                fontWeight: activeTab === tab ? '600' : '400',
+                                transition: '0.2s',
+                                fontSize: '0.85rem'
+                            }}
+                        >
+                            {tab}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Buttons */}
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button onClick={handleExport} style={{ padding: '0.5rem 0.8rem', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                        <Download size={14} /> Export
                     </button>
-                ))}
-            </div>
+                    <button onClick={() => setShowAdd(true)} style={{ padding: '0.5rem 1rem', borderRadius: '10px', background: 'var(--brand-color, #a29bfe)', border: 'none', color: 'white', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem', boxShadow: '0 4px 15px rgba(162, 155, 254, 0.3)' }}>
+                        <Plus size={16} /> Add
+                    </button>
+                </div>
+            </div> {/* End Sticky Header Wrapper */}
 
             {/* Tab Content */}
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, padding: '3rem 1.5rem 2rem 1.5rem' }}>
                 
                 {activeTab === 'overview' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -324,6 +327,8 @@ export default function FinancePage() {
                     </div>
                     );
                 })()}
+
+                {activeTab === 'wishlist' && <WishlistPanel />}
 
                 {activeTab === 'budgets' && (
                     <BudgetPanel budgets={budgets} transactions={transactions} onBudgetsChanged={loadData} />

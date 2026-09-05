@@ -12,13 +12,13 @@ import './CommandDisk.css';
 // ── Primary Ring (9 items + "More") ─────────────────────────────
 const PRIMARY_ITEMS = [
     { id: 'dashboard', Icon: Home, label: 'Dashboard' },
-    { id: 'lifeos',    Icon: Dna, label: 'LifeOS' },
-    { id: 'luna',      Icon: Sparkles, label: 'Luna AI' },
+
+
     { id: 'journal',   Icon: BookOpen, label: 'Journal' },
     { id: 'musicplayer', Icon: Music, label: 'Music' },
     { id: 'vault',     Icon: Diamond, label: 'Vault', isRed: true },
     { id: 'videos',    Icon: Tv, label: 'YouTube' },
-    { id: 'twitch',    Icon: Gamepad2, label: 'Twitch' },
+
     { id: 'mail',      Icon: Mail, label: 'Mail' },
 ];
 

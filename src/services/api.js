@@ -2470,3 +2470,29 @@ export const toggleYTLike = async (video_id, is_favorite) => {
     return data;
 };
 
+
+
+// ─── Finance Wishlist ────────────────────────────────────────────────────────
+export const getWishlistItems = async () => {
+    const { data, error } = await supabase.from('finance_wishlist').select('*').neq('status', 'abandoned').order('target_date', { ascending: true, nullsFirst: false });
+    if (error) throw error;
+    return data;
+};
+
+export const createWishlistItem = async (params) => {
+    const { data, error } = await supabase.from('finance_wishlist').insert([params]).select();
+    if (error) throw error;
+    return data[0];
+};
+
+export const updateWishlistItem = async (id, updates) => {
+    const { data, error } = await supabase.from('finance_wishlist').update(updates).eq('id', id).select();
+    if (error) throw error;
+    return data[0];
+};
+
+export const deleteWishlistItem = async (id) => {
+    const { error } = await supabase.from('finance_wishlist').delete().eq('id', id);
+    if (error) throw error;
+};
+

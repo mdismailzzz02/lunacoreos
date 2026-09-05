@@ -764,8 +764,10 @@ export default function PasswordsPage() {
                 <div className="pwd-toast">{toast}</div>
             )}
 
+            {/* Sticky Header Wrapper */}
+            <div style={{ position: 'sticky', top: 0, zIndex: 100, backgroundColor: '#1c1c1e', padding: '1.5rem 2rem 1rem 2rem', borderBottom: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 -50px 0 0 #1c1c1e', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {/* Header */}
-            <div className="pwd-header">
+            <div className="pwd-header" style={{ marginBottom: 0 }}>
                 <div>
                     <h1 className="pwd-title"><Key size={22} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />Passwords</h1>
                     <p className="pwd-subtitle">AES-256-GCM encrypted · Key lives in memory only</p>
@@ -783,38 +785,41 @@ export default function PasswordsPage() {
                 </div>
             </div>
 
-            {/* Stats bar */}
-            <div className="pwd-stats">
-                <div className="pwd-stat-chip">
-                    <Shield size={14} /><span>{stats.total} total</span>
-                </div>
-                {stats.weak > 0 && (
-                    <div className="pwd-stat-chip pwd-stat-chip-warn">
-                        <ShieldAlert size={14} /><span>{stats.weak} weak</span>
+            {/* Controls Row (Stats + Toolbar) */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div className="pwd-stats" style={{ marginBottom: 0 }}>
+                    <div className="pwd-stat-chip">
+                        <Shield size={14} /><span>{stats.total} total</span>
                     </div>
-                )}
-                <div className="pwd-stat-chip pwd-stat-chip-ok">
-                    <ShieldCheck size={14} /><span>{stats.strong} strong</span>
+                    {stats.weak > 0 && (
+                        <div className="pwd-stat-chip pwd-stat-chip-warn">
+                            <ShieldAlert size={14} /><span>{stats.weak} weak</span>
+                        </div>
+                    )}
+                    <div className="pwd-stat-chip pwd-stat-chip-ok">
+                        <ShieldCheck size={14} /><span>{stats.strong} strong</span>
+                    </div>
+                </div>
+
+                <div className="pwd-toolbar" style={{ marginBottom: 0, flex: 1, justifyContent: 'flex-end' }}>
+                    <div className="pwd-search-wrap" style={{ flex: 1, maxWidth: '400px' }}>
+                        <Search size={15} className="pwd-search-icon" />
+                        <input
+                            className="pwd-search"
+                            placeholder="Search sites or usernames…"
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                        />
+                    </div>
+                    <select className="pwd-select" value={filterCat} onChange={e => setFilterCat(e.target.value)} style={{ width: 'auto' }}>
+                        <option value="All">All categories</option>
+                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
                 </div>
             </div>
+            </div> {/* End Sticky Header Wrapper */}
 
-            {/* Toolbar */}
-            <div className="pwd-toolbar">
-                <div className="pwd-search-wrap">
-                    <Search size={15} className="pwd-search-icon" />
-                    <input
-                        className="pwd-search"
-                        placeholder="Search sites or usernames…"
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                    />
-                </div>
-                <select className="pwd-select" value={filterCat} onChange={e => setFilterCat(e.target.value)}>
-                    <option value="All">All categories</option>
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-            </div>
-
+            <div style={{ padding: '3rem 2rem 2rem 2rem' }}>
             {/* Grid */}
             {loading ? (
                 <AppleLoader />
@@ -835,6 +840,7 @@ export default function PasswordsPage() {
                     ))}
                 </div>
             )}
+            </div>
 
             {/* Add/Edit Modal */}
             {showModal && (
@@ -884,7 +890,8 @@ function PwdStyles() {
     return (
         <style>{`
         .pwd-page {
-            padding: 1.5rem 2rem;
+            display: flex;
+            flex-direction: column;
             max-width: 1400px;
             margin: 0 auto;
             font-family: "Geist", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;

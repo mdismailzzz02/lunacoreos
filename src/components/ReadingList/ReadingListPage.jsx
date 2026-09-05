@@ -86,8 +86,8 @@ export default function ReadingListPage() {
     };
 
     return (
-        <div className="fade-in" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100, backgroundColor: '#1c1c1e', padding: '1.5rem 1.5rem 1rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 -50px 0 0 #1c1c1e' }}>
                 <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <Library size={32} color="var(--accent)" strokeWidth={2} />
@@ -106,7 +106,7 @@ export default function ReadingListPage() {
             {loading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '2rem' }}>
+                <div style={{ padding: '3rem 1.5rem 2rem 1.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '2rem' }}>
                     {books.length === 0 && (
                         <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '4rem', opacity: 0.5, border: '2px dashed rgba(255,255,255,0.1)', borderRadius: '20px' }}>
                             Your library is empty. Add a book to get started!

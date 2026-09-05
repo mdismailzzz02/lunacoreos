@@ -104,8 +104,10 @@ export default function MediaLibraryPage({ guestMode = false }) {
     if (loading) return <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>{[...Array(3)].map((_, i) => <SkeletonCard key={i} />)}</div>;
 
     return (
-        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column' }}>
+            {/* Sticky Header Wrapper */}
+            <div style={{ position: 'sticky', top: 0, zIndex: 100, backgroundColor: '#1c1c1e', padding: '1.5rem 1.5rem 1rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 -50px 0 0 #1c1c1e', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <ImageIcon size={24} color="var(--accent)" strokeWidth={2} />
                     <h2 style={{ fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>Media Library</h2>
@@ -162,6 +164,9 @@ export default function MediaLibraryPage({ guestMode = false }) {
                     <span>{media.filter(m => m.is_orphan === 'TRUE').length} orphans</span>
                 </div>
             )}
+            </div>
+
+            <div style={{ padding: '3rem 1.5rem 2rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
             {/* Guest prompt — shown when no search entered */}
             {guestMode && !showResults && (
@@ -282,6 +287,7 @@ export default function MediaLibraryPage({ guestMode = false }) {
                     )}
                 </>
             ) : null}
+            </div>
 
             {lb !== null && (
                 <Lightbox

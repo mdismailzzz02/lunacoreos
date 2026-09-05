@@ -5,15 +5,15 @@ import {
     Home, Dna, Sparkles, Mail, BookOpen, FileText, PenTool,
     Heart, Users, Music, Tv, Gamepad2, Diamond, Image,
     Library, Package, Star, KeyRound, Settings, Wallet, Brain,
-    Flame, User, Bell, Info, X
+    Flame, User, Bell, Info, X, Film
 } from 'lucide-react';
 import './SmartActions.css';
 
 // ── All navigable items ─────────────────────────────────────────
 const ALL_ITEMS = [
     { id: 'dashboard',      Icon: Home, label: 'Dashboard',     keywords: 'home main overview' },
-    { id: 'lifeos',         Icon: Dna, label: 'LifeOS',        keywords: 'life os tracker tasks goals habits daily' },
-    { id: 'luna',           Icon: Sparkles, label: 'Luna AI',        keywords: 'ai chat assistant artificial intelligence' },
+
+
     { id: 'mail',           Icon: Mail, label: 'Gmail Inbox',    keywords: 'email gmail inbox messages' },
     { id: 'journal',        Icon: BookOpen, label: 'Journal',        keywords: 'diary entry write daily log' },
     { id: 'studynotes',     Icon: FileText, label: 'Study Notes',    keywords: 'notes study learning education' },
@@ -22,18 +22,17 @@ const ALL_ITEMS = [
     { id: 'delegation',     Icon: Users, label: 'Delegation',     keywords: 'delegate tasks assign' },
     { id: 'musicplayer',    Icon: Music, label: 'Music Player',   keywords: 'music songs audio player playlist' },
     { id: 'videos',         Icon: Tv, label: 'YouTube',        keywords: 'youtube videos watch' },
-    { id: 'twitch',         Icon: Gamepad2, label: 'Twitch',         keywords: 'twitch streams gaming live' },
+
     { id: 'vault',          Icon: Diamond, label: 'Vault',           keywords: 'vault media private photos', isRed: true },
     { id: 'media',          Icon: Image, label: 'Media Library',  keywords: 'media library images gallery' },
     { id: 'readinglist',    Icon: Library, label: 'Reading List',   keywords: 'books reading list library' },
+    { id: 'watchlist',      Icon: Film, label: 'Watchlist',         keywords: 'movies tv shows watch film' },
     { id: 'timecapsule',    Icon: Package, label: 'Time Capsule',   keywords: 'time capsule memories future' },
     { id: 'yearlyreview',   Icon: Star, label: 'Yearly Review',  keywords: 'yearly annual review reflection' },
     { id: 'passwords',      Icon: KeyRound, label: 'Passwords',      keywords: 'passwords security keys credentials' },
     { id: 'finance',        Icon: Wallet, label: 'Finance',        keywords: 'finance money budget expenses' },
-    { id: 'thoughtdump',    Icon: Brain, label: 'Thought Dump',   keywords: 'thoughts ideas brainstorm dump' },
-    { id: 'streaks',        Icon: Flame, label: 'Streaks',        keywords: 'streaks consistency habits' },
-    { id: 'whoami',         Icon: User, label: 'Who Am I',       keywords: 'identity self profile about' },
-    { id: 'notifications',  Icon: Bell, label: 'Notifications',  keywords: 'notifications alerts bell' },
+
+
     { id: 'information',    Icon: Info, label: 'Information',    keywords: 'info about help' },
     { id: 'system-settings', Icon: Settings, label: 'Settings',     keywords: 'settings preferences config system' },
 ];
@@ -43,6 +42,7 @@ function fuzzyMatch(query, item) {
     const label = item.label.toLowerCase();
     const id = item.id.toLowerCase();
     const kw = (item.keywords || '').toLowerCase();
+    // Force HMR: SmartActions updated
     return label.includes(q) || id.includes(q) || kw.includes(q);
 }
 

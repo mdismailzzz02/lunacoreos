@@ -144,8 +144,8 @@ export default function BookmarksPage() {
     if (loading) return <AppleLoader />;
 
     return (
-        <div className="fade-in apple-page-loaded" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div className="fade-in apple-page-loaded" style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', position: 'sticky', top: 0, zIndex: 100, backgroundColor: '#1c1c1e', padding: '1.5rem 1.5rem 1rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 -50px 0 0 #1c1c1e' }}>
                 <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <Bookmark size={32} color="var(--accent)" strokeWidth={2} />
@@ -170,7 +170,7 @@ export default function BookmarksPage() {
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+            <div style={{ padding: '3rem 1.5rem 2rem 1.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
                     {filtered.length === 0 && (
                         <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '4rem', opacity: 0.5, border: '2px dashed rgba(255,255,255,0.1)', borderRadius: '20px' }}>
                             {searchQuery ? 'No bookmarks match your search.' : 'No bookmarks yet. Save something interesting!'}
