@@ -344,6 +344,8 @@ export default function JournalPage() {
                 onDateSelect={setSelectedDate}
                 showCalendar={true}
                 moduleName="Journals"
+                activeNote={activeNote}
+                onSaveNote={handleSave}
             />
 
             <section className="sn-editor-panel">

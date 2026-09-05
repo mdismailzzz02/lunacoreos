@@ -5,13 +5,14 @@ import {
     ShieldAlert, Shield, RefreshCw, Globe, Lock, Zap, KeyRound
 } from 'lucide-react';
 import {
-    deriveKeyFromMaster, hasSessionKey, encryptPassword,
+    deriveKeyFromMaster, hasSessionKey, clearSessionKey, encryptPassword,
     decryptPassword, scorePasswordStrength, copyWithAutoClear
 } from '../../services/cryptoService';
 import {
     getPasswords, createPassword, updatePassword,
     deletePassword, bulkCreatePasswords
 } from '../../services/api';
+import AppleLoader from '../Layout/AppleLoader';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -64,9 +65,14 @@ function StrengthBar({ password }) {
 // ── Unlock Prompt (derive key if not yet set) ────────────────────────────────
 function UnlockPrompt({ onUnlocked }) {
     const [pwd, setPwd] = useState('');
-    const [show, setShow] = useState(false);
     const [err, setErr] = useState('');
     const [loading, setLoading] = useState(false);
+    const [tick, setTick] = useState(0);
+
+    useEffect(() => {
+        const id = setInterval(() => setTick(t => t + 1), 1000);
+        return () => clearInterval(id);
+    }, []);
 
     const handleUnlock = async (e) => {
         e.preventDefault();
@@ -76,48 +82,122 @@ function UnlockPrompt({ onUnlocked }) {
             await deriveKeyFromMaster(pwd);
             onUnlocked();
         } catch {
-            setErr('Failed to derive encryption key. Try again.');
+            setErr('Decryption failed — invalid master key.');
         } finally {
             setLoading(false);
         }
     };
 
+    const accent = '#38bdf8'; // sky blue for passwords
+    const glow = 'rgba(56,189,248,0.4)';
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
     return (
         <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
-            justifyContent: 'center', minHeight: '60vh', gap: '1.5rem',
+            position: 'fixed', inset: 0, zIndex: 9999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.92)',
+            backdropFilter: 'blur(20px)',
         }}>
-            <div style={{ textAlign: 'center' }}>
-                <div style={{ marginBottom: '1rem', color: 'var(--accent)' }}>
-                    <KeyRound size={56} strokeWidth={1.5} />
+            <style>{`
+                @keyframes pwdl-pulse { 0%,100%{opacity:0.6;transform:scale(1)} 50%{opacity:1;transform:scale(1.04)} }
+                @keyframes pwdl-ring { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+                @keyframes pwdl-ring2 { 0%{transform:rotate(0deg)} 100%{transform:rotate(-360deg)} }
+                @keyframes pwdl-blink { 0%,100%{opacity:1} 50%{opacity:0} }
+                @keyframes pwdl-fadeup { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+                .pwdl-input { flex:1; background:transparent; border:none; outline:none; color:#e0e0e0; font-family:'Menlo','Monaco','Courier New',monospace; font-size:1rem; letter-spacing:0.25rem; caret-color:${accent}; }
+                .pwdl-input::placeholder { color:rgba(255,255,255,0.18); letter-spacing:0.05rem; }
+                .pwdl-input:disabled { opacity:0.5; }
+                .pwdl-btn { margin-top:28px; padding:10px 28px; background:transparent; border:1px solid ${accent}66; color:${accent}; font-family:'Menlo','Monaco',monospace; font-size:0.82rem; border-radius:6px; cursor:pointer; letter-spacing:0.08em; transition:all 0.2s; align-self:flex-start; }
+                .pwdl-btn:hover:not(:disabled) { background:${accent}14; border-color:${accent}; box-shadow:0 0 20px ${glow}; }
+                .pwdl-btn:disabled { opacity:0.4; cursor:not-allowed; }
+                .pwdl-meta { display:flex; align-items:center; gap:8px; font-size:0.72rem; color:rgba(255,255,255,0.3); font-family:'Menlo',monospace; letter-spacing:0.05em; }
+                .pwdl-dot { width:5px;height:5px;border-radius:50%;background:${accent};box-shadow:0 0 6px ${glow}; }
+            `}</style>
+
+            <div style={{
+                width: '100%', maxWidth: '960px', minHeight: '520px',
+                display: 'flex', borderRadius: '16px', overflow: 'hidden',
+                border: `1px solid ${accent}30`,
+                boxShadow: `0 40px 80px rgba(0,0,0,0.8), 0 0 60px ${glow}20`,
+                animation: 'pwdl-fadeup 0.4s ease',
+            }}>
+                {/* LEFT */}
+                <div style={{
+                    width: '340px', flexShrink: 0,
+                    background: `radial-gradient(ellipse at 60% 40%, ${accent}18 0%, rgba(10,10,14,0.98) 70%)`,
+                    borderRight: `1px solid ${accent}20`,
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center',
+                    padding: '48px 32px', gap: '32px',
+                }}>
+                    <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
+                        <div style={{ position: 'absolute', inset: -2, borderRadius: '50%', border: `1px solid ${accent}30`, animation: 'pwdl-ring 8s linear infinite' }} />
+                        <div style={{ position: 'absolute', inset: 10, borderRadius: '50%', border: `1px dashed ${accent}50`, animation: 'pwdl-ring2 5s linear infinite' }} />
+                        <div style={{ position: 'absolute', inset: 22, borderRadius: '50%', background: `radial-gradient(circle at 40% 35%, ${accent}cc, ${accent}44 60%, transparent)`, boxShadow: `0 0 30px ${glow}, 0 0 60px ${glow}60`, animation: 'pwdl-pulse 3s ease-in-out infinite', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.6rem' }}>
+                            🔑
+                        </div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.65rem', letterSpacing: '0.2em', textTransform: 'uppercase', color: `${accent}99`, marginBottom: '8px', fontFamily: 'Menlo, monospace' }}>LunaCore /passwords</div>
+                        <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#fff', fontFamily: '-apple-system, sans-serif', letterSpacing: '-0.02em' }}>Password Vault</div>
+                        <div style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', background: `${accent}18`, border: `1px solid ${accent}40` }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: accent, display: 'inline-block', boxShadow: `0 0 6px ${accent}` }} />
+                            <span style={{ fontSize: '0.65rem', color: accent, fontFamily: 'Menlo, monospace', letterSpacing: '0.12em' }}>LOCKED</span>
+                        </div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '1.8rem', fontWeight: 300, color: 'rgba(255,255,255,0.8)', fontFamily: 'Menlo, monospace', letterSpacing: '0.05em' }}>{timeStr}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', marginTop: '4px', fontFamily: 'Menlo, monospace' }}>{dateStr}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+                        <div className="pwdl-meta"><span className="pwdl-dot" /><span>AES-256-GCM encrypted</span></div>
+                        <div className="pwdl-meta"><span className="pwdl-dot" /><span>Key lives in memory only</span></div>
+                        <div className="pwdl-meta"><span className="pwdl-dot" style={{ background: navigator.onLine ? '#4ade80' : '#ef4444' }} /><span>{navigator.onLine ? 'Network connected' : 'Network offline'}</span></div>
+                    </div>
                 </div>
-                <h2 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--text-primary, #fff)' }}>
-                    Unlock Password Vault
-                </h2>
-                <p style={{ margin: '0.5rem 0 0', color: 'var(--text-secondary, #aaa)', fontSize: '0.88rem' }}>
-                    Enter your Master Key to decrypt your saved passwords.
-                </p>
+
+                {/* RIGHT */}
+                <div style={{ flex: 1, background: 'rgba(10,10,14,0.98)', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'relative' }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={() => window.dispatchEvent(new CustomEvent('luna:navigate', { detail: 'dashboard' }))} style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f56', border: '1px solid #e0443e', padding: 0, cursor: 'pointer' }} />
+                            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ffbd2e', border: '1px solid #dea123', display: 'inline-block' }} />
+                            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#27c93f', border: '1px solid #1aab29', display: 'inline-block' }} />
+                        </div>
+                        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)', fontFamily: 'Menlo, monospace', letterSpacing: '0.05em' }}>
+                            ismail@lunacore — passwords — 80×24
+                        </div>
+                    </div>
+
+                    <div style={{ flex: 1, padding: '36px 40px', fontFamily: 'Menlo, Monaco, "Courier New", monospace', fontSize: '0.9rem', lineHeight: 1.7, color: '#e0e0e0', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ color: 'rgba(255,255,255,0.25)', marginBottom: '24px', fontSize: '0.82rem' }}>
+                            Session started {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                        </div>
+
+                        <form onSubmit={handleUnlock} style={{ display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '18px', gap: '10px' }}>
+                                <span style={{ color: accent, fontWeight: 600 }}>~/passwords$</span>
+                                <span style={{ color: 'rgba(255,255,255,0.5)' }}>./decrypt --cipher=AES-256-GCM</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '10px', borderBottom: `1px solid ${accent}20` }}>
+                                <span style={{ color: accent, fontWeight: 600, whiteSpace: 'nowrap' }}>Master key:</span>
+                                <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} autoFocus required autoComplete="current-password" className="pwdl-input" placeholder="············" disabled={loading} />
+                                <span style={{ animation: 'pwdl-blink 1s step-end infinite', color: accent, fontSize: '1.1rem' }}>▌</span>
+                            </div>
+                            {err && <div style={{ marginTop: '16px', color: '#ff5f56', fontSize: '0.85rem' }}>✗ {err}</div>}
+                            <button type="submit" disabled={loading} className="pwdl-btn">
+                                {loading ? '[ decrypting... ]' : '[ unlock vault ]'}
+                            </button>
+                            <div style={{ marginTop: '20px', fontSize: '0.72rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Menlo, monospace' }}>
+                                Press ↵ to submit · Red dot to exit
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
-            <form onSubmit={handleUnlock} style={{ width: '100%', maxWidth: '360px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ position: 'relative' }}>
-                    <input
-                        type={show ? 'text' : 'password'}
-                        value={pwd}
-                        onChange={e => setPwd(e.target.value)}
-                        placeholder="Master Key…"
-                        autoFocus
-                        required
-                        className="pwd-input"
-                    />
-                    <button type="button" onClick={() => setShow(s => !s)} className="pwd-eye-btn">
-                        {show ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                </div>
-                {err && <p style={{ color: '#ef4444', fontSize: '0.82rem', margin: 0 }}>{err}</p>}
-                <button type="submit" disabled={loading} className="pwd-primary-btn">
-                    {loading ? 'Unlocking…' : <><Lock size={15} style={{ marginRight: '0.4rem' }} />Unlock</>}
-                </button>
-            </form>
         </div>
     );
 }
@@ -623,6 +703,13 @@ export default function PasswordsPage() {
         }
     }, [unlocked]);
 
+    // Re-lock the vault whenever the user navigates away
+    useEffect(() => {
+        return () => {
+            clearSessionKey();
+        };
+    }, []);
+
     useEffect(() => { load(); }, [load]);
 
     const handleSave = async (params) => {
@@ -661,10 +748,10 @@ export default function PasswordsPage() {
 
     if (!unlocked) {
         return (
-            <div style={{ padding: '2rem', maxWidth: 800, margin: '0 auto' }}>
+            <>
                 <UnlockPrompt onUnlocked={() => setUnlocked(true)} />
                 <PwdStyles />
-            </div>
+            </>
         );
     }
 
@@ -730,10 +817,7 @@ export default function PasswordsPage() {
 
             {/* Grid */}
             {loading ? (
-                <div style={{ textAlign: 'center', padding: '4rem', opacity: 0.5 }}>
-                    <div className="pwd-spinner" style={{ margin: '0 auto 1rem' }} />
-                    <p>Loading encrypted vault…</p>
-                </div>
+                <AppleLoader />
             ) : filtered.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '5rem 2rem', opacity: 0.4 }}>
                     <Key size={48} style={{ marginBottom: '1rem' }} />
@@ -1117,15 +1201,28 @@ function PwdStyles() {
             background: rgba(249,115,22,0.05);
         }
 
-        /* Spinner */
+        /* Apple-style activity indicator */
         .pwd-spinner {
-            width: 36px; height: 36px;
-            border: 3px solid rgba(255,255,255,0.1);
-            border-top-color: #f97316;
-            border-radius: 50%;
-            animation: pwd-spin 0.7s linear infinite;
+            position: relative;
+            width: 32px;
+            height: 32px;
         }
-        @keyframes pwd-spin { to { transform: rotate(360deg); } }
+        .pwd-spinner::before {
+            content: '';
+            box-sizing: border-box;
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            border-top-color: rgba(255,255,255,0.8);
+            border-right-color: rgba(255,255,255,0.4);
+            border-bottom-color: rgba(255,255,255,0.15);
+            animation: pwd-apple-spin 0.75s cubic-bezier(0.4,0,0.2,1) infinite;
+        }
+        @keyframes pwd-apple-spin {
+            0%   { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
 
         /* Toast */
         .pwd-toast {

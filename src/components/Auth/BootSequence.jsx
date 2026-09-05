@@ -17,18 +17,18 @@ const BootSequence = ({ onComplete }) => {
 
     useEffect(() => {
         if (currentLineIndex >= BOOT_LINES.length) {
-            // Wait a second before finishing
+            // Brief pause before finishing
             const timeout = setTimeout(() => {
                 if (onComplete) onComplete();
-            }, 1000);
+            }, 300);
             return () => clearTimeout(timeout);
         }
 
         const currentFullLine = BOOT_LINES[currentLineIndex];
 
         if (currentCharIndex < currentFullLine.length) {
-            // Type the next character with slight random variation to look like a real terminal
-            const charDelay = Math.floor(Math.random() * 30) + 20; 
+            // Type the next character — fast but still feels like a real terminal
+            const charDelay = Math.floor(Math.random() * 8) + 5; // 5–12ms per char
             
             const timeout = setTimeout(() => {
                 setDisplayedLines(prev => {
@@ -44,8 +44,8 @@ const BootSequence = ({ onComplete }) => {
             }, charDelay);
             return () => clearTimeout(timeout);
         } else {
-            // Line finished, wait a bit before starting the next line (simulate loading)
-            const lineDelay = Math.floor(Math.random() * 800) + 400; // 400ms to 1200ms
+            // Short pause between lines
+            const lineDelay = Math.floor(Math.random() * 80) + 80; // 80–160ms
             
             const timeout = setTimeout(() => {
                 setCurrentLineIndex(prev => prev + 1);

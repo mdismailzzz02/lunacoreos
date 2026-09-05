@@ -19,112 +19,333 @@ function generateSalt() {
 function LockScreen({ mode, onSubmit, error, loading, targetLockId, unlockState }) {
     const [pwd, setPwd] = useState('');
     const [confirm, setConfirm] = useState('');
+    const [tick, setTick] = useState(0);
 
     const handleSubmit = (e) => { e.preventDefault(); onSubmit(pwd, confirm); };
     const isOfflineMode = mode === 'locked_offline';
     const isSetMode = mode === 'set';
-
     const isHidden = targetLockId === 'vault_hidden';
-    const header = isHidden ? 'LunaCore OS (Classified Volume: H-Tier)' : 'LunaCore OS (Encrypted Core Volume)';
-    const statusTxt = isHidden ? 'ENCRYPTED' : 'LOCKED';
-    const cmd = isHidden ? './decrypt' : './unlock';
+
+    // Live clock tick
+    useEffect(() => {
+        const id = setInterval(() => setTick(t => t + 1), 1000);
+        return () => clearInterval(id);
+    }, []);
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
+    const vaultLabel = isHidden ? 'Hidden Volume' : 'Encrypted Vault';
+    const vaultIcon = isHidden ? '◈' : '⬡';
+    const accentColor = isHidden ? '#a78bfa' : '#f97316';
+    const accentGlow = isHidden ? 'rgba(167,139,250,0.4)' : 'rgba(249,115,22,0.4)';
+    const promptPath = isHidden ? 'hidden' : 'vault';
+    const cmd = isHidden ? './decrypt --tier=hidden' : './unlock --volume=primary';
+    const statusColor = isOfflineMode ? '#ef4444' : isSetMode ? '#f59e0b' : accentColor;
+    const statusText = isOfflineMode ? 'OFFLINE' : isSetMode ? 'UNINITIALIZED' : 'LOCKED';
 
     return (
         <div style={{
             position: 'fixed', inset: 0, zIndex: 9999,
-            background: 'rgba(0,0,0,0.85)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            backdropFilter: 'blur(10px)'
+            background: 'rgba(0,0,0,0.92)',
+            backdropFilter: 'blur(20px)',
         }}>
+            <style>{`
+                @keyframes vl-pulse {
+                    0%, 100% { opacity: 0.6; transform: scale(1); }
+                    50% { opacity: 1; transform: scale(1.04); }
+                }
+                @keyframes vl-ring {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+                @keyframes vl-ring2 {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(-360deg); }
+                }
+                @keyframes vl-blink {
+                    0%, 100% { opacity: 1; } 50% { opacity: 0; }
+                }
+                @keyframes vl-fadeup {
+                    from { opacity: 0; transform: translateY(8px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .vl-input {
+                    flex: 1;
+                    background: transparent;
+                    border: none;
+                    outline: none;
+                    color: #e0e0e0;
+                    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+                    font-size: 1rem;
+                    letter-spacing: 0.25rem;
+                    caret-color: ${accentColor};
+                }
+                .vl-input::placeholder { color: rgba(255,255,255,0.18); letter-spacing: 0.05rem; }
+                .vl-input:disabled { opacity: 0.5; }
+                .vl-submit-btn {
+                    margin-top: 28px;
+                    padding: 10px 28px;
+                    background: transparent;
+                    border: 1px solid ${accentColor}66;
+                    color: ${accentColor};
+                    font-family: 'Menlo', 'Monaco', monospace;
+                    font-size: 0.82rem;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    letter-spacing: 0.08em;
+                    transition: all 0.2s;
+                    align-self: flex-start;
+                }
+                .vl-submit-btn:hover:not(:disabled) {
+                    background: ${accentColor}14;
+                    border-color: ${accentColor};
+                    box-shadow: 0 0 20px ${accentGlow};
+                }
+                .vl-submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+                .vl-meta-row {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 0.72rem;
+                    color: rgba(255,255,255,0.3);
+                    font-family: 'Menlo', monospace;
+                    letter-spacing: 0.05em;
+                }
+                .vl-meta-dot {
+                    width: 5px; height: 5px; border-radius: 50%;
+                    background: ${accentColor};
+                    box-shadow: 0 0 6px ${accentGlow};
+                }
+            `}</style>
+
             <div style={{
-                width: '100%', maxWidth: '900px', minHeight: '550px',
-                background: 'rgba(15, 15, 20, 0.85)',
-                backdropFilter: 'blur(24px) saturate(180%)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                borderRadius: '12px',
-                boxShadow: '0 30px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.2)',
+                width: '100%', maxWidth: '960px',
+                minHeight: '520px',
+                display: 'flex',
+                borderRadius: '16px',
                 overflow: 'hidden',
-                fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-                display: 'flex', flexDirection: 'column'
+                border: `1px solid ${accentColor}30`,
+                boxShadow: `0 40px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04), 0 0 60px ${accentGlow}20`,
+                animation: 'vl-fadeup 0.4s ease',
             }}>
-                <style>{`
-                    .vl-term-text { color: #e0e0e0; margin: 0 0 8px 0; font-size: 0.95rem; line-height: 1.4; }
-                    .vl-term-prompt { color: #4ade80; margin-right: 12px; font-size: 0.95rem; font-weight: 600; }
-                    .vl-term-command { color: #e0e0e0; font-size: 0.95rem; }
-                    .vl-term-input { flex: 1; background: transparent; border: none; outline: none; color: #e0e0e0; font-family: inherit; font-size: 0.95rem; letter-spacing: 0.2rem; }
-                    .vl-term-error { color: #ff5f56; margin-top: 12px; font-size: 0.95rem; }
-                `}</style>
+
+                {/* ── LEFT PANEL — Visual Identity ── */}
                 <div style={{
-                    display: 'flex', alignItems: 'center', padding: '12px 16px',
-                    background: 'rgba(40, 40, 45, 0.5)',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                    position: 'relative'
+                    width: '340px', flexShrink: 0,
+                    background: `radial-gradient(ellipse at 60% 40%, ${accentColor}18 0%, rgba(10,10,14,0.98) 70%)`,
+                    borderRight: `1px solid ${accentColor}20`,
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center',
+                    padding: '48px 32px',
+                    position: 'relative',
+                    gap: '32px',
                 }}>
-                    <div style={{ display: 'flex', gap: '8px', position: 'absolute', left: '16px' }}>
-                        <button onClick={() => window.dispatchEvent(new CustomEvent('luna:navigate', { detail: 'dashboard' }))} style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ff5f56', border: '1px solid #e0443e', padding: 0, cursor: 'pointer' }}></button>
-                        <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ffbd2e', border: '1px solid #dea123' }}></span>
-                        <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#27c93f', border: '1px solid #1aab29' }}></span>
+                    {/* Orb */}
+                    <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
+                        {/* Outer slow ring */}
+                        <div style={{
+                            position: 'absolute', inset: -2,
+                            borderRadius: '50%',
+                            border: `1px solid ${accentColor}30`,
+                            animation: 'vl-ring 8s linear infinite',
+                        }} />
+                        {/* Dashed mid ring */}
+                        <div style={{
+                            position: 'absolute', inset: 10,
+                            borderRadius: '50%',
+                            border: `1px dashed ${accentColor}50`,
+                            animation: 'vl-ring2 5s linear infinite',
+                        }} />
+                        {/* Core orb */}
+                        <div style={{
+                            position: 'absolute', inset: 22,
+                            borderRadius: '50%',
+                            background: `radial-gradient(circle at 40% 35%, ${accentColor}cc, ${accentColor}44 60%, transparent)`,
+                            boxShadow: `0 0 30px ${accentGlow}, 0 0 60px ${accentGlow}60`,
+                            animation: 'vl-pulse 3s ease-in-out infinite',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '1.6rem',
+                        }}>
+                            {vaultIcon}
+                        </div>
                     </div>
-                    <div style={{ flex: 1, textAlign: 'center', color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.85rem', fontWeight: 500, letterSpacing: '0.5px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
-                        LunaCore Security Daemon — active
+
+                    {/* Identity */}
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{
+                            fontSize: '0.65rem', letterSpacing: '0.2em', textTransform: 'uppercase',
+                            color: `${accentColor}99`, marginBottom: '8px', fontFamily: 'Menlo, monospace',
+                        }}>
+                            LunaCore /{promptPath}
+                        </div>
+                        <div style={{
+                            fontSize: '1.3rem', fontWeight: 700, color: '#fff',
+                            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                            letterSpacing: '-0.02em',
+                        }}>
+                            {vaultLabel}
+                        </div>
+                        <div style={{
+                            marginTop: '10px',
+                            display: 'inline-flex', alignItems: 'center', gap: '6px',
+                            padding: '4px 12px', borderRadius: '20px',
+                            background: `${statusColor}18`,
+                            border: `1px solid ${statusColor}40`,
+                        }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, display: 'inline-block', boxShadow: `0 0 6px ${statusColor}` }} />
+                            <span style={{ fontSize: '0.65rem', color: statusColor, fontFamily: 'Menlo, monospace', letterSpacing: '0.12em' }}>
+                                {statusText}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Live clock */}
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '1.8rem', fontWeight: 300, color: 'rgba(255,255,255,0.8)', fontFamily: 'Menlo, monospace', letterSpacing: '0.05em' }}>
+                            {timeStr}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', marginTop: '4px', fontFamily: 'Menlo, monospace' }}>
+                            {dateStr}
+                        </div>
+                    </div>
+
+                    {/* Metadata rows */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+                        <div className="vl-meta-row">
+                            <span className="vl-meta-dot" />
+                            <span>AES-256 · SHA-256 hash</span>
+                        </div>
+                        <div className="vl-meta-row">
+                            <span className="vl-meta-dot" />
+                            <span>End-to-end encrypted</span>
+                        </div>
+                        <div className="vl-meta-row">
+                            <span className="vl-meta-dot" style={{ background: navigator.onLine ? '#4ade80' : '#ef4444' }} />
+                            <span>{navigator.onLine ? 'Network connected' : 'Network offline'}</span>
+                        </div>
                     </div>
                 </div>
 
-                <div style={{ padding: '40px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <p className="vl-term-text">Last login: {new Date().toLocaleString()} on ttys000</p>
-                    <p className="vl-term-text">{header}</p>
-                    <p className="vl-term-text" style={{ opacity: 0.5 }}>
-                        {isHidden ? 'Hidden Status: ' : 'Vault Status: '} 
-                        {isOfflineMode ? 'NO CONNECTION' : isSetMode ? 'UNINITIALIZED' : statusTxt}
-                    </p>
-                    <br />
-
-                    {unlockState ? (
-                        <UnlockSequence isError={unlockState.isError} onComplete={unlockState.onComplete} />
-                    ) : !isOfflineMode && (
-                        <form onSubmit={handleSubmit}>
-                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                                <span className="vl-term-prompt">ismail@lunacore:~/{targetLockId}$</span>
-                                <span className="vl-term-command">{cmd}</span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                                <span className="vl-term-prompt">{isSetMode ? 'New Key:' : 'Access Key:'}</span>
-                                <input
-                                    type="password"
-                                    value={pwd}
-                                    onChange={e => setPwd(e.target.value)}
-                                    autoFocus
-                                    required
-                                    autoComplete="new-password"
-                                    className="vl-term-input"
-                                    disabled={loading}
-                                />
-                            </div>
-                            {isSetMode && (
-                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                                    <span className="vl-term-prompt">Confirm Key:</span>
-                                    <input
-                                        type="password"
-                                        value={confirm}
-                                        onChange={e => setConfirm(e.target.value)}
-                                        required
-                                        autoComplete="new-password"
-                                        className="vl-term-input"
-                                        disabled={loading}
-                                    />
-                                </div>
-                            )}
-                            {error && <div className="vl-term-error">{error}</div>}
-                            <button type="submit" style={{ display: 'none' }}>Submit</button>
-                        </form>
-                    )}
-
-                    {isOfflineMode && (
-                        <div className="vl-term-error">
-                            fatal error: network unreachable<br/>
-                            Cannot verify credentials without a network connection. Come back online to unlock.
+                {/* ── RIGHT PANEL — Terminal Input ── */}
+                <div style={{
+                    flex: 1,
+                    background: 'rgba(10, 10, 14, 0.98)',
+                    display: 'flex', flexDirection: 'column',
+                }}>
+                    {/* Title bar */}
+                    <div style={{
+                        display: 'flex', alignItems: 'center', padding: '12px 18px',
+                        borderBottom: '1px solid rgba(255,255,255,0.05)',
+                        position: 'relative',
+                    }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                                onClick={() => window.dispatchEvent(new CustomEvent('luna:navigate', { detail: 'dashboard' }))}
+                                style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f56', border: '1px solid #e0443e', padding: 0, cursor: 'pointer' }}
+                            />
+                            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ffbd2e', border: '1px solid #dea123', display: 'inline-block' }} />
+                            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#27c93f', border: '1px solid #1aab29', display: 'inline-block' }} />
                         </div>
-                    )}
+                        <div style={{
+                            position: 'absolute', left: '50%', transform: 'translateX(-50%)',
+                            fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)',
+                            fontFamily: 'Menlo, monospace', letterSpacing: '0.05em',
+                        }}>
+                            ismail@lunacore — {promptPath} — 80×24
+                        </div>
+                    </div>
+
+                    {/* Terminal body */}
+                    <div style={{
+                        flex: 1, padding: '36px 40px',
+                        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+                        fontSize: '0.9rem', lineHeight: 1.7, color: '#e0e0e0',
+                        display: 'flex', flexDirection: 'column',
+                    }}>
+                        <div style={{ color: 'rgba(255,255,255,0.25)', marginBottom: '24px', fontSize: '0.82rem' }}>
+                            Session started {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                        </div>
+
+                        {unlockState ? (
+                            <UnlockSequence isError={unlockState.isError} onComplete={unlockState.onComplete} />
+                        ) : !isOfflineMode ? (
+                            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
+                                {/* Command line */}
+                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '18px', gap: '10px' }}>
+                                    <span style={{ color: accentColor, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                        ~/{promptPath}$
+                                    </span>
+                                    <span style={{ color: 'rgba(255,255,255,0.5)' }}>{cmd}</span>
+                                </div>
+
+                                {/* Password prompt */}
+                                <div style={{ marginBottom: isSetMode ? '12px' : '0' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '10px', borderBottom: `1px solid ${accentColor}20` }}>
+                                        <span style={{ color: accentColor, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                            {isSetMode ? 'New access key:' : 'Access key:'}
+                                        </span>
+                                        <input
+                                            type="password"
+                                            value={pwd}
+                                            onChange={e => setPwd(e.target.value)}
+                                            autoFocus
+                                            required
+                                            autoComplete="new-password"
+                                            className="vl-input"
+                                            placeholder="············"
+                                            disabled={loading}
+                                        />
+                                        <span style={{ animation: 'vl-blink 1s step-end infinite', color: accentColor, fontSize: '1.1rem' }}>▌</span>
+                                    </div>
+                                </div>
+
+                                {isSetMode && (
+                                    <div style={{ marginTop: '12px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '10px', borderBottom: `1px solid ${accentColor}20` }}>
+                                            <span style={{ color: accentColor, fontWeight: 600, whiteSpace: 'nowrap' }}>Confirm key:</span>
+                                            <input
+                                                type="password"
+                                                value={confirm}
+                                                onChange={e => setConfirm(e.target.value)}
+                                                required
+                                                autoComplete="new-password"
+                                                className="vl-input"
+                                                placeholder="············"
+                                                disabled={loading}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {error && (
+                                    <div style={{ marginTop: '16px', color: '#ff5f56', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span>✗</span> {error}
+                                    </div>
+                                )}
+
+                                <button type="submit" disabled={loading} className="vl-submit-btn">
+                                    {loading ? '[ verifying... ]' : isSetMode ? '[ set key & unlock ]' : '[ unlock ]'}
+                                </button>
+
+                                <div style={{ marginTop: '20px', fontSize: '0.72rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Menlo, monospace' }}>
+                                    Press ↵ to submit · Red dot to exit
+                                </div>
+                            </form>
+                        ) : (
+                            <div>
+                                <div style={{ color: '#ef4444', marginBottom: '12px' }}>
+                                    ✗ fatal: network unreachable
+                                </div>
+                                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem', lineHeight: 1.8 }}>
+                                    Cannot verify credentials without a network connection.<br />
+                                    Restore connectivity to unlock this vault.
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
@@ -133,7 +354,7 @@ function LockScreen({ mode, onSubmit, error, loading, targetLockId, unlockState 
 
 export default function VaultLock({ children }) {
     const [status, setStatus] = useState('loading');
-    const [storedRecord, setStoredRecord] = useState(null); // { salt, hash }
+    const [storedRecord, setStoredRecord] = useState(null);
     const [isOffline, setIsOffline] = useState(!navigator.onLine);
     const [error, setError] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -154,10 +375,7 @@ export default function VaultLock({ children }) {
     }, []);
 
     useEffect(() => {
-        if (isOffline) {
-            setStatus('locked_offline');
-            return;
-        }
+        if (isOffline) { setStatus('locked_offline'); return; }
         getAppPasswordV2(targetLockId)
             .then(res => {
                 if (res?.hash && res?.salt) {
@@ -180,11 +398,9 @@ export default function VaultLock({ children }) {
             if (status === 'set') {
                 if (pwd.length < 6) { setError('Key must be at least 6 characters.'); return; }
                 if (pwd !== confirm) { setError('Keys do not match.'); return; }
-                
                 const salt = generateSalt();
                 const hash = await sha256(salt + pwd);
                 await setAppPasswordV2(targetLockId, isHiddenTrigger ? 'Hidden Vault Lock' : 'Vault Lock', salt, hash);
-                
                 setUnlockState({ isError: false, onComplete: () => {
                     if (isHiddenTrigger) sessionStorage.setItem('luna_trigger_hidden_vault', 'verified');
                     setStatus('unlocked');
@@ -198,7 +414,7 @@ export default function VaultLock({ children }) {
                     }});
                 } else {
                     setUnlockState({ isError: true, onComplete: () => {
-                        setError('access denied: invalid master key');
+                        setError('access denied — invalid key');
                         setUnlockState(null);
                     }});
                 }
@@ -208,13 +424,13 @@ export default function VaultLock({ children }) {
 
     if (status === 'loading') return null;
     if (status === 'unlocked') return children;
-    
-    return <LockScreen 
-        mode={status} 
-        onSubmit={handleSubmit} 
-        error={error} 
-        loading={submitting} 
-        targetLockId={targetLockId} 
+
+    return <LockScreen
+        mode={status}
+        onSubmit={handleSubmit}
+        error={error}
+        loading={submitting}
+        targetLockId={targetLockId}
         unlockState={unlockState}
     />;
 }

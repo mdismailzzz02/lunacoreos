@@ -52,6 +52,15 @@ export default function MediaAttachmentsPanel({ sourceId, onMediaChange, refresh
         return () => document.removeEventListener('sn-media-deleted', handler);
     }, []);
 
+    const [pendingChange, setPendingChange] = useState(null);
+
+    useEffect(() => {
+        if (pendingChange && onMediaChange) {
+            onMediaChange(pendingChange);
+            setPendingChange(null);
+        }
+    }, [pendingChange, onMediaChange]);
+
     const handleUpload = async (file, mediaType) => {
         if (!sourceId || !file) return;
 
@@ -102,22 +111,17 @@ export default function MediaAttachmentsPanel({ sourceId, onMediaChange, refresh
                 media_type: mediaType
             };
  
-            let finalRefs;
             setMediaItems(prev => {
                 const typeKey = mediaType === 'image' ? 'images' : (mediaType === 'audio' ? 'audio' : 'files');
                 const newState = { ...prev, [typeKey]: [...prev[typeKey], newItem] };
-                finalRefs = {
+                const finalRefs = {
                     audio_refs: newState.audio.map(m => m.media_id).join(','),
                     image_refs: newState.images.map(m => m.media_id).join(','),
                     file_refs: newState.files.map(m => m.media_id).join(',')
                 };
+                setPendingChange(finalRefs);
                 return newState;
             });
- 
-            // Notify parent OUTSIDE of the setState functional update
-            if (onMediaChange && finalRefs) {
-                onMediaChange(finalRefs);
-            }
 
             setTimeout(() => {
                 setSaving(false);
@@ -141,7 +145,6 @@ export default function MediaAttachmentsPanel({ sourceId, onMediaChange, refresh
             // Tell the editor to remove any matching ghost embeds
             document.dispatchEvent(new CustomEvent('sn-media-deleted', { detail: { media_id: mediaId } }));
             
-            let finalRefs;
             setMediaItems(prev => {
                 const newState = {
                     audio: prev.audio.filter(m => m.media_id !== mediaId),
@@ -149,18 +152,14 @@ export default function MediaAttachmentsPanel({ sourceId, onMediaChange, refresh
                     files: prev.files.filter(m => m.media_id !== mediaId)
                 };
 
-                finalRefs = {
+                const finalRefs = {
                     audio_refs: newState.audio.map(m => m.media_id).join(','),
                     image_refs: newState.images.map(m => m.media_id).join(','),
                     file_refs: newState.files.map(m => m.media_id).join(',')
                 };
+                setPendingChange(finalRefs);
                 return newState;
             });
-
-            // Notify parent OUTSIDE of the setState functional update
-            if (onMediaChange && finalRefs) {
-                onMediaChange(finalRefs);
-            }
         } catch (e) {
             console.error('Delete failed:', e);
             alert('Failed to delete media: ' + e.message);

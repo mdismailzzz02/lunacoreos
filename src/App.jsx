@@ -35,7 +35,8 @@ import { loginWithSupabase } from './services/googleAuth';
 import Dither from './components/Shared/Dither';
 import BootSequence from './components/Auth/BootSequence';
 import UnlockSequence from './components/Auth/UnlockSequence';
-import { Eye, Lock } from 'lucide-react';
+import AppleLoader from './components/Layout/AppleLoader';
+import { Eye, Lock, User } from 'lucide-react';
 import MatrixRain from './components/Arcade/MatrixRain';
 import Neofetch from './components/Arcade/Neofetch';
 import Hollywood from './components/Arcade/Hollywood';
@@ -96,19 +97,19 @@ function ExitTerminal({ onDismiss, onTerminate }) {
                 <div style={{ padding: '40px', color: '#e0e0e0', fontSize: '1rem', lineHeight: 1.6, flex: 1 }}>
                     <p style={{ color: '#ff5f56', fontWeight: 700, marginBottom: '16px', fontSize: '1.1rem' }}>FATAL: INTERRUPT SIGNAL RECEIVED</p>
                     <p>A termination signal was detected from the host environment.</p>
-                    
+
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '24px' }}>
-                        <button 
-                            onClick={onDismiss} 
+                        <button
+                            onClick={onDismiss}
                             style={{ textAlign: 'left', background: 'rgba(74, 222, 128, 0.1)', border: '1px solid rgba(74, 222, 128, 0.3)', color: '#4ade80', font: 'inherit', cursor: 'pointer', padding: '12px 16px', borderRadius: '6px', transition: 'background 0.2s' }}
                             onMouseOver={(e) => e.currentTarget.style.background = 'rgba(74, 222, 128, 0.2)'}
                             onMouseOut={(e) => e.currentTarget.style.background = 'rgba(74, 222, 128, 0.1)'}
                         >
                             <span style={{ opacity: 0.7, marginRight: '8px' }}>{'>'}</span> Resume Session
                         </button>
-                        
-                        <button 
-                            onClick={onTerminate} 
+
+                        <button
+                            onClick={onTerminate}
                             style={{ textAlign: 'left', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', font: 'inherit', cursor: 'pointer', padding: '12px 16px', borderRadius: '6px', transition: 'background 0.2s' }}
                             onMouseOver={(e) => e.currentTarget.style.background = 'rgba(245, 158, 11, 0.2)'}
                             onMouseOut={(e) => e.currentTarget.style.background = 'rgba(245, 158, 11, 0.1)'}
@@ -124,6 +125,8 @@ function ExitTerminal({ onDismiss, onTerminate }) {
 
 export default function App() {
     const [tab, setTab] = useState(() => sessionStorage.getItem('luna_active_tab') || 'journal');
+    const [tabHistory, setTabHistory] = useState(() => [sessionStorage.getItem('luna_active_tab') || 'journal']);
+    const [visitedTabs, setVisitedTabs] = useState(() => [sessionStorage.getItem('luna_active_tab') || 'journal']);
     const [userName, setUserName] = useState('');
     const [theme, setTheme] = useState('dark');
     const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -141,7 +144,11 @@ export default function App() {
     const [activeGame, setActiveGame] = useState(null);
     const [arcadeCategory, setArcadeCategory] = useState('main'); // 'main', 'games', 'tools', 'hacker'
     const [showInterruptSignal, setShowInterruptSignal] = useState(false);
-
+    const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
+    const [lastUser, setLastUser] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('luna_last_user')) || null; }
+        catch { return null; }
+    });
     const renderMenuOptions = () => (
         <>
             {arcadeCategory === 'main' && (
@@ -187,7 +194,7 @@ export default function App() {
             )}
         </>
     );
-    
+
     // Curated Lock Screen Dither Colors (Sophisticated, non-party vibes)
     const [lockScreenColor] = useState(() => {
         const colors = [
@@ -229,7 +236,7 @@ export default function App() {
         const handleBeforeUnload = (e) => {
             // Mark that this unload is a navigation/refresh (not a close)
             sessionStorage.setItem('luna_navigating', 'true');
-            
+
             // Show the native browser warning when they try to refresh/close
             const isUnlocked = sessionStorage.getItem('luna_vault_unlocked') === 'true';
             if (isUnlocked || sessionStorage.getItem('luna_active_tab')) {
@@ -256,7 +263,7 @@ export default function App() {
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
             console.log(`[Auth Event] ${_event}`, session ? 'User present' : 'No user');
-            
+
             if (_event === 'SIGNED_OUT') {
                 // If a race condition happened but was recovered, the session might still be valid in storage
                 const { data: check } = await supabase.auth.getSession();
@@ -270,8 +277,17 @@ export default function App() {
             if (session?.user && !isUnlocked) {
                 console.log('[Vault] 🔒 Locked — master key required.');
                 setUser(null);
+            } else if (session?.user) {
+                setUser(session.user);
+                const userData = {
+                    email: session.user.email,
+                    display_name: session.user.user_metadata?.display_name || 'System User',
+                    avatar_url: session.user.user_metadata?.avatar_url || ''
+                };
+                localStorage.setItem('luna_last_user', JSON.stringify(userData));
+                setLastUser(userData);
             } else {
-                setUser(session?.user ?? null);
+                setUser(null);
             }
             setAuthLoading(false);
         });
@@ -309,7 +325,7 @@ export default function App() {
         const checkExpiration = () => {
             const elapsed = Date.now() - parseInt(loginTime, 10);
             const remaining = MAX_SESSION_MS - elapsed;
-            
+
             if (remaining <= 0) {
                 sessionStorage.removeItem('luna_guest_access');
                 sessionStorage.removeItem('luna_guest_login_time');
@@ -323,18 +339,18 @@ export default function App() {
 
         checkExpiration(); // check immediately on mount
         const interval = setInterval(checkExpiration, 1000); // update timer every second
-        
+
         return () => clearInterval(interval);
     }, []);
 
     useEffect(() => {
         if (terminalMinimized) return;
         if (activeGame && activeGame !== 'menu') return; // Don't auto-close if an arcade module/game is running
-        
+
         const timeout = setTimeout(() => {
             setTerminalMinimized(true);
         }, 2 * 60 * 1000);
-        
+
         return () => clearTimeout(timeout);
     }, [terminalMinimized, terminalActivity, activeGame]);
 
@@ -446,10 +462,10 @@ export default function App() {
         const handleOffline = () => setIsOffline(true);
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
-        
+
         // Initialize offline cache monitoring
         const cleanupCache = OfflineCache.init();
-        
+
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
@@ -473,10 +489,26 @@ export default function App() {
     const navigate = (tabId) => {
         setTab(tabId);
         sessionStorage.setItem('luna_active_tab', tabId);
+        setTabHistory(prev => {
+            // Keep the most recent 5 unique tabs
+            return [tabId, ...prev.filter(t => t !== tabId)].slice(0, 5);
+        });
+        setVisitedTabs(prev => {
+            if (prev.includes(tabId)) return prev;
+            return [...prev, tabId];
+        });
     };
 
-    const renderTab = () => {
-        switch (tab) {
+    const closeTab = (tabId) => {
+        setTabHistory(prev => prev.filter(t => t !== tabId));
+        setVisitedTabs(prev => prev.filter(t => t !== tabId));
+        if (tab === tabId) {
+            navigate('dashboard');
+        }
+    };
+
+    const getComponentForTab = (tabId) => {
+        switch (tabId) {
             case 'system-settings': return <SettingsPage />;
             case 'dashboard': return <Dashboard onNavigate={navigate} />;
             case 'journal': return <JournalPage />;
@@ -504,19 +536,14 @@ export default function App() {
             case 'mail': return <MailPage />;
 
             case 'lifeos': return <LifeOSPage />;
-            default: 
+            default:
                 return <Dashboard onNavigate={navigate} />;
         }
     };
 
     const renderContent = () => {
         if (authLoading) {
-            return (
-                <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent' }}>
-                    <div className="loader" style={{ border: '3px solid #1a1a1a', borderTop: '3px solid #f97316', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite', position: 'relative', zIndex: 1 }}></div>
-                    <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-                </div>
-            );
+            return <AppleLoader />;
         }
 
         const isGuest = sessionStorage.getItem('luna_guest_access') === 'true';
@@ -527,10 +554,10 @@ export default function App() {
                     {/* The AI Orb */}
                     {!isBooting && (
                         <div className="ai-orb-wrapper">
-                            <div 
+                            <div
                                 className={`ai-orb ${terminalMinimized ? 'pulsating' : 'quiet'}`}
-                                onClick={() => { 
-                                    setTerminalMinimized(!terminalMinimized); 
+                                onClick={() => {
+                                    setTerminalMinimized(!terminalMinimized);
                                     if (terminalMinimized) setTerminalActivity(Date.now());
                                 }}
                             ></div>
@@ -538,19 +565,27 @@ export default function App() {
                     )}
 
                     {/* The Terminal Window */}
-                        <div 
-                            className={`terminal-window ${terminalMinimized ? 'closed' : 'open'}`}
-                            onClick={(e) => {
-                                setTerminalActivity(Date.now());
-                                const input = e.currentTarget.querySelector('.term-input');
-                                if (input) input.focus();
-                            }}
-                            onKeyDown={() => setTerminalActivity(Date.now())}
-                        >
+                    <div
+                        className={`terminal-window ${terminalMinimized ? 'closed' : 'open'}`}
+                        onClick={(e) => {
+                            setTerminalActivity(Date.now());
+                            // Only force focus if they clicked empty space, not an actual input/button
+                            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') {
+                                const emptyInput = Array.from(e.currentTarget.querySelectorAll('.term-input')).find(input => !input.value);
+                                if (emptyInput) {
+                                    emptyInput.focus();
+                                } else {
+                                    const firstInput = e.currentTarget.querySelector('.term-input');
+                                    if (firstInput) firstInput.focus();
+                                }
+                            }
+                        }}
+                        onKeyDown={() => setTerminalActivity(Date.now())}
+                    >
                         <div className="terminal-content-wrapper">
                             <div className="terminal-header">
                                 <div className="terminal-buttons">
-                                    <span 
+                                    <span
                                         className="term-btn close-btn"
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -561,360 +596,474 @@ export default function App() {
                                     <span className="term-btn min-btn"></span>
                                     <span className="term-btn max-btn"></span>
                                 </div>
-                                <div className="terminal-title">LunaCore Security Daemon — active</div>
+                                <div className="terminal-title">ismail@lunacore — authentication — 80×24</div>
                             </div>
-                        <div className="terminal-body" style={{ display: 'flex', flexDirection: 'column', padding: '40px', overflowY: 'auto' }}>
-                            {isBooting ? (
-                                <BootSequence onComplete={() => {
-                                    setIsBooting(false);
-                                    sessionStorage.setItem('luna_booted', 'true');
-                                    setTerminalMinimized(true);
-                                }} />
-                            ) : unlockState ? (
-                                <UnlockSequence 
-                                    isError={unlockState.isError} 
-                                    onComplete={unlockState.onComplete} 
-                                />
-                            ) : !activeGame && (
-                                <>
-                                <p className="term-text">Last login: {new Date().toLocaleString()} on ttys000</p>
-                                <p className="term-text">LunaCore OS (Encrypted Core Volume)</p>
-                                <br />
-                        <form onSubmit={async (e) => {
-                        e.preventDefault();
-                        const pwd = e.target.password.value;
-                        const form = e.target;
-                        
-                        try {
-                            setAuthError('');
+                            <div className="terminal-body" style={{ display: 'flex', flexDirection: 'column', padding: '40px', overflowY: 'auto' }}>
+                                {isBooting ? (
+                                    <BootSequence onComplete={() => {
+                                        setIsBooting(false);
+                                        sessionStorage.setItem('luna_booted', 'true');
+                                        setTerminalMinimized(true);
+                                    }} />
+                                ) : unlockState ? (
+                                    <UnlockSequence
+                                        isError={unlockState.isError}
+                                        onComplete={unlockState.onComplete}
+                                    />
+                                ) : !activeGame && (
+                                    <>
+                                        <p className="term-text" style={{ opacity: 0.5, fontSize: '0.85rem' }}>
+                                            Session started {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} at {new Date().toLocaleTimeString()}
+                                        </p>
 
-                            if (pwd.trim() === '') {
-                                setActiveGame('menu');
-                                form.reset();
-                                return;
-                            }
-
-                            // ── GUEST CODE FLOW ──
-                            if (pwd.startsWith('guest')) {
-                                const { data: isValid, error } = await supabase
-                                    .rpc('verify_guest_code', { input_code: pwd });
-                                
-                                if (error || !isValid) {
-                                    setAuthError('access denied: invalid guest code');
-                                    form.reset();
-                                    return;
-                                }
-
-                                sessionStorage.setItem('luna_guest_access', 'true');
-                                sessionStorage.setItem('luna_guest_login_time', Date.now().toString());
-                                window.location.reload(); 
-                                return;
-                            }
-
-                            // ── Set flag BEFORE auth call to prevent race condition ──
-                            // onAuthStateChange fires instantly on SIGNED_IN,
-                            // so the flag must already be present when it checks.
-                            sessionStorage.setItem('luna_vault_unlocked', 'true');
-
-                            const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || 'admin@example.com';
-                            const { error } = await supabase.auth.signInWithPassword({
-                                email: adminEmail,
-                                password: pwd
-                            });
-
-                            if (error) {
-                                // Auth failed — remove the flag we pre-set
-                                sessionStorage.removeItem('luna_vault_unlocked');
-                                setUnlockState({ isError: true, onComplete: () => {
-                                    setActiveGame('menu');
-                                    form.reset();
-                                    setUnlockState(null);
-                                }});
-                            } else {
-                                // On success: onAuthStateChange fires, sees flag = true
-                                // But we keep rendering the terminal until unlockState is null!
-                                setUnlockState({ isError: false, onComplete: () => {
-                                    setUnlockState(null); // This nullifies unlockState, allowing AppShell to render
-                                }});
-                            }
-                        } catch (err) {
-                            console.error('Vault login failed:', err);
-                            sessionStorage.removeItem('luna_vault_unlocked');
-                            setUnlockState({ isError: true, onComplete: () => {
-                                setActiveGame('menu');
-                                form.reset();
-                                setUnlockState(null);
-                            }});
-                        }
-                    }} className="terminal-form">
-                        <div className="terminal-input-line">
-                            <span className="term-prompt">ismail@lunacore:~$</span>
-                            <span className="term-command">./unlock</span>
-                        </div>
-                        <div className="terminal-input-line">
-                            <span className="term-prompt">Access Key:</span>
-                            <input 
-                                type={showPassword ? "text" : "password"} 
-                                name="password" 
-                                autoFocus 
-                                className="term-input"
-                                autoComplete="off"
-                            />
-                        </div>
-                        {authError && <div className="term-error">{authError}</div>}
-                        <button type="submit" style={{ display: 'none' }}>Submit</button>
-                    </form>
-                    </>
-                    )}
-
-                    {activeGame === 'menu' && (
-                        <form onSubmit={(e) => {
-                            e.preventDefault();
-                            setAuthError('');
-                            const opt = e.target.option.value.trim();
-                            if (arcadeCategory === 'main') {
-                                if (opt === '1') setArcadeCategory('games');
-                                else if (opt === '2') setArcadeCategory('tools');
-                                else if (opt === '3') setArcadeCategory('hacker');
-                                else if (opt === '4') setActiveGame('lofi');
-                                else if (opt === '5') setActiveGame('neofetch');
-                                else if (opt === '0') setActiveGame(null);
-                                else setAuthError('command not found: ' + opt);
-                            } else if (arcadeCategory === 'tools') {
-                                if (opt === '1') setActiveGame('calculator');
-                                else if (opt === '2') setActiveGame('calendar');
-                                else if (opt === '0') setArcadeCategory('main');
-                                else setAuthError('command not found: ' + opt);
-                            } else if (arcadeCategory === 'games') {
-                                if (opt === '1') setActiveGame('dino');
-                                else if (opt === '2') setActiveGame('snake');
-                                else if (opt === '3') setActiveGame('2048');
-                                else if (opt === '4') setActiveGame('pacman');
-                                else if (opt === '5') setActiveGame('asteroids');
-                                else if (opt === '6') setActiveGame('doom');
-                                else if (opt === '7') setActiveGame('racing');
-                                else if (opt === '8') setActiveGame('geometry');
-                                else if (opt === '0') setArcadeCategory('main');
-                                else setAuthError('command not found: ' + opt);
-                            } else if (arcadeCategory === 'hacker') {
-                                if (opt === '1') setActiveGame('matrix');
-                                else if (opt === '2') setActiveGame('hollywood');
-                                else if (opt === '3') setActiveGame('destruct');
-                                else if (opt === '0') setArcadeCategory('main');
-                                else setAuthError('command not found: ' + opt);
-                            }
-                            e.target.reset();
-                        }} className="terminal-form">
-                            <div className="terminal-input-line">
-                                <span className="term-prompt">ismail@lunacore:~$</span>
-                                <span className="term-command">./unlock</span>
-                            </div>
-                            <div className="terminal-input-line">
-                                <span className="term-prompt">Access Key:</span>
-                                <span className="term-text" style={{ opacity: 0.5 }}>***</span>
-                            </div>
-                            <div style={{ margin: '20px 0' }}>
-                                <p className="term-text" style={{ color: '#00f2fe', marginBottom: '10px' }}>Arcade Mode Accessed.</p>
-                                {renderMenuOptions()}
-                            </div>
-                            <div className="terminal-input-line">
-                                <span className="term-prompt">Select Option:</span>
-                                <input type="text" name="option" autoFocus className="term-input" autoComplete="off" />
-                            </div>
-                            {authError && <div className="term-error">{authError}</div>}
-                            <button type="submit" style={{ display: 'none' }}>Submit</button>
-                        </form>
-                    )}
-
-                    {activeGame === 'dino' && (
-                        <div className="terminal-form">
-                            <div className="terminal-input-line">
-                                <span className="term-prompt">ismail@lunacore:~$</span>
-                                <span className="term-command">./unlock</span>
-                            </div>
-                            <div className="terminal-input-line">
-                                <span className="term-prompt">Access Key:</span>
-                                <span className="term-text" style={{ opacity: 0.5 }}>***</span>
-                            </div>
-                            <div style={{ margin: '20px 0' }}>
-                                <p className="term-text" style={{ color: '#00f2fe', marginBottom: '10px' }}>Arcade Mode Accessed.</p>
-                                {renderMenuOptions()}
-                            </div>
-                            <div className="terminal-input-line">
-                                <span className="term-prompt">Select Option:</span>
-                                <span className="term-text">1</span>
-                            </div>
-                            
-                            <div className="terminal-input-line" style={{ marginTop: '20px' }}>
-                                <span className="term-prompt">ismail@lunacore:~/arcade$</span>
-                                <span className="term-command">./dino.sh</span>
-                            </div>
-                            <div className="terminal-input-line">
-                                <span className="term-text" style={{ color: '#f97316' }}>Loading environment... Done.</span>
-                            </div>
-                            
-                            <div style={{ background: '#fff', padding: '10px', borderRadius: '12px', width: '600px', height: '200px', margin: '20px 0', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
-                                <iframe src="https://chromedino.com/embed/" frameBorder="0" scrolling="no" width="100%" height="100%" loading="lazy" style={{ borderRadius: '8px' }}></iframe>
-                            </div>
-                            
-                            <form onSubmit={(e) => {
-                                e.preventDefault();
-                                setAuthError('');
-                                const cmd = e.target.command.value.trim().toLowerCase();
-                                if (cmd === 'exit' || cmd === 'quit' || cmd === '0') setActiveGame('menu');
-                                else setAuthError('command not found: ' + cmd);
-                                e.target.reset();
-                            }}>
-                                <div className="terminal-input-line">
-                                    <span className="term-prompt">Type 'exit' to return:</span>
-                                    <input type="text" name="command" autoFocus className="term-input" autoComplete="off" />
-                                </div>
-                                {authError && <div className="term-error">{authError}</div>}
-                                <button type="submit" style={{ display: 'none' }}>Submit</button>
-                            </form>
-                        </div>
-                    )}
-
-                    {['matrix', 'neofetch', 'hollywood', 'destruct', 'lofi', 'calculator', 'calendar', 'snake', '2048', 'pacman', 'asteroids', 'doom', 'racing', 'geometry'].includes(activeGame) && (
-                        <div className="terminal-form">
-                            <div className="terminal-input-line">
-                                <span className="term-prompt">ismail@lunacore:~$</span>
-                                <span className="term-command">./unlock</span>
-                            </div>
-                            <div className="terminal-input-line">
-                                <span className="term-prompt">Access Key:</span>
-                                <span className="term-text" style={{ opacity: 0.5 }}>***</span>
-                            </div>
-                            <div style={{ margin: '20px 0' }}>
-                                <p className="term-text" style={{ color: '#00f2fe', marginBottom: '10px' }}>Arcade Mode Accessed.</p>
-                                {renderMenuOptions()}
-                            </div>
-                            <div className="terminal-input-line">
-                                <span className="term-prompt">Select Option:</span>
-                                <span className="term-text">
-                                    {activeGame === 'matrix' ? '1' : activeGame === 'neofetch' ? '5' : activeGame === 'hollywood' ? '2' : activeGame === 'destruct' ? '3' : activeGame === 'lofi' ? '4' : activeGame === 'calculator' ? '1' : activeGame === 'calendar' ? '2' : activeGame === 'snake' ? '2' : activeGame === '2048' ? '3' : activeGame === 'pacman' ? '4' : activeGame === 'asteroids' ? '5' : activeGame === 'doom' ? '6' : activeGame === 'racing' ? '7' : '8'}
-                                </span>
-                            </div>
-                            
-                            <div className="terminal-input-line" style={{ marginTop: '20px' }}>
-                                <span className="term-prompt">ismail@lunacore:~/arcade$</span>
-                                <span className="term-command">
-                                    {activeGame === 'matrix' ? './matrix.sh' : activeGame === 'neofetch' ? 'neofetch' : activeGame === 'hollywood' ? './hack_mainframe.sh' : activeGame === 'destruct' ? './self_destruct.sh --force' : activeGame === 'lofi' ? './lofi_radio.sh --stream' : activeGame === 'calculator' ? './calc' : activeGame === 'calendar' ? 'cal' : activeGame === 'snake' ? './snake.sh' : activeGame === '2048' ? './2048.sh' : activeGame === 'pacman' ? 'curl https://freepacman.org/ -o window' : activeGame === 'asteroids' ? 'curl https://freeasteroids.org/ -o window' : activeGame === 'doom' ? 'curl https://js-dos.com/games/doom/ -o window' : activeGame === 'racing' ? 'curl https://racer.js.org/ -o window' : 'curl https://geometrydash.io/ -o window'}
-                                </span>
-                            </div>
-                            
-                            {activeGame === 'matrix' && <MatrixRain />}
-                            {activeGame === 'neofetch' && <Neofetch />}
-                            {activeGame === 'hollywood' && <Hollywood />}
-                            {activeGame === 'destruct' && <SelfDestruct onComplete={() => setActiveGame('menu')} />}
-                            {activeGame === 'lofi' && <LofiRadio channel={radioChannel} />}
-                            {activeGame === 'calculator' && <TerminalCalculator />}
-                            {activeGame === 'calendar' && <TerminalCalendar />}
-                            {activeGame === 'snake' && <Snake />}
-                            {activeGame === '2048' && <Game2048 />}
-                            {activeGame === 'pacman' && (
-                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: '#000', zIndex: 100, display: 'flex', flexDirection: 'column' }}>
-                                    <div style={{ padding: '10px 15px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: '#00f2fe', fontFamily: 'monospace' }}>PAC-MAN NETWORK UPLINK</span>
-                                        <button onClick={() => setActiveGame('menu')} style={{ background: 'rgba(255, 95, 86, 0.2)', color: '#ff5f56', border: '1px solid #ff5f56', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'monospace' }}>
-                                            [X] TERMINATE
-                                        </button>
-                                    </div>
-                                    <iframe src="https://nicerwritter27.github.io/web-pacman/" frameBorder="0" scrolling="no" style={{ flex: 1, width: '100%', border: 'none' }}></iframe>
-                                </div>
-                            )}
-                            {activeGame === 'asteroids' && (
-                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: '#000', zIndex: 100, display: 'flex', flexDirection: 'column' }}>
-                                    <div style={{ padding: '10px 15px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: '#00f2fe', fontFamily: 'monospace' }}>ASTEROIDS NETWORK UPLINK</span>
-                                        <button onClick={() => setActiveGame('menu')} style={{ background: 'rgba(255, 95, 86, 0.2)', color: '#ff5f56', border: '1px solid #ff5f56', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'monospace' }}>
-                                            [X] TERMINATE
-                                        </button>
-                                    </div>
-                                    <iframe src="https://freeasteroids.org/" frameBorder="0" scrolling="no" style={{ flex: 1, width: '100%', border: 'none' }}></iframe>
-                                </div>
-                            )}
-                            {activeGame === 'doom' && (
-                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: '#000', zIndex: 100, display: 'flex', flexDirection: 'column' }}>
-                                    <div style={{ padding: '10px 15px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: '#00f2fe', fontFamily: 'monospace' }}>DOOM (1993) UPLINK (Click to focus)</span>
-                                        <button onClick={() => setActiveGame('menu')} style={{ background: 'rgba(255, 95, 86, 0.2)', color: '#ff5f56', border: '1px solid #ff5f56', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'monospace' }}>
-                                            [X] TERMINATE
-                                        </button>
-                                    </div>
-                                    <iframe src="https://dos.zone/player/?bundleUrl=https://cdn.dos.zone/custom/dos/doom.jsdos?anonymous=1" frameBorder="0" scrolling="no" style={{ flex: 1, width: '100%', border: 'none' }}></iframe>
-                                </div>
-                            )}
-                            {activeGame === 'racing' && (
-                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: '#000', zIndex: 100, display: 'flex', flexDirection: 'column' }}>
-                                    <div style={{ padding: '10px 15px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: '#00f2fe', fontFamily: 'monospace' }}>OUTRUN RACING UPLINK</span>
-                                        <button onClick={() => setActiveGame('menu')} style={{ background: 'rgba(255, 95, 86, 0.2)', color: '#ff5f56', border: '1px solid #ff5f56', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'monospace' }}>
-                                            [X] TERMINATE
-                                        </button>
-                                    </div>
-                                    <iframe src="https://hexgl.bkcore.com/play/" frameBorder="0" scrolling="no" style={{ flex: 1, width: '100%', border: 'none' }}></iframe>
-                                </div>
-                            )}
-                            {activeGame === 'geometry' && (
-                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: '#000', zIndex: 100, display: 'flex', flexDirection: 'column' }}>
-                                    <div style={{ padding: '10px 15px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: '#00f2fe', fontFamily: 'monospace' }}>GEOMETRY DASH UPLINK (Click to focus)</span>
-                                        <button onClick={() => setActiveGame('menu')} style={{ background: 'rgba(255, 95, 86, 0.2)', color: '#ff5f56', border: '1px solid #ff5f56', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'monospace' }}>
-                                            [X] TERMINATE
-                                        </button>
-                                    </div>
-                                    <iframe src="https://turbowarp.org/105500895/embed" allowTransparency="true" frameBorder="0" scrolling="no" allowFullScreen style={{ flex: 1, width: '100%', border: 'none' }}></iframe>
-                                </div>
-                            )}
-                            
-                            {activeGame !== 'destruct' && (
-                                <form onSubmit={(e) => {
-                                    e.preventDefault();
-                                    setAuthError('');
-                                    let cmd = e.target.command.value.trim().toLowerCase();
-                                    if (cmd === 'exit' || cmd === 'quit' || cmd === '7') {
-                                        setActiveGame('menu');
-                                    } else if (activeGame === 'lofi') {
-                                        // Allow "channel 1" or just "1"
-                                        if (cmd.startsWith('channel ')) {
-                                            cmd = cmd.split(' ')[1];
-                                        }
-                                        const ch = parseInt(cmd);
-                                        if (ch >= 1 && ch <= 5) setRadioChannel(ch);
-                                        else setAuthError('invalid channel (1-5)');
-                                    } else {
-                                        setAuthError('command not found: ' + cmd);
-                                    }
-                                    e.target.reset();
-                                }}>
-                                    {activeGame === 'lofi' && (
-                                        <div style={{ marginBottom: '15px', opacity: 0.8 }}>
-                                            <p className="term-text" style={{ color: '#00f2fe' }}>AVAILABLE FREQUENCIES:</p>
-                                            <p className="term-text">[1] LOFI_CORE (Study Beats)</p>
-                                            <p className="term-text">[2] SYNTH_MAINFRAME (Cyberpunk)</p>
-                                            <p className="term-text">[3] 8BIT_SECTOR (Chiptune)</p>
-                                            <p className="term-text">[4] AMBIENT_PILL (Deep Sleep)</p>
-                                            <p className="term-text">[5] SPACE_DRONE (Deep Space)</p>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', margin: '24px 0 32px 0' }}>
+                                            <div style={{
+                                                width: '48px', height: '48px', borderRadius: '50%',
+                                                background: lastUser?.avatar_url ? `url(${lastUser.avatar_url}) center/cover` : 'linear-gradient(135deg, #00f2fe, #4facfe)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                boxShadow: '0 4px 12px rgba(0, 242, 254, 0.3)'
+                                            }}>
+                                                {!lastUser?.avatar_url && <User size={24} color="#fff" />}
+                                            </div>
+                                            <div>
+                                                <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#fff', marginBottom: '4px', letterSpacing: '0.5px' }}>
+                                                    {lastUser?.display_name || 'LunaCore Access'}
+                                                </div>
+                                                <div style={{ fontSize: '0.85rem', color: '#00f2fe', opacity: 0.8, letterSpacing: '0.5px' }}>
+                                                    {lastUser ? 'ENCRYPTED PRIMARY VOLUME' : 'SYSTEM AUTHENTICATION'}
+                                                </div>
+                                            </div>
                                         </div>
-                                    )}
-                                    <div className="terminal-input-line">
-                                        <span className="term-prompt">
-                                            {activeGame === 'lofi' ? "Select Channel (1-5) or 'exit':" : "Type 'exit' to return:"}
-                                        </span>
-                                        <input type="text" name="command" autoFocus className="term-input" autoComplete="off" />
+                                        <form onSubmit={async (e) => {
+                                            e.preventDefault();
+                                            const pwd = e.target.password.value;
+                                            const email = e.target.email?.value;
+                                            const displayName = e.target.displayName?.value;
+                                            const avatarFile = e.target.avatar?.files[0];
+                                            const form = e.target;
+
+                                            try {
+                                                setAuthError('');
+
+                                                if (pwd.trim() === '') {
+                                                    setActiveGame('menu');
+                                                    form.reset();
+                                                    return;
+                                                }
+
+                                                // ── GUEST CODE FLOW ──
+                                                if (pwd.startsWith('guest')) {
+                                                    const { data: isValid, error } = await supabase
+                                                        .rpc('verify_guest_code', { input_code: pwd });
+
+                                                    if (error || !isValid) {
+                                                        setAuthError('access denied: invalid guest code');
+                                                        form.reset();
+                                                        return;
+                                                    }
+
+                                                    sessionStorage.setItem('luna_guest_access', 'true');
+                                                    sessionStorage.setItem('luna_guest_login_time', Date.now().toString());
+                                                    window.location.reload();
+                                                    return;
+                                                }
+
+                                                sessionStorage.setItem('luna_vault_unlocked', 'true');
+
+                                                // forcefully sign out any background stale session before attempting a new sign in/up
+                                                await supabase.auth.signOut();
+                                                OfflineCache.clearAll();
+
+                                                if (authMode === 'register') {
+                                                    // 1. Sign up the user (without avatar first to get the UID)
+                                                    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                                                        email,
+                                                        password: pwd,
+                                                        options: {
+                                                            data: {
+                                                                display_name: displayName,
+                                                                avatar_url: ''
+                                                            }
+                                                        }
+                                                    });
+
+                                                    if (signUpError) {
+                                                        sessionStorage.removeItem('luna_vault_unlocked');
+                                                        setAuthError(signUpError.message);
+                                                        return;
+                                                    }
+
+                                                    const newUser = signUpData?.user;
+
+                                                    // 2. If they provided an avatar, upload it to R2 now that we have a user.id
+                                                    if (newUser && avatarFile) {
+                                                        try {
+                                                            const r2Key = `profiles/${newUser.id}/${Date.now()}-avatar.png`;
+                                                            const { url: putUrl } = await api.getR2PresignedPut(r2Key, avatarFile.type || 'image/png');
+
+                                                            await fetch(putUrl, {
+                                                                method: 'PUT',
+                                                                headers: { 'Content-Type': avatarFile.type || 'image/png' },
+                                                                body: avatarFile
+                                                            });
+
+                                                            const R2_PUBLIC_DOMAIN = import.meta.env.VITE_R2_PUBLIC_URL || '';
+                                                            const avatarUrl = R2_PUBLIC_DOMAIN ? `${R2_PUBLIC_DOMAIN}/${r2Key}` : '';
+
+                                                            // Update user metadata with the new avatar URL
+                                                            if (avatarUrl) {
+                                                                await supabase.auth.updateUser({
+                                                                    data: { avatar_url: avatarUrl }
+                                                                });
+                                                            }
+                                                        } catch (uploadErr) {
+                                                            console.error('Failed to upload profile picture:', uploadErr);
+                                                        }
+                                                    }
+                                                } else {
+                                                    const { data, error } = await supabase.auth.signInWithPassword({
+                                                        email,
+                                                        password: pwd
+                                                    });
+
+                                                    if (error) {
+                                                        sessionStorage.removeItem('luna_vault_unlocked');
+                                                        setUnlockState({
+                                                            isError: true, onComplete: () => {
+                                                                setAuthError(error.message);
+                                                                setUnlockState(null);
+                                                            }
+                                                        });
+                                                    } else {
+                                                        setUnlockState({
+                                                            isError: false, onComplete: () => {
+                                                                setUnlockState(null);
+                                                            }
+                                                        });
+                                                    }
+                                                }
+                                            } catch (err) {
+                                                console.error('Vault auth failed:', err);
+                                                sessionStorage.removeItem('luna_vault_unlocked');
+                                                setUnlockState({
+                                                    isError: true, onComplete: () => {
+                                                        setActiveGame('menu');
+                                                        form.reset();
+                                                        setUnlockState(null);
+                                                    }
+                                                });
+                                            }
+                                        }} className="terminal-form">
+                                            <div className="terminal-input-line">
+                                                <span className="term-prompt">guest@lunacore:~$</span>
+                                                <span className="term-command">./{authMode === 'login' ? 'authenticate' : 'initialize_core'}</span>
+                                            </div>
+                                            <div className="terminal-input-line">
+                                                <span className="term-prompt">Email:</span>
+                                                <input
+                                                    type="email"
+                                                    name="email"
+                                                    required
+                                                    autoFocus
+                                                    className="term-input"
+                                                    autoComplete="username"
+                                                    defaultValue={lastUser?.email || ''}
+                                                />
+                                            </div>
+                                            {authMode === 'register' && (
+                                                <>
+                                                    <div className="terminal-input-line">
+                                                        <span className="term-prompt">Display Name:</span>
+                                                        <input
+                                                            type="text"
+                                                            name="displayName"
+                                                            required
+                                                            className="term-input"
+                                                            autoComplete="name"
+                                                        />
+                                                    </div>
+                                                    <div className="terminal-input-line">
+                                                        <span className="term-prompt">Profile Avatar (Optional):</span>
+                                                        <input
+                                                            type="file"
+                                                            name="avatar"
+                                                            accept="image/*"
+                                                            className="term-input"
+                                                            style={{ fontSize: '0.8rem', paddingTop: '4px' }}
+                                                        />
+                                                    </div>
+                                                </>
+                                            )}
+                                            <div className="terminal-input-line">
+                                                <span className="term-prompt">Access Key:</span>
+                                                <input
+                                                    type={showPassword ? "text" : "password"}
+                                                    name="password"
+                                                    required
+                                                    className="term-input"
+                                                    autoComplete="current-password"
+                                                />
+                                            </div>
+                                            <div style={{ marginTop: '16px', fontSize: '0.85rem' }}>
+                                                <a href="#" onClick={(e) => { e.preventDefault(); setAuthError(''); setAuthMode(m => m === 'login' ? 'register' : 'login'); }} style={{ color: '#00f2fe', textDecoration: 'none', opacity: 0.8 }}>
+                                                    [{authMode === 'login' ? 'Initialize New Core (Register)' : 'Access Existing Core (Login)'}]
+                                                </a>
+                                            </div>
+                                            {authError && <div className="term-error">{authError}</div>}
+                                            <button type="submit" style={{ display: 'none' }}>Submit</button>
+                                        </form>
+                                    </>
+                                )}
+
+                                {activeGame === 'menu' && (
+                                    <form onSubmit={(e) => {
+                                        e.preventDefault();
+                                        setAuthError('');
+                                        const opt = e.target.option.value.trim();
+                                        if (arcadeCategory === 'main') {
+                                            if (opt === '1') setArcadeCategory('games');
+                                            else if (opt === '2') setArcadeCategory('tools');
+                                            else if (opt === '3') setArcadeCategory('hacker');
+                                            else if (opt === '4') setActiveGame('lofi');
+                                            else if (opt === '5') setActiveGame('neofetch');
+                                            else if (opt === '0') setActiveGame(null);
+                                            else setAuthError('command not found: ' + opt);
+                                        } else if (arcadeCategory === 'tools') {
+                                            if (opt === '1') setActiveGame('calculator');
+                                            else if (opt === '2') setActiveGame('calendar');
+                                            else if (opt === '0') setArcadeCategory('main');
+                                            else setAuthError('command not found: ' + opt);
+                                        } else if (arcadeCategory === 'games') {
+                                            if (opt === '1') setActiveGame('dino');
+                                            else if (opt === '2') setActiveGame('snake');
+                                            else if (opt === '3') setActiveGame('2048');
+                                            else if (opt === '4') setActiveGame('pacman');
+                                            else if (opt === '5') setActiveGame('asteroids');
+                                            else if (opt === '6') setActiveGame('doom');
+                                            else if (opt === '7') setActiveGame('racing');
+                                            else if (opt === '8') setActiveGame('geometry');
+                                            else if (opt === '0') setArcadeCategory('main');
+                                            else setAuthError('command not found: ' + opt);
+                                        } else if (arcadeCategory === 'hacker') {
+                                            if (opt === '1') setActiveGame('matrix');
+                                            else if (opt === '2') setActiveGame('hollywood');
+                                            else if (opt === '3') setActiveGame('destruct');
+                                            else if (opt === '0') setArcadeCategory('main');
+                                            else setAuthError('command not found: ' + opt);
+                                        }
+                                        e.target.reset();
+                                    }} className="terminal-form">
+                                        <div className="terminal-input-line">
+                                            <span className="term-prompt">ismail@lunacore:~$</span>
+                                            <span className="term-command">./unlock</span>
+                                        </div>
+                                        <div className="terminal-input-line">
+                                            <span className="term-prompt">Access Key:</span>
+                                            <span className="term-text" style={{ opacity: 0.5 }}>***</span>
+                                        </div>
+                                        <div style={{ margin: '20px 0' }}>
+                                            <p className="term-text" style={{ color: '#00f2fe', marginBottom: '10px' }}>Arcade Mode Accessed.</p>
+                                            {renderMenuOptions()}
+                                        </div>
+                                        <div className="terminal-input-line">
+                                            <span className="term-prompt">Select Option:</span>
+                                            <input type="text" name="option" autoFocus className="term-input" autoComplete="off" />
+                                        </div>
+                                        {authError && <div className="term-error">{authError}</div>}
+                                        <button type="submit" style={{ display: 'none' }}>Submit</button>
+                                    </form>
+                                )}
+
+                                {activeGame === 'dino' && (
+                                    <div className="terminal-form">
+                                        <div className="terminal-input-line">
+                                            <span className="term-prompt">ismail@lunacore:~$</span>
+                                            <span className="term-command">./unlock</span>
+                                        </div>
+                                        <div className="terminal-input-line">
+                                            <span className="term-prompt">Access Key:</span>
+                                            <span className="term-text" style={{ opacity: 0.5 }}>***</span>
+                                        </div>
+                                        <div style={{ margin: '20px 0' }}>
+                                            <p className="term-text" style={{ color: '#00f2fe', marginBottom: '10px' }}>Arcade Mode Accessed.</p>
+                                            {renderMenuOptions()}
+                                        </div>
+                                        <div className="terminal-input-line">
+                                            <span className="term-prompt">Select Option:</span>
+                                            <span className="term-text">1</span>
+                                        </div>
+
+                                        <div className="terminal-input-line" style={{ marginTop: '20px' }}>
+                                            <span className="term-prompt">ismail@lunacore:~/arcade$</span>
+                                            <span className="term-command">./dino.sh</span>
+                                        </div>
+                                        <div className="terminal-input-line">
+                                            <span className="term-text" style={{ color: '#f97316' }}>Loading environment... Done.</span>
+                                        </div>
+
+                                        <div style={{ background: '#fff', padding: '10px', borderRadius: '12px', width: '600px', height: '200px', margin: '20px 0', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+                                            <iframe src="https://chromedino.com/embed/" frameBorder="0" scrolling="no" width="100%" height="100%" loading="lazy" style={{ borderRadius: '8px' }}></iframe>
+                                        </div>
+
+                                        <form onSubmit={(e) => {
+                                            e.preventDefault();
+                                            setAuthError('');
+                                            const cmd = e.target.command.value.trim().toLowerCase();
+                                            if (cmd === 'exit' || cmd === 'quit' || cmd === '0') setActiveGame('menu');
+                                            else setAuthError('command not found: ' + cmd);
+                                            e.target.reset();
+                                        }}>
+                                            <div className="terminal-input-line">
+                                                <span className="term-prompt">Type 'exit' to return:</span>
+                                                <input type="text" name="command" autoFocus className="term-input" autoComplete="off" />
+                                            </div>
+                                            {authError && <div className="term-error">{authError}</div>}
+                                            <button type="submit" style={{ display: 'none' }}>Submit</button>
+                                        </form>
                                     </div>
-                                    {authError && <div className="term-error">{authError}</div>}
-                                    <button type="submit" style={{ display: 'none' }}>Submit</button>
-                                </form>
-                            )}
-                        </div>
-                    )}
-                    </div>
+                                )}
+
+                                {['matrix', 'neofetch', 'hollywood', 'destruct', 'lofi', 'calculator', 'calendar', 'snake', '2048', 'pacman', 'asteroids', 'doom', 'racing', 'geometry'].includes(activeGame) && (
+                                    <div className="terminal-form">
+                                        <div className="terminal-input-line">
+                                            <span className="term-prompt">ismail@lunacore:~$</span>
+                                            <span className="term-command">./unlock</span>
+                                        </div>
+                                        <div className="terminal-input-line">
+                                            <span className="term-prompt">Access Key:</span>
+                                            <span className="term-text" style={{ opacity: 0.5 }}>***</span>
+                                        </div>
+                                        <div style={{ margin: '20px 0' }}>
+                                            <p className="term-text" style={{ color: '#00f2fe', marginBottom: '10px' }}>Arcade Mode Accessed.</p>
+                                            {renderMenuOptions()}
+                                        </div>
+                                        <div className="terminal-input-line">
+                                            <span className="term-prompt">Select Option:</span>
+                                            <span className="term-text">
+                                                {activeGame === 'matrix' ? '1' : activeGame === 'neofetch' ? '5' : activeGame === 'hollywood' ? '2' : activeGame === 'destruct' ? '3' : activeGame === 'lofi' ? '4' : activeGame === 'calculator' ? '1' : activeGame === 'calendar' ? '2' : activeGame === 'snake' ? '2' : activeGame === '2048' ? '3' : activeGame === 'pacman' ? '4' : activeGame === 'asteroids' ? '5' : activeGame === 'doom' ? '6' : activeGame === 'racing' ? '7' : '8'}
+                                            </span>
+                                        </div>
+
+                                        <div className="terminal-input-line" style={{ marginTop: '20px' }}>
+                                            <span className="term-prompt">ismail@lunacore:~/arcade$</span>
+                                            <span className="term-command">
+                                                {activeGame === 'matrix' ? './matrix.sh' : activeGame === 'neofetch' ? 'neofetch' : activeGame === 'hollywood' ? './hack_mainframe.sh' : activeGame === 'destruct' ? './self_destruct.sh --force' : activeGame === 'lofi' ? './lofi_radio.sh --stream' : activeGame === 'calculator' ? './calc' : activeGame === 'calendar' ? 'cal' : activeGame === 'snake' ? './snake.sh' : activeGame === '2048' ? './2048.sh' : activeGame === 'pacman' ? 'curl https://freepacman.org/ -o window' : activeGame === 'asteroids' ? 'curl https://freeasteroids.org/ -o window' : activeGame === 'doom' ? 'curl https://js-dos.com/games/doom/ -o window' : activeGame === 'racing' ? 'curl https://racer.js.org/ -o window' : 'curl https://geometrydash.io/ -o window'}
+                                            </span>
+                                        </div>
+
+                                        {activeGame === 'matrix' && <MatrixRain />}
+                                        {activeGame === 'neofetch' && <Neofetch />}
+                                        {activeGame === 'hollywood' && <Hollywood />}
+                                        {activeGame === 'destruct' && <SelfDestruct onComplete={() => setActiveGame('menu')} />}
+                                        {activeGame === 'lofi' && <LofiRadio channel={radioChannel} />}
+                                        {activeGame === 'calculator' && <TerminalCalculator />}
+                                        {activeGame === 'calendar' && <TerminalCalendar />}
+                                        {activeGame === 'snake' && <Snake />}
+                                        {activeGame === '2048' && <Game2048 />}
+                                        {activeGame === 'pacman' && (
+                                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: '#000', zIndex: 100, display: 'flex', flexDirection: 'column' }}>
+                                                <div style={{ padding: '10px 15px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ color: '#00f2fe', fontFamily: 'monospace' }}>PAC-MAN NETWORK UPLINK</span>
+                                                    <button onClick={() => setActiveGame('menu')} style={{ background: 'rgba(255, 95, 86, 0.2)', color: '#ff5f56', border: '1px solid #ff5f56', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'monospace' }}>
+                                                        [X] TERMINATE
+                                                    </button>
+                                                </div>
+                                                <iframe src="https://nicerwritter27.github.io/web-pacman/" frameBorder="0" scrolling="no" style={{ flex: 1, width: '100%', border: 'none' }}></iframe>
+                                            </div>
+                                        )}
+                                        {activeGame === 'asteroids' && (
+                                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: '#000', zIndex: 100, display: 'flex', flexDirection: 'column' }}>
+                                                <div style={{ padding: '10px 15px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ color: '#00f2fe', fontFamily: 'monospace' }}>ASTEROIDS NETWORK UPLINK</span>
+                                                    <button onClick={() => setActiveGame('menu')} style={{ background: 'rgba(255, 95, 86, 0.2)', color: '#ff5f56', border: '1px solid #ff5f56', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'monospace' }}>
+                                                        [X] TERMINATE
+                                                    </button>
+                                                </div>
+                                                <iframe src="https://freeasteroids.org/" frameBorder="0" scrolling="no" style={{ flex: 1, width: '100%', border: 'none' }}></iframe>
+                                            </div>
+                                        )}
+                                        {activeGame === 'doom' && (
+                                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: '#000', zIndex: 100, display: 'flex', flexDirection: 'column' }}>
+                                                <div style={{ padding: '10px 15px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ color: '#00f2fe', fontFamily: 'monospace' }}>DOOM (1993) UPLINK (Click to focus)</span>
+                                                    <button onClick={() => setActiveGame('menu')} style={{ background: 'rgba(255, 95, 86, 0.2)', color: '#ff5f56', border: '1px solid #ff5f56', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'monospace' }}>
+                                                        [X] TERMINATE
+                                                    </button>
+                                                </div>
+                                                <iframe src="https://dos.zone/player/?bundleUrl=https://cdn.dos.zone/custom/dos/doom.jsdos?anonymous=1" frameBorder="0" scrolling="no" style={{ flex: 1, width: '100%', border: 'none' }}></iframe>
+                                            </div>
+                                        )}
+                                        {activeGame === 'racing' && (
+                                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: '#000', zIndex: 100, display: 'flex', flexDirection: 'column' }}>
+                                                <div style={{ padding: '10px 15px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ color: '#00f2fe', fontFamily: 'monospace' }}>OUTRUN RACING UPLINK</span>
+                                                    <button onClick={() => setActiveGame('menu')} style={{ background: 'rgba(255, 95, 86, 0.2)', color: '#ff5f56', border: '1px solid #ff5f56', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'monospace' }}>
+                                                        [X] TERMINATE
+                                                    </button>
+                                                </div>
+                                                <iframe src="https://hexgl.bkcore.com/play/" frameBorder="0" scrolling="no" style={{ flex: 1, width: '100%', border: 'none' }}></iframe>
+                                            </div>
+                                        )}
+                                        {activeGame === 'geometry' && (
+                                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: '#000', zIndex: 100, display: 'flex', flexDirection: 'column' }}>
+                                                <div style={{ padding: '10px 15px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ color: '#00f2fe', fontFamily: 'monospace' }}>GEOMETRY DASH UPLINK (Click to focus)</span>
+                                                    <button onClick={() => setActiveGame('menu')} style={{ background: 'rgba(255, 95, 86, 0.2)', color: '#ff5f56', border: '1px solid #ff5f56', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'monospace' }}>
+                                                        [X] TERMINATE
+                                                    </button>
+                                                </div>
+                                                <iframe src="https://turbowarp.org/105500895/embed" allowTransparency="true" frameBorder="0" scrolling="no" allowFullScreen style={{ flex: 1, width: '100%', border: 'none' }}></iframe>
+                                            </div>
+                                        )}
+
+                                        {activeGame !== 'destruct' && (
+                                            <form onSubmit={(e) => {
+                                                e.preventDefault();
+                                                setAuthError('');
+                                                let cmd = e.target.command.value.trim().toLowerCase();
+                                                if (cmd === 'exit' || cmd === 'quit' || cmd === '7') {
+                                                    setActiveGame('menu');
+                                                } else if (activeGame === 'lofi') {
+                                                    // Allow "channel 1" or just "1"
+                                                    if (cmd.startsWith('channel ')) {
+                                                        cmd = cmd.split(' ')[1];
+                                                    }
+                                                    const ch = parseInt(cmd);
+                                                    if (ch >= 1 && ch <= 5) setRadioChannel(ch);
+                                                    else setAuthError('invalid channel (1-5)');
+                                                } else {
+                                                    setAuthError('command not found: ' + cmd);
+                                                }
+                                                e.target.reset();
+                                            }}>
+                                                {activeGame === 'lofi' && (
+                                                    <div style={{ marginBottom: '15px', opacity: 0.8 }}>
+                                                        <p className="term-text" style={{ color: '#00f2fe' }}>AVAILABLE FREQUENCIES:</p>
+                                                        <p className="term-text">[1] LOFI_CORE (Study Beats)</p>
+                                                        <p className="term-text">[2] SYNTH_MAINFRAME (Cyberpunk)</p>
+                                                        <p className="term-text">[3] 8BIT_SECTOR (Chiptune)</p>
+                                                        <p className="term-text">[4] AMBIENT_PILL (Deep Sleep)</p>
+                                                        <p className="term-text">[5] SPACE_DRONE (Deep Space)</p>
+                                                    </div>
+                                                )}
+                                                <div className="terminal-input-line">
+                                                    <span className="term-prompt">
+                                                        {activeGame === 'lofi' ? "Select Channel (1-5) or 'exit':" : "Type 'exit' to return:"}
+                                                    </span>
+                                                    <input type="text" name="command" autoFocus className="term-input" autoComplete="off" />
+                                                </div>
+                                                {authError && <div className="term-error">{authError}</div>}
+                                                <button type="submit" style={{ display: 'none' }}>Submit</button>
+                                            </form>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
 
-                <style dangerouslySetInnerHTML={{ __html: `
+                    <style dangerouslySetInnerHTML={{
+                        __html: `
                     .vault-theme {
                         height: 100vh;
                         display: flex;
@@ -1114,6 +1263,13 @@ export default function App() {
                         font-size: 0.95rem;
                         letter-spacing: 0.2rem;
                     }
+                    .term-input:-webkit-autofill,
+                    .term-input:-webkit-autofill:hover, 
+                    .term-input:-webkit-autofill:focus, 
+                    .term-input:-webkit-autofill:active {
+                        transition: background-color 5000s ease-in-out 0s;
+                        -webkit-text-fill-color: #e0e0e0 !important;
+                    }
                     .term-error {
                         color: #ff5f56;
                         margin-top: 12px;
@@ -1136,8 +1292,8 @@ export default function App() {
                                 </span>
                             )}
                         </div>
-                        <button 
-                            className="btn btn-primary" 
+                        <button
+                            className="btn btn-primary"
                             style={{ background: '#ef4444', border: 'none' }}
                             onClick={() => {
                                 sessionStorage.removeItem('luna_guest_access');
@@ -1148,7 +1304,7 @@ export default function App() {
                             End Session
                         </button>
                     </div>
-                    <div style={{ flex: 1, overflow: 'auto', background: 'var(--surface, #1a1a2e)', borderRadius: '1rem', padding: '2rem' }}>
+                    <div style={{ flex: 1, overflow: 'auto' }}>
                         <MediaLibraryPage guestMode={true} />
                     </div>
                 </div>
@@ -1157,15 +1313,21 @@ export default function App() {
 
         return (
             <>
-                <AppShell 
-                    activeTab={tab} 
-                    onNavigate={navigate} 
-                    userName={userName} 
-                    isOffline={isOffline} 
+                <AppShell
+                    activeTab={tab}
+                    onNavigate={navigate}
+                    userName={userName}
+                    isOffline={isOffline}
                     preload={preload}
                     onPreload={triggerPreload}
+                    tabHistory={tabHistory}
+                    onCloseTab={closeTab}
                 >
-                    {renderTab()}
+                    {visitedTabs.map(t => (
+                        <div key={t} className={`tab-wrapper tab-wrapper-${t}`} style={{ display: tab === t ? 'block' : 'none', minHeight: '100%' }}>
+                            {t === 'dashboard' && tab !== 'dashboard' ? null : getComponentForTab(t)}
+                        </div>
+                    ))}
                 </AppShell>
                 <OfflineCacheBadge />
             </>
@@ -1179,7 +1341,7 @@ export default function App() {
         <>
             {showDither && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none' }}>
-                    <Dither 
+                    <Dither
                         waveColor={lockScreenColor}
                         disableAnimation={false}
                         enableMouseInteraction={true}

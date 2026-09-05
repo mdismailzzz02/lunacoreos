@@ -103,8 +103,8 @@ export default function MusicPlayer() {
                             if ('mediaSession' in navigator) {
                                 navigator.mediaSession.metadata = new window.MediaMetadata({
                                     title: title,
-                                    artist: 'Md Ismail Radio (YouTube)',
-                                    album: 'Md Ismail Vault',
+                                    artist: 'LunaCore Radio (YouTube)',
+                                    album: 'LunaCore Vault',
                                     artwork: [{ src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' }]
                                 });
                             }
@@ -150,7 +150,7 @@ export default function MusicPlayer() {
             navigator.mediaSession.metadata = new window.MediaMetadata({
                 title: STATIONS[0].desc,
                 artist: STATIONS[0].label,
-                album: 'Md Ismail Vault',
+                album: 'LunaCore Vault',
                 artwork: [{ src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' }]
             });
         }
@@ -285,7 +285,7 @@ export default function MusicPlayer() {
                 navigator.mediaSession.metadata = new window.MediaMetadata({
                     title: st.desc,
                     artist: st.label,
-                    album: 'Md Ismail Vault',
+                    album: 'LunaCore Vault',
                     artwork: [{ src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' }]
                 });
             }

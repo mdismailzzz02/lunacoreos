@@ -5,7 +5,7 @@ import {
     Home, Dna, Sparkles, Mail, BookOpen, FileText, PenTool,
     Heart, Users, Music, Tv, Gamepad2, Diamond, Image,
     Library, Package, Star, KeyRound, Settings, Wallet, Brain,
-    Flame, User, Bell, Info
+    Flame, User, Bell, Info, X
 } from 'lucide-react';
 import './SmartActions.css';
 
@@ -47,7 +47,7 @@ function fuzzyMatch(query, item) {
 }
 
 // ── Component ───────────────────────────────────────────────────
-export default function SmartActions({ activeTab, onNavigate }) {
+export default function SmartActions({ activeTab, onNavigate, tabHistory, onCloseTab }) {
     const [isOpen, setIsOpen] = useState(false);
     const [isClosing, setIsClosing] = useState(false);
     const [query, setQuery] = useState('');
@@ -55,9 +55,9 @@ export default function SmartActions({ activeTab, onNavigate }) {
     const inputRef = useRef(null);
     const { playing, currentTrack, playTrack, playNext } = useAudio();
 
-    const results = query.length >= 3
+    const results = query
         ? ALL_ITEMS.filter(item => fuzzyMatch(query, item))
-        : [];
+        : ALL_ITEMS;
 
     const closeSA = useCallback(() => {
         setIsClosing(true);
@@ -108,10 +108,10 @@ export default function SmartActions({ activeTab, onNavigate }) {
     }, [isOpen, closeSA, openSA]);
 
     const handleInputKeyDown = (e) => {
-        if (e.key === 'ArrowDown') {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
             e.preventDefault();
             setHighlighted(prev => Math.min(prev + 1, results.length - 1));
-        } else if (e.key === 'ArrowUp') {
+        } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
             e.preventDefault();
             setHighlighted(prev => Math.max(prev - 1, 0));
         } else if (e.key === 'Enter' && results.length > 0) {
@@ -160,6 +160,46 @@ export default function SmartActions({ activeTab, onNavigate }) {
                 onClick={closeSA}
             />
 
+            {/* Left-side History Panel */}
+            {tabHistory && tabHistory.length > 0 && (
+                <div className={`sa-history-overlay ${isOpen && !isClosing ? 'open' : ''} ${isClosing ? 'closing' : ''}`}>
+                    <div className="sa-history-glass">
+                        <div className="sa-history-header">Recent History</div>
+                        <div className="sa-history-list">
+                            {tabHistory.map((historyId, idx) => {
+                                const tabDef = ALL_ITEMS.find(t => t.id === historyId);
+                                if (!tabDef) return null;
+                                return (
+                                    <div
+                                        key={`sa-hist-${historyId}-${idx}`}
+                                        className={`sa-history-item ${activeTab === historyId ? 'highlighted' : ''}`}
+                                        onClick={() => handleSelect(historyId)}
+                                    >
+                                        <div className="sa-history-icon-wrap">
+                                            <tabDef.Icon size={18} strokeWidth={1.8} className="sa-history-icon" />
+                                        </div>
+                                        <div className="sa-history-info">
+                                            <div className="sa-history-label">{tabDef.label}</div>
+                                            <div className="sa-history-id">{historyId}</div>
+                                        </div>
+                                        <div 
+                                            className="sa-history-close"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onCloseTab && onCloseTab(historyId);
+                                            }}
+                                            title="Remove from history"
+                                        >
+                                            <X size={14} strokeWidth={2} />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className={`sa-container ${isOpen && !isClosing ? 'open' : ''} ${isClosing ? 'closing' : ''}`}>
                 <div className="sa-glass">
                     <div className="sa-input-wrap">
@@ -178,38 +218,28 @@ export default function SmartActions({ activeTab, onNavigate }) {
                         <span className="sa-shortcut-hint">Esc</span>
                     </div>
 
-                    {query.length >= 3 && results.length > 0 && (
-                        <div className="sa-results">
+                    {results.length > 0 && (
+                        <div className="sa-grid-results">
                             {results.map((item, i) => (
                                 <div
                                     key={item.id}
-                                    className={`sa-result ${i === highlighted ? 'highlighted' : ''} ${item.isRed ? 'is-red' : ''}`}
+                                    className={`sa-grid-item ${i === highlighted ? 'highlighted' : ''} ${item.isRed ? 'is-red' : ''}`}
                                     onClick={() => handleSelect(item.id)}
                                     onMouseEnter={() => setHighlighted(i)}
                                 >
-                                    <div className="sa-result-icon"><item.Icon size={20} strokeWidth={1.6} /></div>
-                                    <div className="sa-result-info">
-                                        <div className="sa-result-label">{item.label}</div>
-                                        <div className="sa-result-id">{item.id}</div>
+                                    <div className="sa-grid-icon-wrap">
+                                        <item.Icon size={28} strokeWidth={1.5} className="sa-grid-icon" />
+                                        {activeTab === item.id && <div className="sa-grid-active-dot"></div>}
                                     </div>
-                                    {activeTab === item.id && (
-                                        <span className="sa-active-badge">Active</span>
-                                    )}
-                                    <ArrowRight size={14} className="sa-result-arrow" />
+                                    <div className="sa-grid-label">{item.label}</div>
                                 </div>
                             ))}
                         </div>
                     )}
 
-                    {query.length >= 3 && results.length === 0 && (
+                    {query.length > 0 && results.length === 0 && (
                         <div className="sa-empty">
                             No apps match "{query}"
-                        </div>
-                    )}
-
-                    {query.length < 3 && (
-                        <div className="sa-hint">
-                            Type at least <kbd>3</kbd> characters to search
                         </div>
                     )}
 

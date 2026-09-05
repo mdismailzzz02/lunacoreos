@@ -221,11 +221,11 @@ export const calculateStreaks = async () => {
 export const getVaultCollections = async (mode = 'normal') => {
     let query = supabase.from('vault_collections').select('*').order('created_at', { ascending: true });
     if (mode === 'normal') {
-        query = query.eq('is_hidden', false).eq('is_secret', false);
+        query = query.or('is_hidden.eq.false,is_hidden.is.null').or('is_secret.eq.false,is_secret.is.null');
     } else if (mode === 'hidden') {
-        query = query.eq('is_secret', false); // show normal + hidden
+        query = query.or('is_secret.eq.false,is_secret.is.null'); // show normal + hidden
     } else if (mode === 'secret') {
-        query = query.eq('is_hidden', false); // show normal + secret
+        query = query.or('is_hidden.eq.false,is_hidden.is.null'); // show normal + secret
     }
     const { data, error } = await query;
     if (error) throw error;
@@ -243,13 +243,17 @@ export const createVaultCollection = async ({ name, type = 'gallery', key_prefix
     let prefix = normalizeR2Prefix(key_prefix);
 
     if (!prefix) {
-        prefix = `${type}-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}/`;
-
         if (parent_id) {
             const { data: parent } = await supabase.from('vault_collections').select('key_prefix').eq('id', parent_id).single();
             if (parent?.key_prefix) {
                 prefix = `${normalizeR2Prefix(parent.key_prefix)}${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}/`;
             }
+        } else {
+            // For root collections, securely namespace under the user's UUID in Cloudflare R2
+            // This prevents collisions if multiple users name their folder "Gallery"
+            const { data: { user } } = await supabase.auth.getUser();
+            const userId = user?.id || 'anonymous';
+            prefix = `vault/${userId}/${type}-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}/`;
         }
     }
 
@@ -1332,15 +1336,34 @@ export const deleteWriting = async (id) => {
 // hash = SHA256(salt + password) — computed client-side in VaultLock.
 
 export const getAppPasswordV2 = async (id) => {
-    const { data, error } = await supabase.from('app_passwords_v2').select('*').eq('id', id).maybeSingle();
-    if (error) return null;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // 1. Try the new isolated namespaced ID
+    let { data, error } = await supabase.from('app_passwords_v2').select('*').eq('id', `${id}_${user.id}`).maybeSingle();
+    
+    // 2. If not found, try the legacy ID (fallback for the original admin account)
+    if (!data) {
+        const res = await supabase.from('app_passwords_v2').select('*').eq('id', id).maybeSingle();
+        data = res.data;
+    }
+    
     return data; // { id, label, salt, hash, created_at }
 };
 
 export const setAppPasswordV2 = async (id, label, salt, hash) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Check if the legacy ID already exists for this specific user
+    const { data: legacyData } = await supabase.from('app_passwords_v2').select('id').eq('id', id).maybeSingle();
+    
+    // If they own the legacy ID, keep using it. Otherwise, use the safely isolated ID.
+    const finalId = legacyData ? id : `${id}_${user.id}`;
+
     const { data, error } = await supabase
         .from('app_passwords_v2')
-        .upsert([{ id, label, salt, hash }], { onConflict: 'id' })
+        .upsert([{ id: finalId, label, salt, hash }], { onConflict: 'id' })
         .select();
     if (error) throw error;
     return data[0];

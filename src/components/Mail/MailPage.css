@@ -1,10 +1,14 @@
 /* Force content-area to respect full height for Mail */
-.content-area:has(.mail-page) {
+.content-area.tab-mail {
     padding: 0;
     overflow: hidden;
 }
 
-.content-area:has(.mail-page) > div {
+.content-area.tab-mail > div,
+.content-area.tab-mail .tab-wrapper-mail {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
     height: 100%;
 }
 
@@ -61,7 +65,7 @@
 }
 
 .mail-icon-btn:hover:not(:disabled) {
-    background: rgba(255,255,255,0.05);
+    background: rgba(255, 255, 255, 0.05);
     color: var(--text);
 }
 
@@ -69,7 +73,11 @@
     animation: spin 1s linear infinite;
 }
 
-@keyframes spin { 100% { transform: rotate(360deg); } }
+@keyframes spin {
+    100% {
+        transform: rotate(360deg);
+    }
+}
 
 .mail-list {
     flex: 1;
@@ -88,7 +96,7 @@
 }
 
 .mail-list-item:hover {
-    background: rgba(255,255,255,0.03);
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .mail-list-item.active {
@@ -395,7 +403,8 @@
     background: var(--surface-dark);
 }
 
-.mail-loading, .mail-empty {
+.mail-loading,
+.mail-empty {
     padding: 2rem;
     text-align: center;
     color: var(--text-muted);

@@ -16,14 +16,69 @@ function generateSalt() {
     return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+function getTheme(title) {
+    const t = (title || '').toLowerCase();
+    if (t.includes('delete') || t.includes('trash')) return {
+        accentColor: '#ef4444',
+        accentGlow: 'rgba(239,68,68,0.4)',
+        icon: '⚠',
+        label: 'Destructive Action',
+        path: 'restricted',
+        cmd: './authorize --action=delete',
+        statusTxt: 'AUTHORIZATION REQUIRED',
+    };
+    if (t.includes('hidden')) return {
+        accentColor: '#a78bfa',
+        accentGlow: 'rgba(167,139,250,0.4)',
+        icon: '◈',
+        label: 'Hidden Volume',
+        path: 'hidden',
+        cmd: './decrypt --tier=hidden',
+        statusTxt: 'ENCRYPTED',
+    };
+    if (t.includes('secret')) return {
+        accentColor: '#ec4899',
+        accentGlow: 'rgba(236,72,153,0.4)',
+        icon: '◉',
+        label: 'Classified Volume',
+        path: 'classified',
+        cmd: './override --clearance=s',
+        statusTxt: 'HEAVILY ENCRYPTED',
+    };
+    if (t.includes('journal') || t.includes('diary')) return {
+        accentColor: '#34d399',
+        accentGlow: 'rgba(52,211,153,0.4)',
+        icon: '◎',
+        label: 'Private Logs',
+        path: 'journal',
+        cmd: './unlock-logs',
+        statusTxt: 'LOCKED',
+    };
+    return {
+        accentColor: '#f97316',
+        accentGlow: 'rgba(249,115,22,0.4)',
+        icon: '⬡',
+        label: title || 'Secure Module',
+        path: (title || 'module').toLowerCase().replace(/\s+/g, '_'),
+        cmd: './unlock',
+        statusTxt: 'LOCKED',
+    };
+}
+
 export default function SecondaryVaultLock({ lockId, title, icon, onSuccess, onClose }) {
-    const [status, setStatus] = useState('loading'); // loading | set | locked | unlocked
+    const [status, setStatus] = useState('loading');
     const [storedRecord, setStoredRecord] = useState(null);
     const [pwd, setPwd] = useState('');
     const [confirm, setConfirm] = useState('');
     const [error, setError] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [unlockState, setUnlockState] = useState(null);
+    const [tick, setTick] = useState(0);
+
+    useEffect(() => {
+        const id = setInterval(() => setTick(t => t + 1), 1000);
+        return () => clearInterval(id);
+    }, []);
 
     useEffect(() => {
         getAppPasswordV2(lockId)
@@ -35,9 +90,7 @@ export default function SecondaryVaultLock({ lockId, title, icon, onSuccess, onC
                     setStatus('set');
                 }
             })
-            .catch(() => {
-                setStatus('set');
-            });
+            .catch(() => setStatus('set'));
     }, []);
 
     const handleSubmit = async (e) => {
@@ -58,136 +111,204 @@ export default function SecondaryVaultLock({ lockId, title, icon, onSuccess, onC
                     setUnlockState({ isError: false, onComplete: onSuccess });
                 } else {
                     setUnlockState({ isError: true, onComplete: () => {
-                        setError('Invalid access key.');
+                        setError('access denied — invalid key');
                         setUnlockState(null);
                     }});
                 }
             }
-        } finally {
-            setSubmitting(false);
-        }
+        } finally { setSubmitting(false); }
     };
 
     if (status === 'loading') return null;
 
     const isSetMode = status === 'set';
-    const pathName = title ? title.toLowerCase().replace(/\s+/g, '_') : 'module';
-
-    const getCustomText = (t) => {
-        const titleStr = (t || '').toLowerCase();
-        if (titleStr.includes('delete') || titleStr.includes('trash')) return {
-            header: 'LunaCore OS (Destructive Action Protocol)',
-            status: 'AUTHORIZATION REQUIRED',
-            cmd: './authorize-deletion'
-        };
-        if (titleStr.includes('hidden')) return {
-            header: 'LunaCore OS (Classified Volume: H-Tier)',
-            status: 'ENCRYPTED',
-            cmd: './decrypt'
-        };
-        if (titleStr.includes('secret')) return {
-            header: 'LunaCore OS (Classified Volume: S-Tier)',
-            status: 'HEAVILY ENCRYPTED',
-            cmd: './override'
-        };
-        if (titleStr.includes('journal') || titleStr.includes('diary')) return {
-            header: 'LunaCore OS (Private Logs)',
-            status: 'LOCKED',
-            cmd: './unlock-logs'
-        };
-        return {
-            header: `LunaCore OS (${title} Subsystem)`,
-            status: 'LOCKED',
-            cmd: './unlock'
-        };
-    };
-    const custom = getCustomText(title);
+    const theme = getTheme(title);
+    const { accentColor, accentGlow, label, path, cmd, statusTxt } = theme;
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
     return ReactDOM.createPortal(
         <div style={{
             position: 'fixed', inset: 0, zIndex: 99999,
-            background: 'rgba(0,0,0,0.85)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            backdropFilter: 'blur(10px)'
+            background: 'rgba(0,0,0,0.92)',
+            backdropFilter: 'blur(20px)',
         }}>
+            <style>{`
+                @keyframes svl-pulse {
+                    0%, 100% { opacity: 0.6; transform: scale(1); }
+                    50% { opacity: 1; transform: scale(1.04); }
+                }
+                @keyframes svl-ring { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                @keyframes svl-ring2 { 0% { transform: rotate(0deg); } 100% { transform: rotate(-360deg); } }
+                @keyframes svl-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+                @keyframes svl-fadeup { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+                .svl-input {
+                    flex: 1; background: transparent; border: none; outline: none;
+                    color: #e0e0e0; font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+                    font-size: 1rem; letter-spacing: 0.25rem; caret-color: ${accentColor};
+                }
+                .svl-input::placeholder { color: rgba(255,255,255,0.18); letter-spacing: 0.05rem; }
+                .svl-input:disabled { opacity: 0.5; }
+                .svl-submit-btn {
+                    margin-top: 28px; padding: 10px 28px; background: transparent;
+                    border: 1px solid ${accentColor}66; color: ${accentColor};
+                    font-family: 'Menlo', 'Monaco', monospace; font-size: 0.82rem;
+                    border-radius: 6px; cursor: pointer; letter-spacing: 0.08em;
+                    transition: all 0.2s; align-self: flex-start;
+                }
+                .svl-submit-btn:hover:not(:disabled) {
+                    background: ${accentColor}14; border-color: ${accentColor};
+                    box-shadow: 0 0 20px ${accentGlow};
+                }
+                .svl-submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+                .svl-meta-row { display: flex; align-items: center; gap: 8px; font-size: 0.72rem; color: rgba(255,255,255,0.3); font-family: 'Menlo', monospace; letter-spacing: 0.05em; }
+                .svl-meta-dot { width: 5px; height: 5px; border-radius: 50%; background: ${accentColor}; box-shadow: 0 0 6px ${accentGlow}; }
+            `}</style>
+
             <div style={{
-                width: '100%', maxWidth: '900px', minHeight: '550px',
-                background: 'rgba(15, 15, 20, 0.85)',
-                backdropFilter: 'blur(24px) saturate(180%)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                borderRadius: '12px',
-                boxShadow: '0 30px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.2)',
-                overflow: 'hidden',
-                fontFamily: 'Menlo, Monaco, "Courier New", monospace'
+                width: '100%', maxWidth: '960px', minHeight: '520px',
+                display: 'flex', borderRadius: '16px', overflow: 'hidden',
+                border: `1px solid ${accentColor}30`,
+                boxShadow: `0 40px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04), 0 0 60px ${accentGlow}20`,
+                animation: 'svl-fadeup 0.4s ease',
             }}>
-                <style>{`
-                    .svl-term-text { color: #e0e0e0; margin: 0 0 8px 0; font-size: 0.95rem; line-height: 1.4; }
-                    .svl-term-prompt { color: #4ade80; margin-right: 12px; font-size: 0.95rem; font-weight: 600; }
-                    .svl-term-command { color: #e0e0e0; font-size: 0.95rem; }
-                    .svl-term-input { flex: 1; background: transparent; border: none; outline: none; color: #e0e0e0; font-family: inherit; font-size: 0.95rem; letter-spacing: 0.2rem; }
-                    .svl-term-error { color: #ff5f56; margin-top: 12px; font-size: 0.95rem; }
-                `}</style>
+                {/* ── LEFT PANEL ── */}
                 <div style={{
-                    display: 'flex', alignItems: 'center', padding: '12px 16px',
-                    background: 'rgba(40, 40, 45, 0.5)',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                    position: 'relative'
+                    width: '340px', flexShrink: 0,
+                    background: `radial-gradient(ellipse at 60% 40%, ${accentColor}18 0%, rgba(10,10,14,0.98) 70%)`,
+                    borderRight: `1px solid ${accentColor}20`,
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center',
+                    padding: '48px 32px', gap: '32px',
                 }}>
-                    <div style={{ display: 'flex', gap: '8px', position: 'absolute', left: '16px' }}>
-                        <button onClick={onClose} style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ff5f56', border: '1px solid #e0443e', padding: 0, cursor: 'pointer' }}></button>
-                        <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ffbd2e', border: '1px solid #dea123' }}></span>
-                        <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#27c93f', border: '1px solid #1aab29' }}></span>
+                    {/* Orb */}
+                    <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
+                        <div style={{ position: 'absolute', inset: -2, borderRadius: '50%', border: `1px solid ${accentColor}30`, animation: 'svl-ring 8s linear infinite' }} />
+                        <div style={{ position: 'absolute', inset: 10, borderRadius: '50%', border: `1px dashed ${accentColor}50`, animation: 'svl-ring2 5s linear infinite' }} />
+                        <div style={{
+                            position: 'absolute', inset: 22, borderRadius: '50%',
+                            background: `radial-gradient(circle at 40% 35%, ${accentColor}cc, ${accentColor}44 60%, transparent)`,
+                            boxShadow: `0 0 30px ${accentGlow}, 0 0 60px ${accentGlow}60`,
+                            animation: 'svl-pulse 3s ease-in-out infinite',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.6rem',
+                        }}>
+                            {theme.icon}
+                        </div>
                     </div>
-                    <div style={{ flex: 1, textAlign: 'center', color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.85rem', fontWeight: 500, letterSpacing: '0.5px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
-                        LunaCore Security Daemon — active
+
+                    {/* Identity */}
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.65rem', letterSpacing: '0.2em', textTransform: 'uppercase', color: `${accentColor}99`, marginBottom: '8px', fontFamily: 'Menlo, monospace' }}>
+                            LunaCore /{path}
+                        </div>
+                        <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#fff', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', letterSpacing: '-0.02em' }}>
+                            {label}
+                        </div>
+                        <div style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', background: `${accentColor}18`, border: `1px solid ${accentColor}40` }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: accentColor, display: 'inline-block', boxShadow: `0 0 6px ${accentColor}` }} />
+                            <span style={{ fontSize: '0.65rem', color: accentColor, fontFamily: 'Menlo, monospace', letterSpacing: '0.12em' }}>
+                                {isSetMode ? 'UNINITIALIZED' : statusTxt}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Live clock */}
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '1.8rem', fontWeight: 300, color: 'rgba(255,255,255,0.8)', fontFamily: 'Menlo, monospace', letterSpacing: '0.05em' }}>{timeStr}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', marginTop: '4px', fontFamily: 'Menlo, monospace' }}>{dateStr}</div>
+                    </div>
+
+                    {/* Metadata */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+                        <div className="svl-meta-row"><span className="svl-meta-dot" /><span>SHA-256 hash verification</span></div>
+                        <div className="svl-meta-row"><span className="svl-meta-dot" /><span>Key never stored on disk</span></div>
+                        <div className="svl-meta-row"><span className="svl-meta-dot" style={{ background: navigator.onLine ? '#4ade80' : '#ef4444' }} /><span>{navigator.onLine ? 'Network connected' : 'Network offline'}</span></div>
                     </div>
                 </div>
 
-                <div style={{ padding: '40px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <p className="svl-term-text">Last login: {new Date().toLocaleString()} on ttys001</p>
-                    <p className="svl-term-text">{custom.header}</p>
-                    <p className="svl-term-text" style={{ opacity: 0.5 }}>Module Status: {isSetMode ? 'UNINITIALIZED' : custom.status}</p>
-                    <br />
+                {/* ── RIGHT PANEL ── */}
+                <div style={{ flex: 1, background: 'rgba(10,10,14,0.98)', display: 'flex', flexDirection: 'column' }}>
+                    {/* Title bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'relative' }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={onClose} style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f56', border: '1px solid #e0443e', padding: 0, cursor: 'pointer' }} />
+                            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ffbd2e', border: '1px solid #dea123', display: 'inline-block' }} />
+                            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#27c93f', border: '1px solid #1aab29', display: 'inline-block' }} />
+                        </div>
+                        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)', fontFamily: 'Menlo, monospace', letterSpacing: '0.05em' }}>
+                            ismail@lunacore — {path} — 80×24
+                        </div>
+                    </div>
 
-                    {unlockState ? (
-                        <UnlockSequence isError={unlockState.isError} onComplete={unlockState.onComplete} />
-                    ) : (
-                        <form onSubmit={handleSubmit}>
-                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                            <span className="svl-term-prompt">ismail@lunacore:~/{pathName}$</span>
-                            <span className="svl-term-command">{custom.cmd}</span>
+                    {/* Terminal body */}
+                    <div style={{ flex: 1, padding: '36px 40px', fontFamily: 'Menlo, Monaco, "Courier New", monospace', fontSize: '0.9rem', lineHeight: 1.7, color: '#e0e0e0', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ color: 'rgba(255,255,255,0.25)', marginBottom: '24px', fontSize: '0.82rem' }}>
+                            Session started {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                            <span className="svl-term-prompt">{isSetMode ? 'New Key:' : 'Access Key:'}</span>
-                            <input
-                                type="password"
-                                value={pwd}
-                                onChange={e => setPwd(e.target.value)}
-                                autoFocus
-                                required
-                                className="svl-term-input"
-                                disabled={submitting}
-                            />
-                        </div>
-                        {isSetMode && (
-                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                                <span className="svl-term-prompt">Confirm Key:</span>
-                                <input
-                                    type="password"
-                                    value={confirm}
-                                    onChange={e => setConfirm(e.target.value)}
-                                    required
-                                    className="svl-term-input"
-                                    disabled={submitting}
-                                />
-                            </div>
+
+                        {unlockState ? (
+                            <UnlockSequence isError={unlockState.isError} onComplete={unlockState.onComplete} />
+                        ) : (
+                            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '18px', gap: '10px' }}>
+                                    <span style={{ color: accentColor, fontWeight: 600, whiteSpace: 'nowrap' }}>~/{path}$</span>
+                                    <span style={{ color: 'rgba(255,255,255,0.5)' }}>{cmd}</span>
+                                </div>
+
+                                <div style={{ marginBottom: isSetMode ? '12px' : '0' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '10px', borderBottom: `1px solid ${accentColor}20` }}>
+                                        <span style={{ color: accentColor, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                            {isSetMode ? 'New access key:' : 'Access key:'}
+                                        </span>
+                                        <input
+                                            type="password"
+                                            value={pwd}
+                                            onChange={e => setPwd(e.target.value)}
+                                            autoFocus
+                                            required
+                                            className="svl-input"
+                                            placeholder="············"
+                                            disabled={submitting}
+                                        />
+                                        <span style={{ animation: 'svl-blink 1s step-end infinite', color: accentColor, fontSize: '1.1rem' }}>▌</span>
+                                    </div>
+                                </div>
+
+                                {isSetMode && (
+                                    <div style={{ marginTop: '12px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '10px', borderBottom: `1px solid ${accentColor}20` }}>
+                                            <span style={{ color: accentColor, fontWeight: 600, whiteSpace: 'nowrap' }}>Confirm key:</span>
+                                            <input
+                                                type="password"
+                                                value={confirm}
+                                                onChange={e => setConfirm(e.target.value)}
+                                                required
+                                                className="svl-input"
+                                                placeholder="············"
+                                                disabled={submitting}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {error && (
+                                    <div style={{ marginTop: '16px', color: '#ff5f56', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span>✗</span> {error}
+                                    </div>
+                                )}
+
+                                <button type="submit" disabled={submitting} className="svl-submit-btn">
+                                    {submitting ? '[ verifying... ]' : isSetMode ? '[ set key & unlock ]' : '[ unlock ]'}
+                                </button>
+
+                                <div style={{ marginTop: '20px', fontSize: '0.72rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Menlo, monospace' }}>
+                                    Press ↵ to submit · Red dot to close
+                                </div>
+                            </form>
                         )}
-                        
-                        {submitting && <div className="svl-term-text" style={{ color: '#f97316', marginTop: '12px' }}>Verifying credentials...</div>}
-                            {error && <div className="svl-term-error">{error}</div>}
-                            <button type="submit" style={{ display: 'none' }}>Submit</button>
-                        </form>
-                    )}
+                    </div>
                 </div>
             </div>
         </div>,

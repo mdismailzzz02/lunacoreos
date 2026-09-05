@@ -36,7 +36,7 @@ const TABS = [
     { id: 'system-settings', Icon: Settings, label: 'Settings' },
 ];
 
-export default function Sidebar({ active, onNavigate, userName, isOffline, onPreload, preload, isOpen, onClose, onMusicClick }) {
+export default function Sidebar({ active, onNavigate, userName, isOffline, onPreload, preload, isOpen, onClose, onMusicClick, tabHistory }) {
     const { playing, currentTrack, playTrack, playNext } = useAudio();
     const [isHovered, setIsHovered] = useState(false);
     const hoverTimeout = useRef(null);

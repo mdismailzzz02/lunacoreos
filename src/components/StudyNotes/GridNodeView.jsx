@@ -111,7 +111,7 @@ export default function GridNodeView({ node, updateAttributes, deleteNode, selec
             const res = await api.uploadMedia({
                 file,
                 mime_type: file.type,
-                media_type: 'image', uploaded_from: 'studynotes_grid', source_id: sessionStorage.getItem('luna_active_note') || 'grid'
+                media_type: 'image', uploaded_from: 'studynotes_grid', source_id: sessionStorage.getItem('luna_active_note') || sessionStorage.getItem('luna_active_journal_note') || 'grid'
             });
             if (res.drive_link) {
                 updateCell(selectedCellIdx, { type: 'image', imageSrc: res.drive_link, mediaId: res.media_id, filename: file.name });
@@ -131,7 +131,7 @@ export default function GridNodeView({ node, updateAttributes, deleteNode, selec
             const res = await api.uploadMedia({
                 file,
                 mime_type: file.type,
-                media_type: 'video', uploaded_from: 'studynotes_grid', source_id: sessionStorage.getItem('luna_active_note') || 'grid'
+                media_type: 'video', uploaded_from: 'studynotes_grid', source_id: sessionStorage.getItem('luna_active_note') || sessionStorage.getItem('luna_active_journal_note') || 'grid'
             });
             if (res.drive_link) {
                 updateCell(selectedCellIdx, { type: 'video', src: res.drive_link, mediaId: res.media_id, filename: file.name });

@@ -353,7 +353,10 @@ export default function StudyNotesEditor({
                                     onSave({ [urlField]: newUrls });
 
                                     // Refresh the media panel
-                                    setTimeout(() => setRefreshMedia(Date.now()), 500);
+                                    setTimeout(() => {
+                                        setRefreshMedia(Date.now());
+                                        document.dispatchEvent(new CustomEvent('sn-refresh-media'));
+                                    }, 500);
                                 }
                             } catch (err) {
                                 console.error('Paste upload failed:', err);
@@ -626,6 +629,7 @@ export default function StudyNotesEditor({
                             content: editor.getHTML()
                         });
                         setRefreshMedia(Date.now());
+                        document.dispatchEvent(new CustomEvent('sn-refresh-media'));
                     }
                 } catch (err) {
                     console.error('Audio upload failed:', err);
@@ -691,7 +695,10 @@ export default function StudyNotesEditor({
                     content: editor.getHTML()
                 });
                 // Small delay to ensure DB consistency before refresh
-                setTimeout(() => setRefreshMedia(Date.now()), 500);
+                setTimeout(() => {
+                    setRefreshMedia(Date.now());
+                    document.dispatchEvent(new CustomEvent('sn-refresh-media'));
+                }, 500);
             }
         } catch (err) {
             console.error('Code file upload failed:', err);
@@ -756,7 +763,10 @@ export default function StudyNotesEditor({
                 });
 
                 // Small delay to ensure DB consistency before refresh
-                setTimeout(() => setRefreshMedia(Date.now()), 500);
+                setTimeout(() => {
+                    setRefreshMedia(Date.now());
+                    document.dispatchEvent(new CustomEvent('sn-refresh-media'));
+                }, 500);
             }
         } catch (err) {
             console.error('Inline upload failed:', err);
