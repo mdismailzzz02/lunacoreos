@@ -1536,12 +1536,18 @@ export const deleteWatchItem = async (id) => {
 
 // ─── Finance ──────────────────────────────────────────
 export const getFinance = async (params = {}) => {
-    const { data, error } = await supabase.from('finance').select('*');
+    let query = supabase.from('finance').select('*');
+    if (params.account_id) query = query.eq('account_id', params.account_id);
+    if (params.category) query = query.eq('category', params.category);
+    const { data, error } = await query.order('date', { ascending: false });
     if (error) throw error;
     return data;
 };
-
 export const saveFinance = async (params) => {
+    if (!params.id) {
+        // Provide a manual ID since the preexisting finance table lacks an auto-generator
+        params.id = `TX-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    }
     const { data, error } = await supabase.from('finance').upsert([params]).select();
     if (error) throw error;
     return data[0];
@@ -1550,8 +1556,158 @@ export const saveFinance = async (params) => {
 export const saveFinanceItem = saveFinance;
 
 export const deleteFinanceItem = async (id) => {
+    // 1. Fetch to see if there is an R2 receipt to clean up
+    const { data: file } = await supabase.from('finance').select('receipt_r2_key').eq('id', id).single();
+    
+    // 2. Delete DB record
     const { error } = await supabase.from('finance').delete().eq('id', id);
     if (error) throw error;
+
+    // 3. Delete R2 receipt if exists
+    if (file && file.receipt_r2_key) {
+        deleteR2Object(file.receipt_r2_key).catch(err => console.error('Failed to delete finance receipt from R2:', err));
+    }
+};
+
+// ─── Finance Accounts ──────────────────────────────────────────
+export const getFinanceAccounts = async () => {
+    const { data, error } = await supabase.from('finance_accounts').select('*').order('name');
+    if (error) throw error;
+    return data;
+};
+
+export const saveFinanceAccount = async (params) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+    if (!userId) {
+        throw new Error("Local session user.id is missing! You are not properly authenticated.");
+    }
+    
+    if (!params.user_id) params.user_id = userId;
+    
+    let query = params.id 
+        ? supabase.from('finance_accounts').update(params).eq('id', params.id)
+        : supabase.from('finance_accounts').insert([params]);
+        
+    const { data, error } = await query.select();
+    if (error) throw error;
+    return data[0];
+};
+
+export const deleteFinanceAccount = async (id) => {
+    const { error } = await supabase.from('finance_accounts').delete().eq('id', id);
+    if (error) throw error;
+};
+
+// ─── Finance Budgets ──────────────────────────────────────────
+export const getFinanceBudgets = async () => {
+    const { data, error } = await supabase.from('finance_budgets').select('*');
+    if (error) throw error;
+    return data;
+};
+
+export const saveFinanceBudget = async (params) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!params.user_id) params.user_id = session?.user?.id;
+    
+    let query = params.id 
+        ? supabase.from('finance_budgets').update(params).eq('id', params.id)
+        : supabase.from('finance_budgets').insert([params]);
+        
+    const { data, error } = await query.select();
+    if (error) throw error;
+    return data[0];
+};
+
+export const deleteFinanceBudget = async (id) => {
+    const { error } = await supabase.from('finance_budgets').delete().eq('id', id);
+    if (error) throw error;
+};
+
+// ─── Finance Recurring / Subscriptions ─────────────────────────
+export const getFinanceRecurring = async () => {
+    const { data, error } = await supabase.from('finance_recurring').select('*').order('next_due_date');
+    if (error) throw error;
+    return data;
+};
+
+export const saveFinanceRecurring = async (params) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!params.user_id) params.user_id = session?.user?.id;
+    
+    let query = params.id 
+        ? supabase.from('finance_recurring').update(params).eq('id', params.id)
+        : supabase.from('finance_recurring').insert([params]);
+        
+    const { data, error } = await query.select();
+    if (error) throw error;
+    return data[0];
+};
+
+export const deleteFinanceRecurring = async (id) => {
+    const { error } = await supabase.from('finance_recurring').delete().eq('id', id);
+    if (error) throw error;
+};
+
+// ─── Finance Goals ──────────────────────────────────────────
+export const getFinanceGoals = async () => {
+    const { data, error } = await supabase.from('finance_goals').select('*');
+    if (error) throw error;
+    return data;
+};
+
+export const saveFinanceGoal = async (params) => {
+    const { data, error } = await supabase.from('finance_goals').upsert([params]).select();
+    if (error) throw error;
+    return data[0];
+};
+
+export const deleteFinanceGoal = async (id) => {
+    const { error } = await supabase.from('finance_goals').delete().eq('id', id);
+    if (error) throw error;
+};
+
+// ─── Finance Net Worth ─────────────────────────────────────────
+export const getFinanceNetWorthHistory = async () => {
+    const { data, error } = await supabase.from('finance_networth_snapshots').select('*').order('snapshot_date');
+    if (error) throw error;
+    return data;
+};
+
+export const saveFinanceNetWorthSnapshot = async (params) => {
+    const { data, error } = await supabase.from('finance_networth_snapshots').upsert([params]).select();
+    if (error) throw error;
+    return data[0];
+};
+
+// ─── Finance Export ─────────────────────────────────────────
+export const exportFinanceCSV = (transactions) => {
+    const headers = ['Date', 'Type', 'Category', 'Amount', 'Currency', 'Note', 'Tags', 'Account ID'];
+    const csvRows = [headers.join(',')];
+    
+    for (const tx of transactions) {
+        const row = [
+            tx.date || '',
+            tx.type || '',
+            tx.category || '',
+            tx.amount || 0,
+            tx.currency || 'USD',
+            `"${(tx.note || '').replace(/"/g, '""')}"`,
+            `"${(tx.tags || []).join(';')}"`,
+            tx.account_id || ''
+        ];
+        csvRows.push(row.join(','));
+    }
+    
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('hidden', '');
+    a.setAttribute('href', url);
+    a.setAttribute('download', `finances_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 };
 
 // ─── Bookmarks ──────────────────────────────────────────

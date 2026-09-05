@@ -51,6 +51,7 @@
     "react-photo-album": "^3.5.1",
     "react-router-dom": "^7.13.0",
     "react-textarea-autosize": "^8.5.9",
+    "recharts": "^3.10.1",
     "three": "^0.184.0",
     "yet-another-react-lightbox": "^3.29.1"
   },
