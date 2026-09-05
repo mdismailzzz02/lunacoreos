@@ -27,15 +27,7 @@ function getTheme(title) {
         cmd: './authorize --action=delete',
         statusTxt: 'AUTHORIZATION REQUIRED',
     };
-    if (t.includes('hidden')) return {
-        accentColor: '#a78bfa',
-        accentGlow: 'rgba(167,139,250,0.4)',
-        icon: '◈',
-        label: 'Hidden Volume',
-        path: 'hidden',
-        cmd: './decrypt --tier=hidden',
-        statusTxt: 'ENCRYPTED',
-    };
+
     if (t.includes('secret')) return {
         accentColor: '#ec4899',
         accentGlow: 'rgba(236,72,153,0.4)',

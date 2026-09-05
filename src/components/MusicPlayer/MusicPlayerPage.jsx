@@ -263,6 +263,11 @@ export default function MusicPlayerPage() {
             );
             setSyncStatus(res.message);
             await loadLibrary(selectedFolderId);
+            
+            // Reload folders so new auto-created ones appear immediately
+            const folderData = await api.getMusicFolders();
+            setFolders(folderData || []);
+            
             setTimeout(() => setSyncStatus(''), 3000);
         } catch (err) {
             setSyncStatus('Error: ' + err.message);

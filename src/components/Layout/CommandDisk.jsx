@@ -53,7 +53,7 @@ export default function CommandDisk({ activeTab, onNavigate }) {
     const [isOpen, setIsOpen] = useState(false);
     const [isClosing, setIsClosing] = useState(false);
     const [showMore, setShowMore] = useState(false);
-    const { playing, currentTrack, playTrack, playNext } = useAudio();
+    const { playing, currentTrack, playTrack, playNext, stopTrack } = useAudio();
 
     const totalPrimary = PRIMARY_ITEMS.length + 1;
 
@@ -181,11 +181,14 @@ export default function CommandDisk({ activeTab, onNavigate }) {
                         <span className="pill-artist">{currentTrack.artist}</span>
                     </div>
                     <div className="pill-controls" onClick={e => e.stopPropagation()}>
-                        <button className="pill-btn" onClick={() => playTrack(currentTrack)}>
+                        <button className="pill-btn" onClick={() => playTrack(currentTrack)} title={playing ? 'Pause' : 'Play'}>
                             {playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" style={{ marginLeft: 1 }} />}
                         </button>
-                        <button className="pill-btn" onClick={playNext}>
+                        <button className="pill-btn" onClick={playNext} title="Next">
                             <SkipForward size={14} fill="currentColor" />
+                        </button>
+                        <button className="pill-btn" onClick={stopTrack} title="Close Player" style={{ marginLeft: 4, opacity: 0.7 }}>
+                            <X size={16} />
                         </button>
                     </div>
                 </div>

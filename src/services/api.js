@@ -221,11 +221,7 @@ export const calculateStreaks = async () => {
 export const getVaultCollections = async (mode = 'normal') => {
     let query = supabase.from('vault_collections').select('*').order('created_at', { ascending: true });
     if (mode === 'normal') {
-        query = query.or('is_hidden.eq.false,is_hidden.is.null').or('is_secret.eq.false,is_secret.is.null');
-    } else if (mode === 'hidden') {
-        query = query.or('is_secret.eq.false,is_secret.is.null'); // show normal + hidden
-    } else if (mode === 'secret') {
-        query = query.or('is_hidden.eq.false,is_hidden.is.null'); // show normal + secret
+        query = query.or('is_secret.eq.false,is_secret.is.null');
     }
     const { data, error } = await query;
     if (error) throw error;
@@ -239,7 +235,7 @@ const normalizeR2Prefix = (prefix) => {
     return cleaned.endsWith('/') ? cleaned : `${cleaned}/`;
 };
 
-export const createVaultCollection = async ({ name, type = 'gallery', key_prefix, is_hidden = false, is_secret = false, parent_id = null }) => {
+export const createVaultCollection = async ({ name, type = 'gallery', key_prefix, is_secret = false, parent_id = null }) => {
     let prefix = normalizeR2Prefix(key_prefix);
 
     if (!prefix) {
@@ -262,7 +258,7 @@ export const createVaultCollection = async ({ name, type = 'gallery', key_prefix
         name,
         type,
         key_prefix: prefix,
-        is_hidden,
+        is_hidden: false,
         is_secret,
         parent_id
     }]).select();
@@ -696,36 +692,28 @@ export const syncVaultCollection = async (collectionId) => {
     let totalRawObjects = 0;
 
     // Helper for recursive sync
-    const syncTree = async (colId, colPrefix, colType, isHidden, isSecret) => {
-        // 2. Get the last successful sync marker for this specific collection.
-        const { data: syncState } = await supabase
-            .from('vault_sync_log')
-            .select('last_synced_at')
-            .eq('collection_id', colId)
-            .maybeSingle();
-
-        const lastSyncedAt = syncState?.last_synced_at ? new Date(syncState.last_synced_at) : null;
-
+    const syncTree = async (colId, colPrefix, colType, isSecret) => {
         // 3. Get immediate contents under the prefix (delimiter = "/").
         let allObjects = [];
         let allPrefixes = [];
         let nextToken = null;
         do {
             const res = await listR2Objects(colPrefix, nextToken, 1000, "/");
+            console.log('DEBUG_MUSIC_SYNC: listR2Objects result for', colPrefix, res);
             allObjects = allObjects.concat(res.objects || []);
             allPrefixes = allPrefixes.concat(res.prefixes || []);
             nextToken = res.nextToken || null;
         } while (nextToken);
 
-        const currentR2Keys = new Set((allObjects || []).filter(obj => obj && obj.key && obj.size > 0).map(obj => obj.key));
+        const currentR2Keys = new Set((allObjects || []).map(obj => obj.key || obj.Key || obj.name).filter(Boolean));
         const currentR2Prefixes = new Set((allPrefixes || []).filter(p => p && p !== colPrefix));
 
-        // Delta-sync: if a sync marker exists, only consider objects newer than that timestamp.
+        // Delta-sync disabled to force full sync
         const rawObjects = (allObjects || []).filter(obj => {
-            if (!obj || !obj.key || obj.size <= 0 || obj.key === colPrefix) return false;
-            if (!lastSyncedAt || !obj.lastModified) return true;
-            const modifiedAt = new Date(obj.lastModified);
-            return modifiedAt > lastSyncedAt;
+            const key = obj.key || obj.Key || obj.name;
+            const size = obj.size !== undefined ? obj.size : (obj.Size !== undefined ? obj.Size : 1);
+            if (!obj || !key || size <= 0 || key === colPrefix) return false;
+            return true;
         });
 
         totalRawObjects += rawObjects.length;
@@ -756,11 +744,12 @@ export const syncVaultCollection = async (collectionId) => {
         const seen = new Set();
         const fileRows = [];
 
-        for (const obj of rawObjects) {
-            if (seen.has(obj.key)) continue;
-            seen.add(obj.key);
+        for (const rawObj of rawObjects) {
+            const key = rawObj.key || rawObj.Key || rawObj.name;
+            if (seen.has(key)) continue;
+            seen.add(key);
 
-            const filename = obj.key.split('/').pop() || obj.key;
+            const filename = key.split('/').pop() || key;
             const ext = filename.split('.').pop()?.toLowerCase();
             const mimeMap = {
                 jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
@@ -770,14 +759,17 @@ export const syncVaultCollection = async (collectionId) => {
                 txt: 'text/plain', js: 'text/javascript', ts: 'text/typescript',
             };
             const mime = mimeMap[ext] || 'application/octet-stream';
+            
+            const size = rawObj.size !== undefined ? rawObj.size : (rawObj.Size !== undefined ? rawObj.Size : 0);
+            const lastMod = rawObj.lastModified || rawObj.LastModified || rawObj.uploaded || new Date().toISOString();
 
             fileRows.push({
                 collection_id: colId,
                 filename,
-                r2_key: obj.key,
-                size_bytes: obj.size,
-                mime_type: mime,
-                uploaded_at: obj.lastModified || new Date().toISOString()
+                r2_key: key,
+                size_bytes: size,
+                mime_type: rawObj.httpMetadata?.contentType || mime,
+                uploaded_at: lastMod
             });
         }
 
@@ -823,7 +815,7 @@ export const syncVaultCollection = async (collectionId) => {
                         name: folderName,
                         type: colType,
                         key_prefix: subPrefix,
-                        is_hidden: isHidden,
+                        is_hidden: false,
                         is_secret: isSecret,
                         parent_id: colId
                     }])
@@ -836,12 +828,12 @@ export const syncVaultCollection = async (collectionId) => {
             }
 
             // Recurse
-            await syncTree(existingSubCol.id, subPrefix, existingSubCol.type, existingSubCol.is_hidden, existingSubCol.is_secret);
+            await syncTree(existingSubCol.id, subPrefix, existingSubCol.type, existingSubCol.is_secret);
         }
     };
 
     const basePrefix = normalizeR2Prefix(rootCol.key_prefix);
-    await syncTree(collectionId, basePrefix, rootCol.type, rootCol.is_hidden, rootCol.is_secret);
+    await syncTree(collectionId, basePrefix, rootCol.type, rootCol.is_secret);
 
     return {
         added: totalAddedFiles,
@@ -1769,18 +1761,19 @@ export const getMusicFolders = async () => {
     const { data, error } = await supabase
         .from('vault_collections')
         .select('*')
-        .eq('is_hidden', false)
-        .eq('is_secret', false)
         .ilike('key_prefix', '%documents-music-folders/%')
         .order('name', { ascending: true });
     if (error) throw error;
     
     // Map them to the expected format for MusicPlayerPage
-    return data.map(c => ({
-        id: c.id,
-        name: c.name.replace('documents-music-folders/', ''), // Clean up display name if needed
-        key_prefix: c.key_prefix
-    }));
+    // Exclude the root folder itself
+    return data
+        .filter(c => !c.key_prefix.endsWith('documents-music-folders/'))
+        .map(c => ({
+            id: c.id,
+            name: c.name.replace('documents-music-folders/', ''),
+            key_prefix: c.key_prefix
+        }));
 };
 
 // ── Custom Playlists ──────────────────────────────────────────────────
@@ -1827,18 +1820,83 @@ export const removeTrackFromPlaylist = async (playlistId, fileId) => {
 };
 
 
-export const addMusicFolder = async () => {
-    throw new Error('Please create Collections in the Vault instead.');
+export const addMusicFolder = async ({ name, display_name }) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id || 'anonymous';
+    const prefix = `vault/${userId}/documents-music-folders/${name.replace(/[^a-z0-9]/gi, '-')}/`;
+    return await createVaultCollection({
+        name: display_name || name,
+        type: 'documents',
+        key_prefix: prefix,
+    });
 };
-export const removeMusicFolder = async () => {
-    throw new Error('Please manage Collections in the Vault.');
+
+export const removeMusicFolder = async (folderId) => {
+    return await deleteVaultCollection(folderId);
 };
 
 export const syncMusicLibrary = async (params = {}, onStatus) => {
-    if (onStatus) onStatus('Scanning Vault...');
-    // Since we're pulling directly from Vault, "Syncing" just means reloading the data
+    if (onStatus) onStatus('Scanning R2 for Music...');
+    
+    if (params.folderId && params.folderId !== 'all') {
+        console.log('DEBUG_MUSIC_SYNC: Syncing specific folder', params.folderId);
+        await syncVaultCollection(params.folderId);
+    } else {
+        const rootPrefixesToSync = new Set();
+        rootPrefixesToSync.add('documents-music-folders/');
+        
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            rootPrefixesToSync.add(`vault/${user.id}/documents-music-folders/`);
+        }
+
+        const folders = await getMusicFolders();
+        for (const f of folders) {
+            const match = f.key_prefix.match(/^(.*documents-music-folders\/)/i);
+            if (match) rootPrefixesToSync.add(match[1]);
+        }
+        
+        console.log('DEBUG_MUSIC_SYNC: rootPrefixesToSync', Array.from(rootPrefixesToSync));
+        
+        for (const rootPrefix of rootPrefixesToSync) {
+            console.log('DEBUG_MUSIC_SYNC: Processing rootPrefix:', rootPrefix);
+            let { data: rootCol } = await supabase
+                .from('vault_collections')
+                .select('*')
+                .eq('key_prefix', rootPrefix)
+                .maybeSingle();
+                
+            if (!rootCol) {
+                console.log('DEBUG_MUSIC_SYNC: rootCol not found. Creating for', rootPrefix);
+                const { data: newRoot, error: rootErr } = await supabase.from('vault_collections').insert([{
+                    name: 'Music Folders',
+                    type: 'documents',
+                    key_prefix: rootPrefix,
+                    is_hidden: false,
+                    is_secret: false
+                }]).select().single();
+                
+                if (rootErr) {
+                    console.error('DEBUG_MUSIC_SYNC: Failed to create root:', rootErr);
+                }
+                
+                if (!rootErr && newRoot) {
+                    rootCol = newRoot;
+                }
+            } else {
+                console.log('DEBUG_MUSIC_SYNC: Found existing rootCol:', rootCol.id);
+            }
+
+            if (rootCol) {
+                console.log('DEBUG_MUSIC_SYNC: Syncing rootCol...', rootCol.id);
+                const syncResult = await syncVaultCollection(rootCol.id);
+                console.log('DEBUG_MUSIC_SYNC: Sync result for', rootPrefix, syncResult);
+            }
+        }
+    }
+    
     const data = await getMusicLibrary(params.folderId);
-    return { message: `Found ${data.length} audio files in Vault.`, files_added: 0 };
+    return { message: `Found ${data.length} audio files.`, files_added: 0 };
 };
 
 export const updateMusicHistory = async (fileId, position) => {

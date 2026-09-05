@@ -53,7 +53,7 @@ export default function SmartActions({ activeTab, onNavigate, tabHistory, onClos
     const [query, setQuery] = useState('');
     const [highlighted, setHighlighted] = useState(0);
     const inputRef = useRef(null);
-    const { playing, currentTrack, playTrack, playNext } = useAudio();
+    const { playing, currentTrack, playTrack, playNext, stopTrack } = useAudio();
 
     const results = query
         ? ALL_ITEMS.filter(item => fuzzyMatch(query, item))
@@ -140,11 +140,14 @@ export default function SmartActions({ activeTab, onNavigate, tabHistory, onClos
                             <span className="pill-artist">{currentTrack.artist}</span>
                         </div>
                         <div className="pill-controls" onClick={e => e.stopPropagation()}>
-                            <button className="pill-btn" onClick={() => playTrack(currentTrack)}>
+                            <button className="pill-btn" onClick={() => playTrack(currentTrack)} title={playing ? 'Pause' : 'Play'}>
                                 {playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" style={{ marginLeft: 1 }} />}
                             </button>
-                            <button className="pill-btn" onClick={playNext}>
+                            <button className="pill-btn" onClick={playNext} title="Next">
                                 <SkipForward size={14} fill="currentColor" />
+                            </button>
+                            <button className="pill-btn" onClick={stopTrack} title="Close Player" style={{ marginLeft: 4, opacity: 0.7 }}>
+                                <X size={16} />
                             </button>
                         </div>
                     </div>
@@ -261,11 +264,14 @@ export default function SmartActions({ activeTab, onNavigate, tabHistory, onClos
                         <span className="pill-artist">{currentTrack.artist}</span>
                     </div>
                     <div className="pill-controls" onClick={e => e.stopPropagation()}>
-                        <button className="pill-btn" onClick={() => playTrack(currentTrack)}>
+                        <button className="pill-btn" onClick={() => playTrack(currentTrack)} title={playing ? 'Pause' : 'Play'}>
                             {playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" style={{ marginLeft: 1 }} />}
                         </button>
-                        <button className="pill-btn" onClick={playNext}>
+                        <button className="pill-btn" onClick={playNext} title="Next">
                             <SkipForward size={14} fill="currentColor" />
+                        </button>
+                        <button className="pill-btn" onClick={stopTrack} title="Close Player" style={{ marginLeft: 4, opacity: 0.7 }}>
+                            <X size={16} />
                         </button>
                     </div>
                 </div>

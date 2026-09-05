@@ -221,6 +221,16 @@ export function AudioProvider({ children }) {
         playTrack(lib[prevIdx]);
     }, [playTrack]);
 
+    const stopTrack = useCallback(() => {
+        if (currentTrackRef.current && currentTrackRef.current.id) {
+            api.updateMusicHistory(currentTrackRef.current.id, audioRef.current.currentTime);
+        }
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        setCurrentTrack(null);
+        setPlaying(false);
+    }, []);
+
     const setMusicVolume = useCallback((v) => {
         setVolume(v);
         audioRef.current.volume = v;
@@ -229,7 +239,7 @@ export function AudioProvider({ children }) {
 
     return (
         <AudioCtx.Provider value={{
-            currentTrack, playTrack, playNext, playPrev,
+            currentTrack, playTrack, playNext, playPrev, stopTrack,
             playing, setPlaying,
             volume, setMusicVolume,
             library, setLibrary,

@@ -5,7 +5,7 @@ import {
     Home, Dna, Sparkles, Mail, BookOpen, FileText, PenTool,
     Heart, Users, Music, Play, Pause, SkipForward, Tv,
     Gamepad2, Diamond, Image, Library, Package, Star,
-    KeyRound, Settings, Disc
+    KeyRound, Settings, Disc, Film
 } from 'lucide-react';
 
 const TABS = [
@@ -28,6 +28,7 @@ const TABS = [
     // Remaining items in between
 
     { id: 'readinglist', Icon: Library, label: 'Reading List' },
+    { id: 'watchlist', Icon: Film, label: 'Watchlist' },
     { id: 'timecapsule', Icon: Package, label: 'Time Capsule' },
     { id: 'yearlyreview', Icon: Star, label: 'Yearly Review' },
     { id: 'passwords', Icon: KeyRound, label: 'Passwords' },

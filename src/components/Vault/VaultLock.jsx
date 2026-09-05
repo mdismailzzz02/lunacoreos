@@ -36,12 +36,12 @@ function LockScreen({ mode, onSubmit, error, loading, targetLockId, unlockState 
     const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
-    const vaultLabel = isHidden ? 'Hidden Volume' : 'Encrypted Vault';
-    const vaultIcon = isHidden ? '◈' : '⬡';
-    const accentColor = isHidden ? '#a78bfa' : '#f97316';
-    const accentGlow = isHidden ? 'rgba(167,139,250,0.4)' : 'rgba(249,115,22,0.4)';
-    const promptPath = isHidden ? 'hidden' : 'vault';
-    const cmd = isHidden ? './decrypt --tier=hidden' : './unlock --volume=primary';
+    const vaultLabel = 'Encrypted Vault';
+    const vaultIcon = '⬡';
+    const accentColor = '#f97316';
+    const accentGlow = 'rgba(249,115,22,0.4)';
+    const promptPath = 'vault';
+    const cmd = './unlock --volume=primary';
     const statusColor = isOfflineMode ? '#ef4444' : isSetMode ? '#f59e0b' : accentColor;
     const statusText = isOfflineMode ? 'OFFLINE' : isSetMode ? 'UNINITIALIZED' : 'LOCKED';
 
@@ -360,8 +360,7 @@ export default function VaultLock({ children }) {
     const [submitting, setSubmitting] = useState(false);
     const [unlockState, setUnlockState] = useState(null);
 
-    const isHiddenTrigger = sessionStorage.getItem('luna_trigger_hidden_vault') === 'true';
-    const targetLockId = isHiddenTrigger ? 'vault_hidden' : 'vault';
+    const targetLockId = 'vault';
 
     useEffect(() => {
         const handleOnline = () => setIsOffline(false);
@@ -400,16 +399,14 @@ export default function VaultLock({ children }) {
                 if (pwd !== confirm) { setError('Keys do not match.'); return; }
                 const salt = generateSalt();
                 const hash = await sha256(salt + pwd);
-                await setAppPasswordV2(targetLockId, isHiddenTrigger ? 'Hidden Vault Lock' : 'Vault Lock', salt, hash);
+                await setAppPasswordV2(targetLockId, 'Vault Lock', salt, hash);
                 setUnlockState({ isError: false, onComplete: () => {
-                    if (isHiddenTrigger) sessionStorage.setItem('luna_trigger_hidden_vault', 'verified');
                     setStatus('unlocked');
                 }});
             } else if (status === 'locked') {
                 const hash = await sha256(storedRecord.salt + pwd);
                 if (hash === storedRecord.hash) {
                     setUnlockState({ isError: false, onComplete: () => {
-                        if (isHiddenTrigger) sessionStorage.setItem('luna_trigger_hidden_vault', 'verified');
                         setStatus('unlocked');
                     }});
                 } else {

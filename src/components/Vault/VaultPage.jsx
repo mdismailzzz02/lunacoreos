@@ -40,9 +40,8 @@ function CreateCollectionModal({ onAdd, onClose, vaultMode }) {
         if (!name.trim()) { setErr('Please enter a collection name.'); return; }
         setSaving(true);
         try {
-            const is_hidden = vaultMode === 'hidden' ? isSpecial : false;
             const is_secret = vaultMode === 'secret' ? isSpecial : false;
-            const col = await createVaultCollection({ name: name.trim(), type, is_hidden, is_secret });
+            const col = await createVaultCollection({ name: name.trim(), type, is_secret });
             onAdd(col);
             onClose();
         } catch (e) {
@@ -76,11 +75,11 @@ function CreateCollectionModal({ onAdd, onClose, vaultMode }) {
                         ))}
                     </div>
 
-                    {vaultMode !== 'normal' && (
+                    {vaultMode === 'secret' && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem', background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '10px' }}>
                             <input type="checkbox" id="special-col" checked={isSpecial} onChange={e => setIsSpecial(e.target.checked)} style={{ cursor: 'pointer' }} />
                             <label htmlFor="special-col" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>
-                                {vaultMode === 'secret' ? <><EyeOff size={14} /> Make this collection secret</> : <><Ghost size={14} /> Make this collection totally hidden</>}
+                                <><EyeOff size={14} /> Make this collection secret</>
                             </label>
                         </div>
                     )}
@@ -180,7 +179,7 @@ function VaultPage() {
     const [activeTab, setActiveTab] = useState(window.innerWidth < 768 ? 'folders_menu' : null);
     const [showAdd, setShowAdd] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [vaultMode, setVaultMode] = useState('normal'); // 'normal', 'hidden', 'secret'
+    const [vaultMode, setVaultMode] = useState('normal'); // 'normal', 'secret'
     const [pendingMode, setPendingMode] = useState(null); // mode to unlock
     const [secretClicks, setSecretClicks] = useState(0);
     const [pendingDelete, setPendingDelete] = useState(null);
@@ -219,38 +218,17 @@ function VaultPage() {
         loadCollections(); 
     }, [vaultMode]);
 
-    useEffect(() => {
-        const checkHiddenTrigger = () => {
-            const trigger = sessionStorage.getItem('luna_trigger_hidden_vault');
-            if (trigger === 'true' || trigger === 'verified') {
-                sessionStorage.removeItem('luna_trigger_hidden_vault');
-                if (vaultMode === 'normal') {
-                    if (trigger === 'verified') {
-                        setVaultMode('hidden'); // Pre-verified by VaultLock
-                    } else {
-                        setPendingMode('hidden');
-                    }
-                }
-            }
-        };
-
-        checkHiddenTrigger(); // Check on mount
-        
-        window.addEventListener('luna:open_hidden_vault', checkHiddenTrigger);
-        return () => window.removeEventListener('luna:open_hidden_vault', checkHiddenTrigger);
-    }, [vaultMode]);
-
     const handleSecretClick = (mode) => {
         if (vaultMode !== 'normal') {
             setVaultMode('normal');
             return;
         }
         
-        // mode is either 'hidden' or 'secret'
+        // mode is 'secret'
         const newClicks = secretClicks + 1;
         setSecretClicks(newClicks);
         if (newClicks >= 3) {
-            setPendingMode(mode);
+            setPendingMode('secret');
             setSecretClicks(0);
         }
         setTimeout(() => setSecretClicks(0), 3000);
@@ -378,11 +356,10 @@ function VaultPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span 
-                                onClick={() => handleSecretClick('hidden')} 
-                                style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
-                                title={vaultMode === 'hidden' ? "Lock Hidden Vault" : "..."}
+                                style={{ display: 'flex', alignItems: 'center', userSelect: 'none' }}
+                                title={vaultMode === 'secret' ? "Secret Vault Active" : "Normal Vault"}
                             >
-                                {vaultMode === 'hidden' ? <Ghost size={20} color="#a78bfa" /> : vaultMode === 'secret' ? <EyeOff size={20} color="#a78bfa" /> : <Lock size={20} color="#f59e0b" />}
+                                {vaultMode === 'secret' ? <EyeOff size={20} color="#a78bfa" /> : <Lock size={20} color="#f59e0b" />}
                             </span>
                             <h2 className="vault-title" style={{ margin: 0 }}>VAULT</h2>
                             {vaultMode === 'normal' && (
@@ -529,8 +506,8 @@ function VaultPage() {
             {showAdd && <CreateCollectionModal onAdd={handleAddCollection} onClose={() => setShowAdd(false)} vaultMode={vaultMode} />}
             {pendingMode && (
                 <SecondaryVaultLock 
-                    lockId={pendingMode === 'hidden' ? 'vault_hidden' : 'vault_secret'} 
-                    title={pendingMode === 'hidden' ? 'Hidden Vault' : 'Secret Vault'}
+                    lockId="vault_secret" 
+                    title="Secret Vault"
                     onSuccess={() => { setVaultMode(pendingMode); setPendingMode(null); }} 
                     onClose={() => setPendingMode(null)} 
                 />

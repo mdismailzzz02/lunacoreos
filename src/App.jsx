@@ -10,6 +10,7 @@ import WhoAmIPage from './components/WhoAmI/WhoAmIPage';
 import ThoughtDumpPage from './components/ThoughtDump/ThoughtDumpPage';
 import StreaksPage from './components/Streaks/StreaksPage';
 import ReadingListPage from './components/ReadingList/ReadingListPage';
+import WatchlistPage from './components/Watchlist/WatchlistPage';
 import FinancePage from './components/Finance/FinancePage';
 import BookmarksPage from './components/Bookmarks/BookmarksPage';
 import WritingPage from './components/Writing/WritingPage';
@@ -403,14 +404,6 @@ export default function App() {
         if (!user) return; // Only active when logged in
 
         const handleGlobalKeyDown = (e) => {
-            // Alt+A shortcut to immediately navigate to vault and prompt for hidden vault
-            if (e.altKey && e.code === 'KeyA') {
-                e.preventDefault();
-                sessionStorage.setItem('luna_trigger_hidden_vault', 'true');
-                navigate('vault');
-                window.dispatchEvent(new CustomEvent('luna:open_hidden_vault'));
-                return;
-            }
 
             if (e.key === ' ' || e.code === 'Space') {
                 const active = document.activeElement;
@@ -523,6 +516,7 @@ export default function App() {
             case 'thoughtdump': return <ThoughtDumpPage />;
             case 'streaks': return <StreaksPage />;
             case 'readinglist': return <ReadingListPage />;
+            case 'watchlist': return <WatchlistPage />;
             case 'finance': return <FinancePage />;
             case 'bookmarks': return <BookmarksPage />;
             case 'writing': return <WritingPage />;
