@@ -328,7 +328,7 @@ export default function FinancePage() {
                     );
                 })()}
 
-                {activeTab === 'wishlist' && <WishlistPanel />}
+                {activeTab === 'wishlist' && <WishlistPanel accounts={accounts} onTransactionCreated={loadData} />}
 
                 {activeTab === 'budgets' && (
                     <BudgetPanel budgets={budgets} transactions={transactions} onBudgetsChanged={loadData} />

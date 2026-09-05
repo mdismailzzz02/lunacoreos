@@ -4,7 +4,7 @@ import * as api from '../../services/api';
 import { Plus, X, Upload, Calendar, IndianRupee, Image as ImageIcon, Trash2, Edit2, CheckCircle } from 'lucide-react';
 import AppleLoader from '../Layout/AppleLoader';
 
-export default function WishlistPanel() {
+export default function WishlistPanel({ accounts, onTransactionCreated }) {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -44,10 +44,40 @@ export default function WishlistPanel() {
 
     const handleMarkPurchased = async (id) => {
         try {
+            const item = items.find(i => i.id === id);
+            
+            // Mark as purchased
             await api.updateWishlistItem(id, { status: 'purchased' });
             setItems(items.map(i => i.id === id ? { ...i, status: 'purchased' } : i));
+
+            // Extract R2 key from the full public URL (e.g. media-library/finance_wishlist/123.png)
+            let receipt_r2_key = null;
+            if (item.image_url) {
+                const match = item.image_url.match(/media-library\/.*/);
+                if (match) {
+                    receipt_r2_key = match[0];
+                }
+            }
+
+            // Create a transaction
+            const tx = {
+                date: new Date().toISOString().split('T')[0],
+                type: 'expense',
+                amount: parseFloat(item.approx_cost || 0),
+                category: item.category || 'General',
+                account_id: accounts?.length ? accounts[0].id : null,
+                currency: accounts?.length ? accounts[0].currency : 'INR',
+                note: `Wishlist: ${item.item_name}`,
+                tags: ['wishlist'],
+                receipt_r2_key: receipt_r2_key,
+                user_id: item.user_id,
+            };
+            await api.saveFinance(tx);
+            if (onTransactionCreated) onTransactionCreated();
+            
         } catch (ex) {
-            console.error('Error marking as purchased:', ex);
+            console.error('Error marking as purchased & creating transaction:', ex);
+            alert('Marked as purchased, but failed to automatically create a transaction.');
         }
     };
 
@@ -144,10 +174,11 @@ export default function WishlistPanel() {
                                 
                                 {/* Info */}
                                 <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                                         <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                             {item.item_name}
                                         </h3>
+                                        {item.category && <span style={{ fontSize: '0.65rem', background: 'rgba(162,155,254,0.15)', color: '#a29bfe', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(162,155,254,0.3)' }}>{item.category}</span>}
                                         {isPurchased && <span style={{ fontSize: '0.65rem', background: 'rgba(34,197,94,0.2)', color: '#4ade80', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: 'bold' }}>PURCHASED</span>}
                                     </div>
                                     <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -211,6 +242,7 @@ function WishlistModal({ entry, onClose, onSave }) {
     const [loading, setLoading] = useState(false);
     const [itemName, setItemName] = useState(entry?.item_name || '');
     const [approxCost, setApproxCost] = useState(entry?.approx_cost || '');
+    const [category, setCategory] = useState(entry?.category || 'General');
     const [targetDate, setTargetDate] = useState(entry?.target_date || '');
     const [description, setDescription] = useState(entry?.description || '');
     const [imageUrl, setImageUrl] = useState(entry?.image_url || '');
@@ -254,6 +286,7 @@ function WishlistModal({ entry, onClose, onSave }) {
                 approx_cost: approxCost || 0,
                 target_date: targetDate || null,
                 description,
+                category,
                 image_url: finalImageUrl,
                 status: entry?.status || 'active'
             };
@@ -308,17 +341,36 @@ function WishlistModal({ entry, onClose, onSave }) {
 
                     <div style={{ display: 'flex', gap: '1rem', flexShrink: 0 }}>
                         <div style={{ flex: 1 }}>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>Approximate Cost (₹)</label>
-                            <input type="number" step="0.01" value={approxCost} onChange={e => setApproxCost(e.target.value)} style={{ width: '100%', padding: '0.85rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', outline: 'none' }} />
+                            <label style={{ display: 'block', fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.5rem', color: '#fff' }}>Est. Cost (₹)</label>
+                            <input type="number" placeholder="0" value={approxCost} onChange={e => setApproxCost(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none' }} />
                         </div>
                         <div style={{ flex: 1 }}>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>Target Date</label>
-                            <input type="date" value={targetDate} onChange={e => setTargetDate(e.target.value)} style={{ width: '100%', padding: '0.85rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', colorScheme: 'dark', outline: 'none' }} />
+                            <label style={{ display: 'block', fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.5rem', color: '#fff' }}>Target Date</label>
+                            <input type="date" value={targetDate} onChange={e => setTargetDate(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none' }} />
                         </div>
                     </div>
+                    
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.5rem', color: '#fff' }}>Category</label>
+                        <select value={category} onChange={e => setCategory(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', boxSizing: 'border-box' }}>
+                            <option value="General">General</option>
+                            <option value="Food">Food & Dining</option>
+                            <option value="Groceries">Groceries</option>
+                            <option value="Transport">Transport</option>
+                            <option value="Housing">Housing</option>
+                            <option value="Utilities">Utilities</option>
+                            <option value="Clothing">Clothing</option>
+                            <option value="Electronics">Electronics</option>
+                            <option value="Personal Care">Personal Care</option>
+                            <option value="Hobbies">Hobbies</option>
+                            <option value="Investment">Investment</option>
+                            <option value="Transfer">Transfer</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
 
-                    <div style={{ flexShrink: 0 }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>Description / Notes</label>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.5rem', color: '#fff' }}>Description / Notes</label>
                         <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} style={{ width: '100%', padding: '0.85rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', resize: 'vertical', outline: 'none' }} />
                     </div>
 
