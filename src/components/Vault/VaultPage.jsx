@@ -219,6 +219,23 @@ function VaultPage() {
         loadCollections(); 
     }, [vaultMode]);
 
+    useEffect(() => {
+        if (sessionStorage.getItem('trigger_hidden_vault') === 'true') {
+            sessionStorage.removeItem('trigger_hidden_vault');
+            setPendingMode('hidden');
+        }
+
+        const handleShortcut = (e) => {
+            if (e.altKey && e.key.toLowerCase() === 'a') {
+                e.preventDefault();
+                setPendingMode('hidden');
+            }
+        };
+
+        window.addEventListener('keydown', handleShortcut);
+        return () => window.removeEventListener('keydown', handleShortcut);
+    }, []);
+
     const handleSecretClick = (mode) => {
         if (vaultMode !== 'normal') {
             setVaultMode('normal');

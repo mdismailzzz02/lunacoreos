@@ -405,6 +405,13 @@ export default function App() {
         if (!user) return; // Only active when logged in
 
         const handleGlobalKeyDown = (e) => {
+            if (e.altKey && e.key.toLowerCase() === 'a') {
+                e.preventDefault();
+                if (tab !== 'vault') {
+                    sessionStorage.setItem('trigger_hidden_vault', 'true');
+                    navigate('vault');
+                }
+            }
 
             if (e.key === ' ' || e.code === 'Space') {
                 const active = document.activeElement;
