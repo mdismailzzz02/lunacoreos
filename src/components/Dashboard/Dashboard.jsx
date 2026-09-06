@@ -45,7 +45,7 @@ export default function Dashboard({ onNavigate }) {
                 gap: '1rem',
                 padding: '3rem 2.5rem',
                 borderRadius: '24px',
-                backgroundImage: 'url(/sakura.jpg)',
+                backgroundImage: 'url(/dashboard-bg.jpg)',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
