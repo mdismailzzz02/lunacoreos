@@ -4,7 +4,7 @@ import {
     Droplets, Wind, Thermometer, SunDim, Sunrise, Sunset, Search, X, Activity, Settings, Navigation, RefreshCw
 } from 'lucide-react';
 
-const CACHE_KEY = 'lunacore_weatherapi_data';
+const CACHE_KEY = 'lunacore_weatherapi_data_v2';
 const CACHE_TTL = 15 * 60 * 1000; // 15 mins
 
 // WeatherAPI Condition Code Mapping
@@ -144,17 +144,8 @@ export default function WeatherWidget() {
 
             setLoading(true);
 
-            let query = 'auto:ip';
-            
-            if (forceLoc) {
-                query = `${forceLoc.lat},${forceLoc.lon}`;
-            } else {
-                const locPref = localStorage.getItem('lunacore_weather_loc');
-                if (locPref) {
-                    const p = JSON.parse(locPref);
-                    query = `${p.lat},${p.lon}`;
-                }
-            }
+            // HARDCODED TO LUCKNOW (User Request)
+            const query = 'Lucknow';
 
             const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${query}&days=7&aqi=yes&alerts=no`;
             const res = await fetch(url);
@@ -228,8 +219,8 @@ export default function WeatherWidget() {
                 }
             },
             (err) => {
-                console.error(err);
-                alert('Could not detect location. Please ensure you have granted location permissions to your browser.');
+                console.warn('Geolocation failed, falling back to Lucknow:', err);
+                selectLocation({ lat: 26.8467, lon: 80.9462, name: 'Lucknow' });
                 setSearching(false);
             },
             { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }

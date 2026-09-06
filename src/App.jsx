@@ -22,7 +22,7 @@ import DelegationPage from './components/Delegation/DelegationPage';
 import NotificationsPage from './components/Notifications/NotificationsPage';
 import InformationPage from './components/Information/InformationPage';
 import MusicPlayerPage from './components/MusicPlayer/MusicPlayerPage';
-import MailPage from './components/Mail/MailPage';
+
 import SettingsPage from './components/Settings/SettingsPage';
 import PasswordsPage from './components/Passwords/PasswordsPage';
 import LunaAIPage from './components/LunaAI/LunaAIPage';
@@ -138,8 +138,8 @@ export default function App() {
     const [authError, setAuthError] = useState('');
     const [guestTimeLeft, setGuestTimeLeft] = useState('');
     const [unlockState, setUnlockState] = useState(null);
-    const [isBooting, setIsBooting] = useState(() => !sessionStorage.getItem('luna_booted'));
-    const [terminalMinimized, setTerminalMinimized] = useState(() => !sessionStorage.getItem('luna_booted') ? false : true);
+    const [isBooting, setIsBooting] = useState(false);
+    const [terminalMinimized, setTerminalMinimized] = useState(true);
     const [terminalActivity, setTerminalActivity] = useState(Date.now());
     const [activeGame, setActiveGame] = useState(null);
     const [arcadeCategory, setArcadeCategory] = useState('main'); // 'main', 'games', 'tools', 'hacker'
@@ -515,7 +515,7 @@ export default function App() {
             case 'notifications': return <NotificationsPage />;
             case 'information': return <InformationPage />;
             case 'musicplayer': return <MusicPlayerPage />;
-            case 'mail': return <MailPage />;
+
 
             default:
                 return <Dashboard onNavigate={navigate} />;

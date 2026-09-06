@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import * as api from '../../services/api';
 import { useDashboard } from '../../hooks/useDashboard';
+import { Film } from 'lucide-react';
 
 export default function WatchlistPage() {
     const { addToast } = useToast();
@@ -197,7 +198,7 @@ export default function WatchlistPage() {
         <div className="fade-in" style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100, backgroundColor: '#1c1c1e', padding: '1.5rem 1.5rem 1rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 -50px 0 0 #1c1c1e' }}>
                 <div>
-                    <h1 style={{ margin: 0, fontSize: '2rem' }}>🎬 Watchlist</h1>
+                    <h1 style={{ margin: 0, fontSize: '2rem', display: 'flex', alignItems: 'center', gap: '12px' }}><Film size={32} /> Watchlist</h1>
                     <p style={{ margin: '5px 0 0 0', opacity: 0.6 }}>Movies, shows, and documentaries to experience.</p>
                 </div>
                 <button
@@ -213,7 +214,7 @@ export default function WatchlistPage() {
             {loading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
             ) : (
-                <div style={{ padding: '3rem 1.5rem 2rem 1.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '2rem' }}>
+                <div style={{ padding: '3rem 1.5rem 2rem 1.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1.5rem' }}>
                     {items.length === 0 && (
                         <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '4rem', opacity: 0.5, border: '2px dashed rgba(255,255,255,0.1)', borderRadius: '20px' }}>
                             Your watchlist is empty. What's next on your screen?
@@ -230,11 +231,11 @@ export default function WatchlistPage() {
                             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                             position: 'relative'
                         }}>
-                            <div style={{ height: '320px', background: '#111', position: 'relative', overflow: 'hidden' }}>
+                            <div style={{ aspectRatio: '16/9', background: '#111', position: 'relative', overflow: 'hidden' }}>
                                 {item.poster_url ? (
                                      <img src={item.poster_url} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                  ) : (
-                                     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem', opacity: 0.2 }}>🎬</div>
+                                     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.2 }}><Film size={48} /></div>
                                  )}
                                  
                                  <div style={{ position: 'absolute', top: '12px', left: '12px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -253,20 +254,22 @@ export default function WatchlistPage() {
                                      style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(255,107,107,0.2)', border: '1px solid rgba(255,107,107,0.3)', color: '#ff7675', width: '28px', height: '28px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}
                                  >×</button>
 
-                                 {item.rating > 0 && (
-                                     <div style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(255, 234, 0, 0.9)', color: '#000', padding: '4px 10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                         ⭐ {item.rating}
-                                     </div>
-                                 )}
                             </div>
-                            <div style={{ padding: '1.25rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ padding: '0.75rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                 <div>
-                                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, lineHeight: '1.4' }}>{item.title}</h3>
-                                    <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.type}</p>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                                        <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, lineHeight: '1.3', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.title}</h3>
+                                        {item.rating > 0 && (
+                                            <div style={{ background: 'rgba(255, 234, 0, 0.9)', color: '#000', padding: '2px 6px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '2px', whiteSpace: 'nowrap' }}>
+                                                ⭐ {item.rating}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <p style={{ margin: '4px 0 0', fontSize: '0.7rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.type}</p>
                                 </div>
 
                                 {item.notes && (
-                                    <p style={{ margin: '0.5rem 0', fontSize: '0.85rem', opacity: 0.7, fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                    <p style={{ margin: '0.25rem 0', fontSize: '0.8rem', opacity: 0.7, fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                                         "{item.notes}"
                                     </p>
                                 )}
@@ -277,15 +280,15 @@ export default function WatchlistPage() {
                                     </div>
                                 )}
 
-                                <div style={{ marginTop: 'auto', paddingTop: '0.75rem', display: 'flex', gap: '0.5rem' }}>
+                                <div style={{ marginTop: 'auto', paddingTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                     {item.status === 'to-watch' && (
-                                        <button onClick={() => updateStatus(item.id, 'watching')} style={{ flex: 1, fontSize: '0.75rem', fontWeight: 600, padding: '10px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer' }}>Start Watching</button>
+                                        <button onClick={() => updateStatus(item.id, 'watching')} style={{ width: '100%', fontSize: '0.75rem', fontWeight: 600, padding: '8px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer', transition: 'background 0.2s' }} onMouseOver={e=>e.currentTarget.style.background='rgba(255,255,255,0.1)'} onMouseOut={e=>e.currentTarget.style.background='rgba(255,255,255,0.05)'}>Start Watching</button>
                                     )}
                                     {item.status !== 'finished' && (
-                                        <button onClick={() => openReviewModal(item)} style={{ flex: 1, fontSize: '0.75rem', fontWeight: 600, padding: '10px', borderRadius: '12px', background: 'var(--accent)', border: 'none', color: 'white', cursor: 'pointer' }}>Mark Finished</button>
+                                        <button onClick={() => openReviewModal(item)} style={{ width: '100%', fontSize: '0.75rem', fontWeight: 600, padding: '8px', borderRadius: '8px', background: 'var(--accent)', border: 'none', color: 'white', cursor: 'pointer', transition: 'opacity 0.2s' }} onMouseOver={e=>e.currentTarget.style.opacity=0.8} onMouseOut={e=>e.currentTarget.style.opacity=1}>Mark Finished</button>
                                     )}
                                     {item.status === 'finished' && (
-                                        <button onClick={() => openReviewModal(item)} style={{ flex: 1, fontSize: '0.75rem', fontWeight: 600, padding: '10px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer' }}>Edit Review</button>
+                                        <button onClick={() => openReviewModal(item)} style={{ width: '100%', fontSize: '0.75rem', fontWeight: 600, padding: '8px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer', transition: 'background 0.2s' }} onMouseOver={e=>e.currentTarget.style.background='rgba(255,255,255,0.1)'} onMouseOut={e=>e.currentTarget.style.background='rgba(255,255,255,0.05)'}>Edit Review</button>
                                     )}
                                 </div>
                                 

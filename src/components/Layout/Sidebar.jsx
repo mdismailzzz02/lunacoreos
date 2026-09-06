@@ -12,7 +12,7 @@ const TABS = [
     { id: 'dashboard', Icon: Home, label: 'Dashboard' },
 
 
-    { id: 'mail', Icon: Mail, label: 'Gmail Inbox' },
+
 
     { id: 'journal', Icon: BookOpen, label: 'Journal' },
     { id: 'studynotes', Icon: FileText, label: 'Study Notes' },

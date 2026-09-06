@@ -19,7 +19,7 @@ const PRIMARY_ITEMS = [
     { id: 'vault',     Icon: Diamond, label: 'Vault', isRed: true },
     { id: 'videos',    Icon: Tv, label: 'YouTube' },
 
-    { id: 'mail',      Icon: Mail, label: 'Mail' },
+
 ];
 
 // ── Outer Ring ("More" items) ───────────────────────────────────

@@ -14,7 +14,7 @@ const ALL_ITEMS = [
     { id: 'dashboard',      Icon: Home, label: 'Dashboard',     keywords: 'home main overview' },
 
 
-    { id: 'mail',           Icon: Mail, label: 'Gmail Inbox',    keywords: 'email gmail inbox messages' },
+
     { id: 'journal',        Icon: BookOpen, label: 'Journal',        keywords: 'diary entry write daily log' },
     { id: 'studynotes',     Icon: FileText, label: 'Study Notes',    keywords: 'notes study learning education' },
     { id: 'writing',        Icon: PenTool, label: 'Writing',        keywords: 'write draft blog essay creative' },
