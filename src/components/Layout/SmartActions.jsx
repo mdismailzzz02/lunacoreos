@@ -23,6 +23,7 @@ const ALL_ITEMS = [
     { id: 'delegation',     Icon: Users, label: 'Delegation',     keywords: 'delegate tasks assign' },
     { id: 'musicplayer',    Icon: Music, label: 'Music Player',   keywords: 'music songs audio player playlist' },
     { id: 'videos',         Icon: Tv, label: 'YouTube',        keywords: 'youtube videos watch' },
+    { id: 'twitch',         Icon: Gamepad2, label: 'Twitch',         keywords: 'twitch streams gaming live' },
 
     { id: 'vault',          Icon: Diamond, label: 'Vault',           keywords: 'vault media private photos', isRed: true },
     { id: 'media',          Icon: Image, label: 'Media Library',  keywords: 'media library images gallery' },

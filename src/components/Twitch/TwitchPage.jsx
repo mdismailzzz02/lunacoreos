@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import * as api from '../../services/api';
-import { Gamepad2, Heart, Library, Globe, Radio, Moon, Video, Inbox, X, Plus } from 'lucide-react';
 import TwitchPlayerModal from './TwitchPlayerModal';
-import AppleLoader from '../Layout/AppleLoader';
 
 // ── Helpers ────────────────────────────────────────────────────
 function timeAgo(iso) {
@@ -76,7 +74,7 @@ function TwitchVideoCard({ item, type, onPlay, onSave, onDismiss, isLiked, onLik
                             cursor: 'pointer', fontSize: '12px', backdropFilter: 'blur(4px)', zIndex: 10
                         }}
                     >
-                        {isLiked ? <Heart size={16} fill="#ef4444" color="#ef4444" /> : <Heart size={16} color="currentColor" />}
+                        {isLiked ? '❤️' : '🤍'}
                     </button>
                 </div>
                 <div className="yt-video-info">
@@ -92,7 +90,7 @@ function TwitchVideoCard({ item, type, onPlay, onSave, onDismiss, isLiked, onLik
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <label className="delegate-toggle" style={{ fontSize: '10px', color: '#888', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
                                     <input type="checkbox" checked={shouldDelegate} onChange={e => setShouldDelegate(e.target.checked)} style={{ width: '12px', height: '12px' }} />
-                                    <Inbox size={12} color="currentColor" /> Delegation
+                                    📥 Delegation
                                 </label>
                                 <button
                                     className="yt-approve-btn"
@@ -100,7 +98,7 @@ function TwitchVideoCard({ item, type, onPlay, onSave, onDismiss, isLiked, onLik
                                     title={isLive ? 'Bookmark Stream' : 'Add to Library'}
                                     style={{ background: isLive ? 'rgba(169, 112, 255, 0.2)' : undefined, color: isLive ? '#a970ff' : undefined }}
                                 >
-                                    <Plus size={14} color="currentColor" />
+                                    ＋
                                 </button>
                             </div>
                             {shouldDelegate && (
@@ -120,12 +118,12 @@ function TwitchVideoCard({ item, type, onPlay, onSave, onDismiss, isLiked, onLik
                             onClick={(e) => { e.stopPropagation(); onSave(item); }}
                             title="Remove from Library"
                         >
-                            <X size={14} color="currentColor" />
+                            ✕
                         </button>
                     )}
                     {onDismiss && !isSaved && (
                         <button className="yt-dismiss-btn" onClick={(e) => { e.stopPropagation(); onDismiss(item.id || item.video_id); }} title="Dismiss">
-                            <X size={14} color="currentColor" />
+                            ✕
                         </button>
                     )}
                 </div>
@@ -354,21 +352,15 @@ export default function TwitchPage() {
         (!selected || String(v.user_id) === String(selected))
     );
 
-    if (loading) return <AppleLoader />;
-
     return (
-        <div className="videos-layout apple-page-loaded">
+        <div className="videos-layout">
             {/* ─── Mobile Segmented Control ─── */}
             <div className="vault-mobile-nav mobile-only" style={{ marginBottom: '1.25rem' }}>
                 <div className="vault-segments">
                     <button className={activeTab === 'live' ? 'active' : ''} onClick={() => setActiveTab('live')}>🔴 Live</button>
                     <button className={activeTab === 'vods' ? 'active' : ''} onClick={() => setActiveTab('vods')}>🎞️ VODs</button>
-                    <button className={activeTab === 'library' ? 'active' : ''} onClick={() => setActiveTab('library')}>
-                        <Library size={16} style={{ marginRight: '6px' }} /> Library
-                    </button>
-                    <button className={activeTab === 'liked' ? 'active' : ''} onClick={() => setActiveTab('liked')}>
-                        <Heart size={16} style={{ marginRight: '6px' }} /> Liked
-                    </button>
+                    <button className={activeTab === 'library' ? 'active' : ''} onClick={() => setActiveTab('library')}>📚 Library</button>
+                    <button className={activeTab === 'liked' ? 'active' : ''} onClick={() => setActiveTab('liked')}>❤️ Liked</button>
                     <button className={activeTab === 'streamers' ? 'active' : ''} onClick={() => setActiveTab('streamers')}>📡 Streamers</button>
                 </div>
             </div>
@@ -376,9 +368,7 @@ export default function TwitchPage() {
             {/* ─── Desktop Sidebar ─── */}
             <aside className="videos-sidebar desktop-only">
                 <div className="videos-sidebar-header">
-                    <h2 className="section-title" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Gamepad2 size={18} color="var(--accent)" /> Twitch
-                    </h2>
+                    <h2 className="section-title" style={{ marginBottom: 0 }}>🎮 Twitch</h2>
                 </div>
                 <div className="yt-add-row">
                     <input
@@ -400,21 +390,21 @@ export default function TwitchPage() {
                             className={`yt-all-btn ${!selected && activeTab !== 'liked' && activeTab !== 'library' ? 'active' : ''}`} 
                             onClick={() => { setSelected(null); setActiveTab('live'); }}
                         >
-                            <Globe size={18} style={{ marginRight: '8px' }} color="var(--text-muted)" /> All Followed
+                            🌐 All Followed
                         </button>
                         <button 
                             className={`yt-all-btn ${activeTab === 'liked' ? 'active' : ''}`} 
                             onClick={() => { setActiveTab('liked'); setSelected(null); }} 
                             style={{ color: activeTab === 'liked' ? '#ef4444' : 'inherit' }}
                         >
-                            <Heart size={18} style={{ marginRight: '8px' }} color="#ef4444" /> Liked Videos
+                            ❤️ Liked Videos
                         </button>
                         <button 
                             className={`yt-all-btn ${activeTab === 'library' ? 'active' : ''}`} 
                             onClick={() => { setActiveTab('library'); setSelected(null); }} 
                             style={{ color: activeTab === 'library' ? '#3b82f6' : 'inherit' }}
                         >
-                            <Library size={18} style={{ marginRight: '8px' }} color="var(--accent)" /> Saved Library
+                            📚 Saved Library
                         </button>
                     </div>
                 )}
@@ -426,7 +416,7 @@ export default function TwitchPage() {
                     ))}
                     {!loading && channels.length === 0 && (
                         <div className="empty-state" style={{ padding: '1.5rem 1rem' }}>
-                            <span className="empty-emoji"><Radio size={48} color="var(--text-muted)" /></span>
+                            <span className="empty-emoji">📡</span>
                             <p>Follow a channel to see live streams and VODs</p>
                         </div>
                     )}
@@ -463,7 +453,7 @@ export default function TwitchPage() {
                 {(activeTab === 'live' || activeTab === 'vods' || activeTab === 'library') && channels.length > 0 && (
                     <div className="mobile-channel-strip mobile-only fade-in">
                         <div className={`strip-item ${!selected ? 'active' : ''}`} onClick={() => setSelected(null)}>
-                            <div className="strip-avatar-all" style={{ background: '#a970ff22', color: '#a970ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Globe size={20} /></div>
+                            <div className="strip-avatar-all" style={{ background: '#a970ff22', color: '#a970ff' }}>🌐</div>
                             <span>All</span>
                         </div>
                         {channels.map(ch => (
@@ -515,7 +505,7 @@ export default function TwitchPage() {
                                     ))}
                                     {filteredStreams.length === 0 && (
                                         <div className="empty-state" style={{ padding: '2rem' }}>
-                                            <span className="empty-emoji"><Moon size={48} color="var(--text-muted)" /></span>
+                                            <span className="empty-emoji">💤</span>
                                             <p>No one is live right now.</p>
                                         </div>
                                     )}
@@ -545,7 +535,7 @@ export default function TwitchPage() {
                                     ))}
                                     {pendingVideos.length === 0 && (
                                         <div className="empty-state" style={{ padding: '3rem' }}>
-                                            <span className="empty-emoji"><Video size={48} color="var(--text-muted)" /></span>
+                                            <span className="empty-emoji">📼</span>
                                             <p>No recent highlights.</p>
                                         </div>
                                     )}
@@ -556,9 +546,7 @@ export default function TwitchPage() {
                         {/* 3. Saved Library */}
                         {(activeTab === 'library' || (activeTab === 'live' && filteredStreams.length === 0 && pendingVideos.length === 0 && activeTab !== 'liked')) && filteredLibrary.length > 0 && (
                             <div className="yt-section">
-                                <div className="yt-approved-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <Library size={18} /> Saved Library
-                                </div>
+                                <div className="yt-approved-header">📚 Saved Library</div>
                                 <div className="yt-video-grid">
                                     {filteredLibrary.map(item => (
                                         <TwitchVideoCard
@@ -578,12 +566,10 @@ export default function TwitchPage() {
                         {/* 4. Liked Section */}
                         {activeTab === 'liked' && (
                             <div className="yt-section">
-                                <div className="yt-approved-header" style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <Heart size={18} /> Liked Videos
-                                </div>
+                                <div className="yt-approved-header" style={{ color: '#ef4444' }}>❤️ Liked Videos</div>
                                 {likedVideoIds.size === 0 ? (
                                     <div className="empty-state" style={{ padding: '3rem' }}>
-                                        <span className="empty-emoji"><Heart size={48} color="var(--text-muted)" /></span>
+                                        <span className="empty-emoji">🤍</span>
                                         <p>No liked Twitch content yet. HEART your favorites to see them here.</p>
                                     </div>
                                 ) : (
@@ -612,14 +598,14 @@ export default function TwitchPage() {
 
                         {activeTab !== 'streamers' && activeTab !== 'liked' && filteredStreams.length === 0 && pendingVideos.length === 0 && filteredLibrary.length === 0 && channels.length > 0 && (
                             <div className="empty-state" style={{ marginTop: '3rem' }}>
-                                <span className="empty-emoji"><Gamepad2 size={48} color="var(--text-muted)" /></span>
+                                <span className="empty-emoji">🎮</span>
                                 <p>No active streams or recent highlights found.</p>
                             </div>
                         )}
 
                         {channels.length === 0 && activeTab !== 'streamers' && (
                             <div className="empty-state" style={{ marginTop: '3rem' }}>
-                                <span className="empty-emoji"><Radio size={48} color="var(--text-muted)" /></span>
+                                <span className="empty-emoji">📡</span>
                                 <p>No streamers followed. Switch to "Streamers" to add some!</p>
                             </div>
                         )}

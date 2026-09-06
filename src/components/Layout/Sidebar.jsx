@@ -21,6 +21,7 @@ const TABS = [
     { id: 'delegation', Icon: Users, label: 'Delegation' },
     { id: 'musicplayer', Icon: Music, label: 'Music Player' },
     { id: 'videos', Icon: Tv, label: 'YouTube' },
+    { id: 'twitch', Icon: Gamepad2, label: 'Twitch' },
 
     { id: 'vault', Icon: Diamond, label: 'Vault', isRed: true },
     { id: 'media', Icon: Image, label: 'Media Library' },
