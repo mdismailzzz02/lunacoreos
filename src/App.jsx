@@ -227,9 +227,22 @@ export default function App() {
 
         if (!wasRefresh) {
             // ── Fresh tab open after close: fully sign out server-side ──
-            // This invalidates the Supabase JWT. No DevTools trick can bypass a dead token.
-            console.log('[Vault] 🔐 Tab was closed — signing out server-side.');
-            supabase.auth.signOut();
+            // Use a BroadcastChannel to ensure we don't sign out if another tab is actively open
+            const bc = new BroadcastChannel('luna_auth_sync');
+            let isAnotherTabOpen = false;
+            bc.onmessage = (e) => { if (e.data === 'pong') isAnotherTabOpen = true; };
+            bc.postMessage('ping');
+            
+            setTimeout(() => {
+                if (!isAnotherTabOpen) {
+                    console.log('[Vault] 🔐 Tab was closed — signing out server-side.');
+                    supabase.auth.signOut();
+                } else {
+                    console.log('[Vault] Another tab is open. Bypassing global sign out.');
+                }
+                bc.close();
+            }, 300);
+            
             sessionStorage.removeItem('luna_vault_unlocked');
         }
 
@@ -309,7 +322,7 @@ export default function App() {
             sessionStorage.setItem('luna_guest_login_time', loginTime);
         }
 
-        const MAX_SESSION_MS = 6 * 60 * 1000;
+        const MAX_SESSION_MS = 12 * 60 * 60 * 1000; // 12 hours
 
         const checkExpiration = () => {
             const elapsed = Date.now() - parseInt(loginTime, 10);
@@ -452,6 +465,15 @@ export default function App() {
             window.removeEventListener('offline', handleOffline);
             cleanupCache?.();
         };
+    }, []);
+
+    useEffect(() => {
+        // Responder for tab sync
+        const bc = new BroadcastChannel('luna_auth_sync');
+        bc.onmessage = (e) => {
+            if (e.data === 'ping') bc.postMessage('pong');
+        };
+        return () => bc.close();
     }, []);
 
     useEffect(() => {
