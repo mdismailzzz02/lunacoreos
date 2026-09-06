@@ -749,7 +749,7 @@ export const syncVaultCollection = async (collectionId) => {
                     name: folderName,
                     type: rootCol.type,
                     key_prefix: prefix,
-                    is_hidden: false,
+                    is_hidden: rootCol.is_hidden,
                     is_secret: rootCol.is_secret,
                     parent_id: parentCol.id
                 }])

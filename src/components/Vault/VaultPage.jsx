@@ -193,12 +193,13 @@ function VaultPage() {
                 const cols = Array.isArray(data) ? data : [];
                 setCollections(cols);
                 setActiveTab(prev => {
+                    const rootCols = cols.filter(c => !c.parent_id);
                     if (!prev || (prev === 'folders_menu' && window.innerWidth >= 768)) {
-                        return cols.length > 0 ? cols[0].id : 'people';
+                        return rootCols.length > 0 ? rootCols[0].id : 'people';
                     }
                     if (prev !== 'people' && prev !== 'trash' && prev !== 'folders_menu') {
                         if (!cols.some(c => c.id === prev)) {
-                            return cols.length > 0 ? cols[0].id : 'people';
+                            return rootCols.length > 0 ? rootCols[0].id : 'people';
                         }
                     }
                     return prev;

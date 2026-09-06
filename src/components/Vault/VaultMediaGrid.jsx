@@ -1211,7 +1211,8 @@ export default function VaultMediaGrid({ activeTab, collections, onTabChange, on
                             {/* Rows */}
                             {(() => {
                                 const q = subfolderSearch.trim().toLowerCase();
-                                const filtered = q ? subfolders.filter(s => s.name?.toLowerCase().includes(q)) : subfolders;
+                                const filtered = q ? subfolders.filter(s => s.name?.toLowerCase().includes(q)) : [...subfolders];
+                                filtered.sort((a, b) => (b.file_count || 0) - (a.file_count || 0));
                                 if (filtered.length === 0) return (
                                     <div style={{ padding: '1.5rem', textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: '0.82rem' }}>
                                         No folders match &ldquo;{subfolderSearch}&rdquo;
