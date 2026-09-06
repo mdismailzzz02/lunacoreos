@@ -55,8 +55,8 @@ export default function Dashboard({ onNavigate }) {
                 <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right, rgba(15,15,20,0.95) 0%, rgba(15,15,20,0.5) 40%, rgba(15,15,20,0.2) 100%)' }} />
                 
                 <div style={{ position: 'relative', zIndex: 1 }}>
-                    <div className="greeting-h1" style={{ fontFamily: '"Orbitron", sans-serif', fontSize: '2.5rem', fontWeight: '900', letterSpacing: '1px', color: '#fff', textShadow: '0 2px 10px rgba(0,242,254,0.8), 0 0 20px rgba(255,0,255,0.4)', textTransform: 'uppercase' }}>{greeting(userName)}</div>
-                    <div className="greeting-date" style={{ fontFamily: '"Space Grotesk", sans-serif', color: 'rgba(255,255,255,0.9)', fontSize: '1.1rem', marginTop: '6px', fontWeight: '500', textShadow: '0 1px 5px rgba(0,0,0,0.8)', letterSpacing: '2px', textTransform: 'uppercase' }}>{todayDate()}</div>
+                    <div className="greeting-h1" style={{ fontSize: '2.5rem', fontWeight: '900', letterSpacing: '1px', color: '#fff', textShadow: '0 2px 10px rgba(0,242,254,0.8), 0 0 20px rgba(255,0,255,0.4)', textTransform: 'uppercase' }}>{greeting(userName)}</div>
+                    <div className="greeting-date" style={{ color: 'rgba(255,255,255,0.9)', fontSize: '1.1rem', marginTop: '6px', fontWeight: '500', textShadow: '0 1px 5px rgba(0,0,0,0.8)', letterSpacing: '2px', textTransform: 'uppercase' }}>{todayDate()}</div>
                 </div>
                 {/* Ambient: Time Capsule */}
                 <div style={{ position: 'relative', zIndex: 1 }}>

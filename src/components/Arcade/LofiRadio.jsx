@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Play, Pause, Volume2, VolumeX, Activity } from 'lucide-react';
 
 export default function LofiRadio({ channel = 1 }) {
     const [isPlaying, setIsPlaying] = useState(false);
+    const [volume, setVolume] = useState(0.5);
+    const [isMuted, setIsMuted] = useState(false);
     const [error, setError] = useState('');
     const audioRef = useRef(null);
     const canvasRef = useRef(null);
     const requestRef = useRef(null);
+    const playIntentRef = useRef(false);
 
     const channels = [
         { name: "LOFI_CORE", url: "https://lofi.stream.laut.fm/lofi?t=1" }, 
@@ -21,7 +25,7 @@ export default function LofiRadio({ channel = 1 }) {
         const audio = audioRef.current;
         if (!audio) return;
         
-        audio.volume = 0.15; // Set default volume to 15%
+        audio.volume = isMuted ? 0 : volume;
         
         const drawVisualizer = () => {
             const canvas = canvasRef.current;
@@ -32,7 +36,7 @@ export default function LofiRadio({ channel = 1 }) {
             
             const chars = [' ', '.', ':', '-', '=', '+', '*', '#', '%', '@'];
             
-            ctx.fillStyle = '#0F0';
+            ctx.fillStyle = '#ff6b95';
             ctx.font = '14px monospace';
             
             const barWidth = 15;
@@ -42,7 +46,8 @@ export default function LofiRadio({ channel = 1 }) {
                 let value = 0;
                 
                 // Math-based procedural visualizer (Looks awesome, ignores CORS)
-                if (!audio.paused) {
+                // Only animate if actually playing (not buffering) and has volume
+                if (!audio.paused && audio.readyState >= 3 && audio.volume > 0) {
                    value = Math.abs(Math.sin(Date.now() / 300 + i)) * 100 + Math.random() * 50;
                    if (value > 255) value = 255;
                 }
@@ -90,12 +95,19 @@ export default function LofiRadio({ channel = 1 }) {
         audio.addEventListener('pause', handlePause);
         audio.addEventListener('error', handleError);
 
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(e => {
-                console.log("Autoplay blocked, waiting for interaction");
-                setError('Autoplay blocked. Click play below.');
-            });
+        audio.load();
+        
+        if (playIntentRef.current) {
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(e => {
+                    console.log("Autoplay blocked or stream error", e);
+                    setError('ACTION REQUIRED: Click Play');
+                    playIntentRef.current = false;
+                });
+            }
+        } else {
+            handlePause();
         }
 
         return () => {
@@ -103,42 +115,90 @@ export default function LofiRadio({ channel = 1 }) {
             audio.removeEventListener('pause', handlePause);
             audio.removeEventListener('error', handleError);
             audio.pause();
-            if (requestRef.current) cancelAnimationFrame(requestRef.current);
+            if (requestRef.current) {
+                cancelAnimationFrame(requestRef.current);
+                requestRef.current = null;
+            }
         };
     }, [channel]);
 
+    useEffect(() => {
+        if (audioRef.current) {
+            audioRef.current.volume = isMuted ? 0 : volume;
+        }
+    }, [volume, isMuted]);
+
+    const togglePlay = () => {
+        if (!audioRef.current) return;
+        if (isPlaying) {
+            playIntentRef.current = false;
+            audioRef.current.pause();
+        } else {
+            playIntentRef.current = true;
+            audioRef.current.play().catch(e => {
+                setError('Failed to play.');
+                playIntentRef.current = false;
+            });
+        }
+    };
+
+    const toggleMute = () => setIsMuted(!isMuted);
+
     return (
-        <div style={{ margin: '20px 0', border: '1px solid #333', borderRadius: '8px', padding: '15px', background: '#000', width: '600px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                <div style={{ color: '#00f2fe', fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ 
-                        width: '10px', height: '10px', borderRadius: '50%', 
-                        background: isPlaying ? '#0f0' : '#f00',
-                        boxShadow: isPlaying ? '0 0 10px #0f0' : 'none'
-                    }}></div>
-                    [CH_{channel}] {currentChannel.name}_STREAM
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* Header Status */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ flex: 1, minWidth: 0, color: '#ff6b95', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    <Activity size={14} style={{ flexShrink: 0, color: isPlaying ? '#ff6b95' : '#555' }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>[CH_{channel}] {currentChannel.name}</span>
                 </div>
-                <div style={{ color: isPlaying ? '#0f0' : '#888', fontFamily: 'monospace', fontSize: '12px' }}>
-                    {isPlaying ? 'CONNECTED - 128kbps' : 'OFFLINE'}
+                <div style={{ flexShrink: 0, paddingLeft: '10px', color: isPlaying ? '#ff6b95' : '#888', fontSize: '0.65rem', letterSpacing: '1px' }}>
+                    {isPlaying ? 'LIVE STREAM' : 'STANDBY'}
                 </div>
             </div>
             
-            {error && <div style={{ color: '#f00', fontFamily: 'monospace', marginBottom: '10px', fontSize: '12px' }}>{error}</div>}
+            {/* Visualizer Display */}
+            <div style={{ position: 'relative', width: '100%', height: '90px', background: '#0a0a0f', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.8)' }}>
+                <canvas 
+                    ref={canvasRef}
+                    width={400}
+                    height={100}
+                    style={{ width: '100%', height: '100%', display: 'block', opacity: isPlaying ? 1 : 0.3, transition: 'opacity 0.3s ease' }}
+                />
+                {!isPlaying && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '0.75rem', letterSpacing: '2px' }}>
+                        {error ? 'STREAM ERROR' : 'SYSTEM PAUSED'}
+                    </div>
+                )}
+            </div>
             
-            <canvas 
-                ref={canvasRef}
-                width={560}
-                height={150}
-                style={{ width: '100%', height: '150px', background: '#050505', borderRadius: '4px', border: '1px solid #111' }}
-            />
+            {/* Custom Controls */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', background: 'rgba(255,255,255,0.02)', padding: '10px 15px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <button 
+                    onClick={togglePlay}
+                    style={{ width: '36px', height: '36px', borderRadius: '50%', background: isPlaying ? 'rgba(255, 107, 149, 0.1)' : '#fff', color: isPlaying ? '#ff6b95' : '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', transition: 'all 0.2s ease', flexShrink: 0 }}
+                >
+                    {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" style={{ marginLeft: '2px' }} />}
+                </button>
+
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <button onClick={toggleMute} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex' }}>
+                        {isMuted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                    </button>
+                    <input 
+                        type="range" 
+                        min="0" max="1" step="0.01" 
+                        value={isMuted ? 0 : volume}
+                        onChange={(e) => { setVolume(parseFloat(e.target.value)); setIsMuted(false); }}
+                        style={{ flex: 1, height: '4px', appearance: 'none', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', cursor: 'pointer', outline: 'none' }}
+                    />
+                </div>
+            </div>
             
             <audio 
                 ref={audioRef}
                 src={currentChannel.url}
                 preload="auto"
-                autoPlay
-                controls
-                style={{ width: '100%', marginTop: '15px', height: '35px', filter: 'invert(1) hue-rotate(180deg) grayscale(1)', opacity: 0.8 }}
             />
         </div>
     );

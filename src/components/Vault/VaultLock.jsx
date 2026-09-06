@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { getAppPasswordV2, setAppPasswordV2 } from '../../services/api';
 import UnlockSequence from '../Auth/UnlockSequence';
+import LofiRadio from '../Arcade/LofiRadio';
 
 async function sha256(message) {
     const msgBuffer = new TextEncoder().encode(message);
@@ -226,6 +227,11 @@ function LockScreen({ mode, onSubmit, error, loading, targetLockId, unlockState 
                             <span className="vl-meta-dot" style={{ background: navigator.onLine ? '#4ade80' : '#ef4444' }} />
                             <span>{navigator.onLine ? 'Network connected' : 'Network offline'}</span>
                         </div>
+                    </div>
+
+                    {/* Lofi Radio Widget */}
+                    <div style={{ marginTop: 'auto', width: '100%' }}>
+                        <LofiRadio channel={1} />
                     </div>
                 </div>
 

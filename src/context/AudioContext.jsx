@@ -5,12 +5,11 @@ const AudioCtx = createContext(null);
 
 // ── Curated ambient radio stations ────────────────────────────
 export const STATIONS = [
-    { id: 'ambience', label: 'Ambience', icon: '🌧️', url: '', desc: 'Rain & Nature · Generated Locally' },
-    { id: 'jazz', label: 'Jazz', icon: '🎷', url: 'https://ice1.somafm.com/secretagent-128-mp3', desc: 'Secret Agent · Smooth Jazz' },
-    { id: 'sleep', label: 'Sleep', icon: '😴', url: 'https://ice1.somafm.com/dronezone-128-mp3', desc: 'Drone Zone · Deep Atmospheric' },
-    { id: 'piano', label: 'Piano', icon: '🎹', url: 'https://ice1.somafm.com/fluid-128-mp3', desc: 'Fluid · Calming Instrumental' },
-    { id: 'chill', label: 'Chill', icon: '✨', url: 'https://ice1.somafm.com/lush-128-mp3', desc: 'Lush · Electronic Chill' },
-    { id: 'radio', label: 'Radio', icon: '📻', url: '', desc: 'Your custom station', isCustom: true },
+    { id: 'lofi_core', label: 'Lofi Core', icon: '🎧', url: 'https://lofi.stream.laut.fm/lofi?t=1', desc: 'Study Beats & Lofi' },
+    { id: 'synthwave', label: 'Synthwave', icon: '🌃', url: 'https://stream.nightride.fm/nightride.mp3', desc: 'Nightride FM · Synth/Cyberpunk' },
+    { id: 'ambient', label: 'Ambient Pill', icon: '💊', url: 'https://streaming.radio.co/s5c5da6a36/listen', desc: 'Atmospheric & Deep' },
+    { id: 'ambience', label: 'Rain', icon: '🌧️', url: '', desc: 'Rain & Nature · Generated' },
+    { id: 'radio', label: 'Custom', icon: '📻', url: '', desc: 'Your custom YouTube URL', isCustom: true },
 ];
 
 export function AudioProvider({ children }) {

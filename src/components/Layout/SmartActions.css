@@ -87,6 +87,31 @@
     transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
+/* ── Floating Lofi Sidebar (Right) ──────────────────────────────────────── */
+.sa-lofi-overlay {
+    position: fixed;
+    top: 50%;
+    right: 4%;
+    width: 280px;
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(20px, -50%);
+    transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.sa-lofi-overlay.open {
+    opacity: 1;
+    pointer-events: all;
+    transform: translate(0, -50%);
+}
+
+.sa-lofi-overlay.closing {
+    opacity: 0;
+    transform: translate(10px, -50%);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
 .sa-history-glass {
     height: 100%;
     background: rgba(18, 22, 36, 0.65);
@@ -159,11 +184,11 @@
     transition: color 0.2s ease;
 }
 .sa-history-item:hover .sa-history-icon-wrap, .sa-history-item.highlighted .sa-history-icon-wrap {
-    background: rgba(232, 160, 69, 0.12);
-    border-color: rgba(232, 160, 69, 0.25);
+    background: rgba(255, 107, 149, 0.12);
+    border-color: rgba(255, 107, 149, 0.25);
 }
 .sa-history-item:hover .sa-history-icon, .sa-history-item.highlighted .sa-history-icon {
-    color: var(--accent, #e8a045);
+    color: #ff6b95;
 }
 
 .sa-history-info {
@@ -231,7 +256,7 @@
     font-weight: 400;
     font-family: var(--font-ui, 'DM Sans', sans-serif);
     letter-spacing: -0.01em;
-    caret-color: var(--accent, #e8a045);
+    caret-color: #ff6b95;
 }
 
 .sa-input::placeholder {
@@ -309,9 +334,9 @@
 
 .sa-grid-item:hover .sa-grid-icon-wrap,
 .sa-grid-item.highlighted .sa-grid-icon-wrap {
-    background: rgba(232, 160, 69, 0.12);
-    border-color: rgba(232, 160, 69, 0.25);
-    color: var(--accent, #e8a045);
+    background: rgba(255, 107, 149, 0.12);
+    border-color: rgba(255, 107, 149, 0.25);
+    color: #ff6b95;
 }
 
 .sa-grid-item.is-red:hover .sa-grid-icon-wrap,
@@ -340,7 +365,7 @@
     width: 4px;
     height: 4px;
     border-radius: 50%;
-    background: var(--accent, #e8a045);
+    background: #ff6b95;
 }
 
 /* ── Empty / Hint States ──────────────────────────────────── */

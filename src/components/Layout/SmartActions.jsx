@@ -5,8 +5,9 @@ import {
     Home, Dna, Sparkles, Mail, BookOpen, FileText, PenTool,
     Heart, Users, Music, Tv, Gamepad2, Diamond, Image,
     Library, Package, Star, KeyRound, Settings, Wallet, Brain,
-    Flame, User, Bell, Info, X, Film
+    Flame, User, Bell, Info, X, Film, Radio, MonitorPlay
 } from 'lucide-react';
+import LofiRadio from '../Arcade/LofiRadio';
 import './SmartActions.css';
 
 // ── All navigable items ─────────────────────────────────────────
@@ -52,6 +53,7 @@ export default function SmartActions({ activeTab, onNavigate, tabHistory, onClos
     const [isClosing, setIsClosing] = useState(false);
     const [query, setQuery] = useState('');
     const [highlighted, setHighlighted] = useState(0);
+    const [lofiChannel, setLofiChannel] = useState(1);
     const inputRef = useRef(null);
     const { playing, currentTrack, playTrack, playNext, stopTrack } = useAudio();
 
@@ -127,34 +129,7 @@ export default function SmartActions({ activeTab, onNavigate, tabHistory, onClos
         setHighlighted(0);
     }, [query]);
 
-    if (!isOpen && !isClosing) {
-        return (
-            <>
-                {currentTrack && (
-                    <div className="cmd-music-pill" onClick={() => onNavigate('musicplayer')}>
-                        <div className={`pill-disc ${playing ? 'spinning' : ''}`}>
-                            <Disc size={18} />
-                        </div>
-                        <div className="pill-info">
-                            <span className="pill-title">{currentTrack.title}</span>
-                            <span className="pill-artist">{currentTrack.artist}</span>
-                        </div>
-                        <div className="pill-controls" onClick={e => e.stopPropagation()}>
-                            <button className="pill-btn" onClick={() => playTrack(currentTrack)} title={playing ? 'Pause' : 'Play'}>
-                                {playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" style={{ marginLeft: 1 }} />}
-                            </button>
-                            <button className="pill-btn" onClick={playNext} title="Next">
-                                <SkipForward size={14} fill="currentColor" />
-                            </button>
-                            <button className="pill-btn" onClick={stopTrack} title="Close Player" style={{ marginLeft: 4, opacity: 0.7 }}>
-                                <X size={16} />
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </>
-        );
-    }
+    // No early return so background components like LofiRadio remain mounted
 
     return (
         <>
@@ -202,6 +177,53 @@ export default function SmartActions({ activeTab, onNavigate, tabHistory, onClos
                     </div>
                 </div>
             )}
+
+            {/* Right-side Lofi Radio Panel */}
+            <div className={`sa-lofi-overlay ${isOpen && !isClosing ? 'open' : ''} ${isClosing ? 'closing' : ''}`}>
+                <div className="sa-history-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', background: 'rgba(10, 12, 20, 0.85)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.05), 0 20px 40px rgba(0,0,0,0.8)', height: 'auto' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#ff6b95', textTransform: 'uppercase', fontSize: '0.8rem', fontWeight: 800, letterSpacing: '2px', textShadow: '0 0 15px rgba(255,107,149,0.4)', paddingBottom: '4px' }}>
+                        <Radio size={16} /> LOFI_TERMINAL
+                    </div>
+
+                    <div style={{ width: '100%' }}>
+                        <LofiRadio channel={lofiChannel} />
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Network Uplinks</div>
+                        
+                        {[
+                            { id: 1, name: 'Lofi Core', color: '#ff6b95' },
+                            { id: 2, name: 'Synthwave', color: '#ff6b95' }
+                        ].map(ch => (
+                            <button 
+                                key={ch.id}
+                                onClick={(e) => { e.stopPropagation(); setLofiChannel(ch.id); }}
+                                style={{ 
+                                    padding: '12px 16px', 
+                                    background: lofiChannel === ch.id ? `linear-gradient(90deg, ${ch.color}22 0%, transparent 100%)` : 'rgba(255,255,255,0.02)', 
+                                    color: lofiChannel === ch.id ? ch.color : 'rgba(255,255,255,0.6)', 
+                                    border: '1px solid', 
+                                    borderColor: lofiChannel === ch.id ? `${ch.color}55` : 'rgba(255,255,255,0.05)', 
+                                    borderLeftWidth: lofiChannel === ch.id ? '3px' : '1px',
+                                    borderRadius: '6px', 
+                                    cursor: 'pointer', 
+                                    textAlign: 'left', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: '12px',
+                                    transition: 'all 0.2s ease',
+                                    fontSize: '0.8rem'
+                                }}
+                            >
+                                <MonitorPlay size={14} style={{ opacity: lofiChannel === ch.id ? 1 : 0.5 }} /> 
+                                <span style={{ flex: 1 }}>[CH_{ch.id}]</span>
+                                <span>{ch.name}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
 
             <div className={`sa-container ${isOpen && !isClosing ? 'open' : ''} ${isClosing ? 'closing' : ''}`}>
                 <div className="sa-glass">
