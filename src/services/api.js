@@ -669,25 +669,12 @@ export const deleteR2Prefix = async (prefix) => {
  * Returns { added, skipped, total }.
  */
 export const syncVaultCollection = async (collectionId) => {
-    const deleteCollectionTree = async (id) => {
-        const { data: children } = await supabase
-            .from('vault_collections')
-            .select('*')
-            .eq('parent_id', id);
-
-        for (const child of (children || [])) {
-            await deleteCollectionTree(child.id);
-        }
-
-        await supabase.from('vault_files').delete().eq('collection_id', id);
-        await supabase.from('vault_collections').delete().eq('id', id);
-    };
-
     // 1. Load root collection metadata
     const { data: rootCol, error: colErr } = await supabase
         .from('vault_collections').select('*').eq('id', collectionId).single();
     if (colErr) throw colErr;
 
+    const basePrefix = normalizeR2Prefix(rootCol.key_prefix);
     let totalAddedFiles = 0;
     let totalAddedFolders = 0;
     let totalRemoved = 0;
@@ -695,64 +682,141 @@ export const syncVaultCollection = async (collectionId) => {
     let totalSkipped = 0;
     let totalRawObjects = 0;
 
-    // Helper for recursive sync
-    const syncTree = async (colId, colPrefix, colType, isSecret) => {
-        // 3. Get immediate contents under the prefix (delimiter = "/").
-        let allObjects = [];
-        let allPrefixes = [];
-        let nextToken = null;
-        do {
-            const res = await listR2Objects(colPrefix, nextToken, 1000, "/");
-            console.log('DEBUG_MUSIC_SYNC: listR2Objects result for', colPrefix, res);
-            allObjects = allObjects.concat(res.objects || []);
-            allPrefixes = allPrefixes.concat(res.prefixes || []);
-            nextToken = res.nextToken || null;
-        } while (nextToken);
+    // 2. Fetch all objects recursively (no delimiter)
+    let allObjects = [];
+    let nextToken = null;
+    do {
+        const res = await listR2Objects(basePrefix, nextToken, 1000); // No delimiter to fetch all recursively
+        console.log('DEBUG_MUSIC_SYNC: listR2Objects (recursive) result', res);
+        allObjects = allObjects.concat(res.objects || []);
+        nextToken = res.nextToken || null;
+    } while (nextToken);
 
-        const currentR2Keys = new Set((allObjects || []).map(obj => obj.key || obj.Key || obj.name).filter(Boolean));
-        const currentR2Prefixes = new Set((allPrefixes || []).filter(p => p && p !== colPrefix));
+    const rawObjects = allObjects.filter(obj => {
+        const key = obj.key || obj.Key || obj.name;
+        const size = obj.size !== undefined ? obj.size : (obj.Size !== undefined ? obj.Size : 1);
+        if (!obj || !key || size <= 0 || key === basePrefix) return false;
+        return true;
+    });
 
-        // Delta-sync disabled to force full sync
-        const rawObjects = (allObjects || []).filter(obj => {
-            const key = obj.key || obj.Key || obj.name;
-            const size = obj.size !== undefined ? obj.size : (obj.Size !== undefined ? obj.Size : 1);
-            if (!obj || !key || size <= 0 || key === colPrefix) return false;
-            return true;
-        });
+    totalRawObjects = rawObjects.length;
 
-        totalRawObjects += rawObjects.length;
-
-        const { data: existingFiles } = await supabase
-            .from('vault_files')
-            .select('id, r2_key, is_trashed')
-            .eq('collection_id', colId);
-        const existingKeys = new Set((existingFiles || []).map(f => f.r2_key));
-
-        const missingActiveKeys = (existingFiles || [])
-            .filter(file => !file.is_trashed && !currentR2Keys.has(file.r2_key))
-            .map(file => file.r2_key);
-
-        if (missingActiveKeys.length > 0) {
-            console.log('[syncVaultCollection] removing stale active files from Supabase:', missingActiveKeys.length, missingActiveKeys.slice(0, 10));
-            const { error: deleteErr } = await supabase
-                .from('vault_files')
-                .delete()
-                .eq('collection_id', colId)
-                .in('r2_key', missingActiveKeys);
-
-            if (deleteErr) throw deleteErr;
-            totalRemoved += missingActiveKeys.length;
-            totalRemovedKeys.push(...missingActiveKeys);
+    // 3. Build a memory map of collections
+    // First, fetch all existing collections under this root (we'll fetch all and filter)
+    const { data: allExistingCols } = await supabase
+        .from('vault_collections')
+        .select('*')
+        .like('key_prefix', `${basePrefix}%`);
+        
+    const colMap = new Map(); // prefix -> collection object
+    colMap.set(basePrefix, rootCol);
+    if (allExistingCols) {
+        for (const c of allExistingCols) {
+            colMap.set(normalizeR2Prefix(c.key_prefix), c);
         }
+    }
 
-        const seen = new Set();
+    // 4. Ensure all sub-collections exist for the fetched objects
+    // We'll gather all unique prefixes needed
+    const requiredPrefixes = new Set();
+    for (const obj of rawObjects) {
+        const key = obj.key || obj.Key || obj.name;
+        const parts = key.substring(basePrefix.length).split('/');
+        parts.pop(); // remove filename
+        
+        let currentPrefix = basePrefix;
+        for (const part of parts) {
+            currentPrefix += `${part}/`;
+            requiredPrefixes.add(currentPrefix);
+        }
+    }
+
+    // Create missing collections top-down
+    const sortedPrefixes = Array.from(requiredPrefixes).sort();
+    for (const prefix of sortedPrefixes) {
+        if (!colMap.has(prefix)) {
+            const parentPrefix = prefix.split('/').slice(0, -2).join('/') + '/';
+            const parentCol = colMap.get(parentPrefix);
+            if (!parentCol) {
+                console.warn('Missing parent collection for', prefix);
+                continue; // should not happen with sorted order
+            }
+            
+            const folderName = prefix.split('/').slice(-2, -1)[0];
+            const { data: newCol, error: createErr } = await supabase
+                .from('vault_collections')
+                .insert([{
+                    name: folderName,
+                    type: rootCol.type,
+                    key_prefix: prefix,
+                    is_hidden: false,
+                    is_secret: rootCol.is_secret,
+                    parent_id: parentCol.id
+                }])
+                .select()
+                .single();
+                
+            if (createErr) throw createErr;
+            colMap.set(prefix, newCol);
+            totalAddedFolders++;
+        }
+    }
+
+    // 5. Group objects by collection and sync files
+    const objectsByCol = new Map(); // colId -> rawObjects[]
+    for (const obj of rawObjects) {
+        const key = obj.key || obj.Key || obj.name;
+        const parts = key.substring(basePrefix.length).split('/');
+        parts.pop();
+        const objPrefix = parts.length > 0 ? basePrefix + parts.join('/') + '/' : basePrefix;
+        const col = colMap.get(objPrefix);
+        if (col) {
+            if (!objectsByCol.has(col.id)) objectsByCol.set(col.id, []);
+            objectsByCol.get(col.id).push(obj);
+        }
+    }
+
+    // Fetch all existing files under the base prefix for deletion check
+    const { data: allExistingFiles } = await supabase
+        .from('vault_files')
+        .select('id, r2_key, is_trashed, collection_id')
+        .in('collection_id', Array.from(colMap.values()).map(c => c.id));
+        
+    const activeFilesMap = new Map(); // r2_key -> file
+    for (const f of allExistingFiles || []) {
+        if (!f.is_trashed) activeFilesMap.set(f.r2_key, f);
+    }
+
+    const currentR2Keys = new Set(rawObjects.map(obj => obj.key || obj.Key || obj.name));
+
+    // Delete stale files
+    const missingActiveKeys = [];
+    for (const [key, file] of activeFilesMap.entries()) {
+        if (!currentR2Keys.has(key)) {
+            missingActiveKeys.push(key);
+        }
+    }
+
+    if (missingActiveKeys.length > 0) {
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < missingActiveKeys.length; i += BATCH_SIZE) {
+            const slice = missingActiveKeys.slice(i, i + BATCH_SIZE);
+            await supabase.from('vault_files').delete().in('r2_key', slice);
+        }
+        totalRemoved += missingActiveKeys.length;
+        totalRemovedKeys.push(...missingActiveKeys);
+    }
+
+    // Insert new files
+    for (const [colId, objs] of objectsByCol.entries()) {
         const fileRows = [];
-
-        for (const rawObj of rawObjects) {
+        for (const rawObj of objs) {
             const key = rawObj.key || rawObj.Key || rawObj.name;
-            if (seen.has(key)) continue;
-            seen.add(key);
-
+            if (activeFilesMap.has(key)) {
+                totalSkipped++;
+                continue; // already exists
+            }
+            
             const filename = key.split('/').pop() || key;
             const ext = filename.split('.').pop()?.toLowerCase();
             const mimeMap = {
@@ -790,54 +854,13 @@ export const syncVaultCollection = async (collectionId) => {
             }
         }
         
-        totalSkipped += Math.max(0, rawObjects.length - fileRows.length);
-
         await supabase
             .from('vault_sync_log')
             .upsert({
                 collection_id: colId,
                 last_synced_at: new Date().toISOString()
             }, { onConflict: 'collection_id' });
-
-        // Recursive Subfolder Processing
-        for (const subPrefix of currentR2Prefixes) {
-            // Find if sub-collection exists
-            let { data: existingSubCol } = await supabase
-                .from('vault_collections')
-                .select('*')
-                .eq('key_prefix', subPrefix)
-                .eq('parent_id', colId)
-                .maybeSingle();
-
-            if (!existingSubCol) {
-                // Auto-create sub-collection
-                const parts = subPrefix.split('/');
-                const folderName = subPrefix.endsWith('/') ? parts[parts.length - 2] : parts[parts.length - 1];
-                const { data: newCol, error: createErr } = await supabase
-                    .from('vault_collections')
-                    .insert([{
-                        name: folderName,
-                        type: colType,
-                        key_prefix: subPrefix,
-                        is_hidden: false,
-                        is_secret: isSecret,
-                        parent_id: colId
-                    }])
-                    .select()
-                    .single();
-                
-                if (createErr) throw createErr;
-                existingSubCol = newCol;
-                totalAddedFolders++;
-            }
-
-            // Recurse
-            await syncTree(existingSubCol.id, subPrefix, existingSubCol.type, existingSubCol.is_secret);
-        }
-    };
-
-    const basePrefix = normalizeR2Prefix(rootCol.key_prefix);
-    await syncTree(collectionId, basePrefix, rootCol.type, rootCol.is_secret);
+    }
 
     return {
         added: totalAddedFiles,
