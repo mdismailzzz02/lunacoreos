@@ -221,7 +221,11 @@ export const calculateStreaks = async () => {
 export const getVaultCollections = async (mode = 'normal') => {
     let query = supabase.from('vault_collections').select('*').order('created_at', { ascending: true });
     if (mode === 'normal') {
+        query = query.eq('is_hidden', false).or('is_secret.eq.false,is_secret.is.null');
+    } else if (mode === 'hidden') {
         query = query.or('is_secret.eq.false,is_secret.is.null');
+    } else if (mode === 'secret') {
+        query = query.eq('is_hidden', false);
     }
     const { data, error } = await query;
     if (error) throw error;
@@ -235,7 +239,7 @@ const normalizeR2Prefix = (prefix) => {
     return cleaned.endsWith('/') ? cleaned : `${cleaned}/`;
 };
 
-export const createVaultCollection = async ({ name, type = 'gallery', key_prefix, is_secret = false, parent_id = null }) => {
+export const createVaultCollection = async ({ name, type = 'gallery', key_prefix, is_hidden = false, is_secret = false, parent_id = null }) => {
     let prefix = normalizeR2Prefix(key_prefix);
 
     if (!prefix) {
@@ -258,7 +262,7 @@ export const createVaultCollection = async ({ name, type = 'gallery', key_prefix
         name,
         type,
         key_prefix: prefix,
-        is_hidden: false,
+        is_hidden,
         is_secret,
         parent_id
     }]).select();
