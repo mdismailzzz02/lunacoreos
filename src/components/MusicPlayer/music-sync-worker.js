@@ -59,7 +59,13 @@ export default {
     }
 
     const url     = new URL(request.url);
-    const prefix  = url.searchParams.get('prefix') || 'music_player/';
+    const userId  = url.searchParams.get('userId');
+    
+    if (!userId) {
+      return new Response('Missing userId parameter', { status: 400 });
+    }
+
+    const prefix  = url.searchParams.get('prefix') || `vault/${userId}/documents-music-folders/`;
     const folderId = url.searchParams.get('folderId') || null;
 
     // ── 1. List R2 objects ──────────────────────────────────────────
@@ -71,13 +77,13 @@ export default {
     }
 
     // ── 2. Fetch existing folder IDs from Supabase ──────────────────
-    const folderRes = await supabaseFetch(env, 'GET', '/rest/v1/music_folders?select=id,name,r2_prefix');
+    const folderRes = await supabaseFetch(env, 'GET', '/rest/v1/vault_collections?select=id,name,key_prefix');
     const folders   = await folderRes.json();
 
-    // Build a map: r2_prefix → folder.id
+    // Build a map: key_prefix → folder.id
     const folderMap = {};
     for (const f of folders) {
-      if (f.r2_prefix) folderMap[f.r2_prefix] = f.id;
+      if (f.key_prefix) folderMap[f.key_prefix] = f.id;
     }
 
     // ── 3. Format tracks ─────────────────────────────────────────────
@@ -85,8 +91,11 @@ export default {
     const tracks = [];
 
     for (const obj of audioObjects) {
-      const folderName = folderNameFromKey(obj.key);
-      const r2Prefix   = `music_player/${folderName}`;
+      // folderName extraction needs to be adjusted based on the deeper path: vault/<userId>/documents-music-folders/<folderName>
+      const parts = obj.key.split('/');
+      // Expected: vault (0) / userId (1) / documents-music-folders (2) / folderName (3) / filename.mp3 (4)
+      const folderName = parts.length > 4 ? parts[3] : 'unknown';
+      const r2Prefix   = `vault/${userId}/documents-music-folders/${folderName}/`;
       let   fid        = folderMap[r2Prefix];
 
       // Auto-create folder row if it doesn't exist
@@ -94,11 +103,12 @@ export default {
         const newFolder = {
           id:           `FLD-${Math.random().toString(36).substr(2, 8)}`,
           name:         folderName,
-          display_name: folderName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-          r2_prefix:    r2Prefix,
-          added_at:     now,
+          key_prefix:   r2Prefix,
+          type:         'documents',
+          created_at:   now,
+          user_id:      userId
         };
-        await supabaseFetch(env, 'POST', '/rest/v1/music_folders', newFolder);
+        await supabaseFetch(env, 'POST', '/rest/v1/vault_collections', newFolder);
         fid = newFolder.id;
         folderMap[r2Prefix] = fid;
       }

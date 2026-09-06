@@ -94,7 +94,7 @@ const AudioVisualizer = ({ analyser, playing }) => {
 };
 
 // ── Add Folder Modal ──────────────────────────────────────────────────
-function AddFolderModal({ onClose, onAdded }) {
+function AddFolderModal({ onClose, onAdded, userId }) {
     const [name, setName]        = useState('');
     const [display, setDisplay]  = useState('');
     const [saving, setSaving]    = useState(false);
@@ -126,7 +126,7 @@ function AddFolderModal({ onClose, onAdded }) {
                 </div>
                 <p className="mp-modal-hint">
                     Create a folder entry that maps to your R2 path:<br />
-                    <code>music_player/<strong>{name || 'folder_name'}</strong>/</code>
+                    <code>vault/{userId || 'YOUR_USER_ID'}/documents-music-folders/<strong>{name ? name.replace(/[^a-z0-9]/gi, '-') : 'folder_name'}</strong>/</code>
                 </p>
                 <div className="mp-form-row">
                     <label>Folder key (used in R2 path)</label>
@@ -178,6 +178,7 @@ export default function MusicPlayerPage() {
     const [search, setSearch]                 = useState('');
     const [showAddFolder, setShowAddFolder]   = useState(false);
     const [showFolderMenu, setShowFolderMenu] = useState(false);
+    const [userId, setUserId]                 = useState('YOUR_USER_ID');
     const folderMenuRef = useRef(null);
 
     const {
@@ -220,6 +221,9 @@ export default function MusicPlayerPage() {
     const loadData = async () => {
         setLoading(true);
         try {
+            const uid = await api.getCurrentUserId();
+            if (uid) setUserId(uid);
+            
             const [folderData, playlistData, libData] = await Promise.all([
                 api.getMusicFolders(),
                 api.getMusicPlaylists().catch(() => []),
@@ -370,10 +374,7 @@ export default function MusicPlayerPage() {
     return (
         <div className="mp-page">
             {showAddFolder && (
-                <AddFolderModal
-                    onClose={() => setShowAddFolder(false)}
-                    onAdded={handleFolderAdded}
-                />
+                <AddFolderModal userId={userId} onClose={() => setShowAddFolder(false)} onAdded={f => { setFolders([...folders, f]); setSelectedFolderId(f.id); }} />
             )}
 
             {/* ── Header ── */}
@@ -520,7 +521,7 @@ export default function MusicPlayerPage() {
                                 <Music size={32} />
                                 <p>No tracks found.</p>
                                 <p className="mp-empty-hint">
-                                    Upload MP3s to your R2 bucket under <code>music_player/</code> then add them to Supabase via the SQL editor or sync worker.
+                                    Upload MP3s to your R2 bucket under <code>vault/{userId}/documents-music-folders/</code> then add them to Supabase via the SQL editor or sync worker.
                                 </p>
                             </div>
                         ) : (
@@ -745,7 +746,7 @@ export default function MusicPlayerPage() {
                         <div className="mp-folder-info-card">
                             <div className="mp-fi-label">R2 Path</div>
                             <code className="mp-fi-path">
-                                {selectedFolder.r2_prefix || `music_player/${selectedFolder.name}`}/
+                                {selectedFolder.r2_prefix || `vault/${userId}/documents-music-folders/${selectedFolder.name}`}/
                             </code>
                         </div>
                     )}
