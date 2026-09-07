@@ -23,6 +23,34 @@ export default function SettingsPage() {
         avatar_url: ''
     });
 
+    const [newPassword, setNewPassword] = useState('');
+    const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+    const [changingPassword, setChangingPassword] = useState(false);
+
+    const handleChangePassword = async () => {
+        if (!newPassword) return;
+        if (newPassword.length < 6) {
+            addToast('Password must be at least 6 characters', 'error');
+            return;
+        }
+        if (newPassword !== newPasswordConfirm) {
+            addToast('Passwords do not match', 'error');
+            return;
+        }
+        setChangingPassword(true);
+        try {
+            const { error } = await supabase.auth.updateUser({ password: newPassword });
+            if (error) throw error;
+            addToast('Password updated successfully', 'success');
+            setNewPassword('');
+            setNewPasswordConfirm('');
+        } catch (e) {
+            addToast(e.message || 'Failed to update password', 'error');
+        } finally {
+            setChangingPassword(false);
+        }
+    };
+
     useEffect(() => {
         loadSettings();
     }, []);
@@ -571,6 +599,45 @@ export default function SettingsPage() {
                                 }}
                             >
                                 Reconnect
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="apple-section-title">Security</div>
+                <div className="apple-list-group">
+                    <div className="apple-list-row" style={{ alignItems: 'flex-start' }}>
+                        <div className="apple-row-left">
+                            <div className="apple-icon-wrapper" style={{ background: '#ff3b30' }}>
+                                <Key size={18} strokeWidth={2.5} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', paddingTop: 2 }}>
+                                <span className="apple-row-label">System Password</span>
+                                <span className="apple-row-label" style={{ fontSize: '0.8rem', opacity: 0.6, marginTop: 4 }}>Used to unlock the terminal and auth with Supabase</span>
+                            </div>
+                        </div>
+                        <div className="apple-row-right" style={{ flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+                            <input 
+                                className="apple-input" 
+                                type="password"
+                                value={newPassword} 
+                                onChange={e => setNewPassword(e.target.value)} 
+                                placeholder="New Password"
+                            />
+                            <input 
+                                className="apple-input" 
+                                type="password"
+                                value={newPasswordConfirm} 
+                                onChange={e => setNewPasswordConfirm(e.target.value)} 
+                                placeholder="Confirm New Password"
+                            />
+                            <button 
+                                type="button" 
+                                className="apple-button"
+                                onClick={handleChangePassword}
+                                disabled={changingPassword || !newPassword}
+                            >
+                                {changingPassword ? 'Updating...' : 'Update Password'}
                             </button>
                         </div>
                     </div>

@@ -149,6 +149,23 @@ export default function App() {
         try { return JSON.parse(localStorage.getItem('luna_last_user')) || null; }
         catch { return null; }
     });
+
+    useEffect(() => {
+        if (!user && !isBooting && !unlockState && !activeGame) {
+            const timer = setTimeout(() => {
+                const emailInput = document.querySelector('input[name="email"]');
+                const passwordInput = document.querySelector('input[name="password"]');
+                if (emailInput && passwordInput) {
+                    if (emailInput.value.toLowerCase().endsWith('.com')) {
+                        passwordInput.focus();
+                    } else {
+                        emailInput.focus();
+                    }
+                }
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [user, isBooting, unlockState, activeGame, authMode]);
     const renderMenuOptions = () => (
         <>
             {arcadeCategory === 'main' && (
@@ -768,18 +785,32 @@ export default function App() {
                                                 <span className="term-prompt">guest@lunacore:~$</span>
                                                 <span className="term-command">./{authMode === 'login' ? 'authenticate' : 'initialize_core'}</span>
                                             </div>
-                                            <div className="terminal-input-line">
-                                                <span className="term-prompt">Email:</span>
-                                                <input
-                                                    type="email"
-                                                    name="email"
-                                                    required
-                                                    autoFocus
-                                                    className="term-input"
-                                                    autoComplete="username"
-                                                    defaultValue={lastUser?.email || ''}
-                                                />
-                                            </div>
+                                            {authMode === 'login' && lastUser?.email ? (
+                                                <div className="terminal-input-line">
+                                                    <span className="term-prompt">Email:</span>
+                                                    <span style={{ color: '#00f2fe', opacity: 0.8 }}>{lastUser.email}</span>
+                                                    <button type="button" onClick={() => {
+                                                        localStorage.removeItem('luna_last_user');
+                                                        setLastUser(null);
+                                                    }} style={{ background: 'transparent', border: 'none', color: '#ff5f56', cursor: 'pointer', fontSize: '0.8rem', marginLeft: '10px' }}>
+                                                        [Switch User]
+                                                    </button>
+                                                    <input type="hidden" name="email" value={lastUser.email} />
+                                                </div>
+                                            ) : (
+                                                <div className="terminal-input-line">
+                                                    <span className="term-prompt">Email:</span>
+                                                    <input
+                                                        type="email"
+                                                        name="email"
+                                                        required
+                                                        autoFocus
+                                                        className="term-input"
+                                                        autoComplete="username"
+                                                        defaultValue={lastUser?.email || ''}
+                                                    />
+                                                </div>
+                                            )}
                                             {authMode === 'register' && (
                                                 <>
                                                     <div className="terminal-input-line">
@@ -810,6 +841,7 @@ export default function App() {
                                                     type={showPassword ? "text" : "password"}
                                                     name="password"
                                                     required
+                                                    autoFocus={lastUser?.email?.toLowerCase().endsWith('.com')}
                                                     className="term-input"
                                                     autoComplete="current-password"
                                                 />

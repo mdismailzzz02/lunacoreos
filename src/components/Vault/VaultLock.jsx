@@ -304,7 +304,6 @@ function LockScreen({ mode, onSubmit, error, loading, targetLockId, unlockState 
                                             placeholder="············"
                                             disabled={loading}
                                         />
-                                        <span style={{ animation: 'vl-blink 1s step-end infinite', color: accentColor, fontSize: '1.1rem' }}>▌</span>
                                     </div>
                                 </div>
 

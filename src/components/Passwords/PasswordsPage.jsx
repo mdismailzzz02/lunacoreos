@@ -185,7 +185,6 @@ function UnlockPrompt({ onUnlocked }) {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '10px', borderBottom: `1px solid ${accent}20` }}>
                                 <span style={{ color: accent, fontWeight: 600, whiteSpace: 'nowrap' }}>Master key:</span>
                                 <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} autoFocus required autoComplete="current-password" className="pwdl-input" placeholder="············" disabled={loading} />
-                                <span style={{ animation: 'pwdl-blink 1s step-end infinite', color: accent, fontSize: '1.1rem' }}>▌</span>
                             </div>
                             {err && <div style={{ marginTop: '16px', color: '#ff5f56', fontSize: '0.85rem' }}>✗ {err}</div>}
                             <button type="submit" disabled={loading} className="pwdl-btn">

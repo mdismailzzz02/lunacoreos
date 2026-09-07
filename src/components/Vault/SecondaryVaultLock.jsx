@@ -264,7 +264,6 @@ export default function SecondaryVaultLock({ lockId, title, icon, onSuccess, onC
                                             placeholder="············"
                                             disabled={submitting}
                                         />
-                                        <span style={{ animation: 'svl-blink 1s step-end infinite', color: accentColor, fontSize: '1.1rem' }}>▌</span>
                                     </div>
                                 </div>
 
