@@ -50,12 +50,17 @@ export default function WishlistPanel({ accounts, onTransactionCreated }) {
             await api.updateWishlistItem(id, { status: 'purchased' });
             setItems(items.map(i => i.id === id ? { ...i, status: 'purchased' } : i));
 
-            // Extract R2 key from the full public URL (e.g. media-library/finance_wishlist/123.png)
+            // Extract R2 key from the full public URL
             let receipt_r2_key = null;
             if (item.image_url) {
-                const match = item.image_url.match(/media-library\/.*/);
-                if (match) {
-                    receipt_r2_key = match[0];
+                // Support both the new vault/ prefix and the legacy media-library/ prefix
+                const vaultMatch = item.image_url.match(/vault\/.*/);
+                const legacyMatch = item.image_url.match(/media-library\/.*/);
+                
+                if (vaultMatch) {
+                    receipt_r2_key = vaultMatch[0];
+                } else if (legacyMatch) {
+                    receipt_r2_key = legacyMatch[0];
                 }
             }
 

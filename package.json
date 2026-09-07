@@ -27,6 +27,10 @@
     "@tiptap/extension-list": "^3.22.4",
     "@tiptap/extension-mention": "^3.22.4",
     "@tiptap/extension-placeholder": "^3.22.4",
+    "@tiptap/extension-table": "^3.31.3",
+    "@tiptap/extension-table-cell": "^3.31.3",
+    "@tiptap/extension-table-header": "^3.31.3",
+    "@tiptap/extension-table-row": "^3.31.3",
     "@tiptap/extension-task-item": "^3.22.4",
     "@tiptap/extension-task-list": "^3.22.4",
     "@tiptap/extension-text-align": "^3.22.4",
@@ -54,6 +58,7 @@
     "react-textarea-autosize": "^8.5.9",
     "recharts": "^3.10.1",
     "three": "^0.184.0",
+    "tiptap-markdown": "^0.9.0",
     "yet-another-react-lightbox": "^3.29.1"
   },
   "devDependencies": {

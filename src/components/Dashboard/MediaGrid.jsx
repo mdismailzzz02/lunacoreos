@@ -208,7 +208,7 @@ export default function MediaGrid({ onNavigate }) {
                         boxShadow: isDelegated ? '0 0 8px rgba(168,85,247,0.6)' : 'none'
                     }}
                 >
-                    <Inbox size={14} color="currentColor" />
+                    <Inbox size={14} color="#fff" />
                 </button>
                 <button
                     onClick={e => platform === 'youtube' ? toggleYTLike(e, item) : toggleTwitchLike(e, item, isStream)}
@@ -222,7 +222,7 @@ export default function MediaGrid({ onNavigate }) {
                         transition: 'all 0.2s'
                     }}
                 >
-                    {isLiked ? <Heart size={16} fill="#ef4444" color="#ef4444" /> : <Heart size={16} color="currentColor" />}
+                    {isLiked ? <Heart size={16} fill="#ef4444" color="#ef4444" /> : <Heart size={16} color="#fff" />}
                 </button>
             </div>
         );

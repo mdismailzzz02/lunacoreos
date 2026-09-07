@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import * as api from '../../services/api';
 import { useSecureUrl } from '../../hooks/useSecureUrl';
 
@@ -154,7 +155,7 @@ export default function Lightbox({ images, startIndex = 0, onClose }) {
     if (!images || images.length === 0) return null;
     const currentItem = images[idx];
 
-    return (
+    return createPortal(
         <div
             className="lightbox-overlay"
             onClick={scale === 1 ? onClose : undefined}
@@ -237,5 +238,5 @@ export default function Lightbox({ images, startIndex = 0, onClose }) {
                 </button>
             )}
         </div>
-    );
+    , document.body);
 }

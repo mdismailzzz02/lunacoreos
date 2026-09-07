@@ -177,8 +177,8 @@ export default function CommandDisk({ activeTab, onNavigate }) {
                         <Disc size={18} />
                     </div>
                     <div className="pill-info">
-                        <span className="pill-title">{currentTrack.title}</span>
-                        <span className="pill-artist">{currentTrack.artist}</span>
+                        <span className="pill-title" title={currentTrack.title}>{currentTrack.title}</span>
+                        <span className="pill-artist" title={currentTrack.artist}>{currentTrack.artist}</span>
                     </div>
                     <div className="pill-controls" onClick={e => e.stopPropagation()}>
                         <button className="pill-btn" onClick={() => playTrack(currentTrack)} title={playing ? 'Pause' : 'Play'}>

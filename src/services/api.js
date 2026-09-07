@@ -3,10 +3,10 @@ import { supabase } from './supabaseClient';
 import { decode } from 'base64-arraybuffer';
 export { supabase };
 
-
-
-
-
+export const getCurrentUserId = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    return user ? user.id : null;
+};
 // â”€â”€â”€ Initialization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const initializeApp = async () => {
     // Supabase initialization is handled by createClient
@@ -357,59 +357,7 @@ export const deleteVaultFile = async (fileId) => {
 
 // ─── Vault Trash System ───────────────────────────────────────
 
-/**
- * Get or create the trash collection for a vault path
- * Trash prefix: luna-vault/documents-lunatrash/ (configurable per vault)
- */
-const getOrCreateTrashCollection = async (vaultPrefix = '') => {
-    // Important: the bucket name is not a folder in R2. The real object prefix is inside the bucket, e.g.
-    // "documents-lunatrash/". Cloudflare shows the bucket name in the UI as a parent path, but the actual
-    // object key should not include the bucket name itself.
-    const canonicalTrashPrefix = 'documents-lunatrash/';
-    const preferredTrashPrefix = vaultPrefix
-        ? `${normalizeR2Prefix(vaultPrefix.replace(/\/$/, ''))}-lunatrash/`
-        : canonicalTrashPrefix;
 
-    const { data: exact } = await supabase
-        .from('vault_collections')
-        .select('*')
-        .eq('key_prefix', preferredTrashPrefix)
-        .limit(1);
-
-    if (exact && exact[0]) return exact[0];
-
-    // Repair legacy nested trash entries created by the earlier bug.
-    const { data: legacy } = await supabase
-        .from('vault_collections')
-        .select('*')
-        .or('key_prefix.like.%documents-lunatrash%,key_prefix.eq.luna-vault/documents-lunatrash/,key_prefix.eq.luna-vault/luna-vault/documents-lunatrash/')
-        .limit(20);
-
-    if (legacy && legacy.length > 0) {
-        const target = legacy.find(r => r.key_prefix === preferredTrashPrefix) || legacy[0];
-        const { data: updated } = await supabase
-            .from('vault_collections')
-            .update({ key_prefix: preferredTrashPrefix, name: '🗑️ Trash' })
-            .eq('id', target.id)
-            .select();
-
-        if (updated && updated[0]) return updated[0];
-    }
-
-    const { data: created } = await supabase
-        .from('vault_collections')
-        .insert([{
-            name: '🗑️ Trash',
-            type: 'gallery',
-            key_prefix: preferredTrashPrefix,
-            is_hidden: false,
-            is_secret: false,
-            parent_id: null
-        }])
-        .select();
-
-    return created ? created[0] : null;
-};
 
 /**
  * Move a file to trash (soft delete)
@@ -426,7 +374,7 @@ export const moveFileToTrash = async (fileId) => {
     console.log('📦 File fetched:', { id: file?.id, r2_key: file?.r2_key, filename: file?.filename });
     if (!file) throw new Error('File not found');
     
-    const trashCol = await getOrCreateTrashCollection();
+    const trashCol = await ensureTrashCollection();
     console.log('📦 Trash collection:', { id: trashCol?.id, key_prefix: trashCol?.key_prefix });
     if (!trashCol) throw new Error('Could not create trash collection');
     
@@ -1119,11 +1067,72 @@ const resolveMediaUrls = async (mediaItems) => {
 
 
 
+export const ensureModuleCollection = async (userId, moduleName) => {
+    // Nest everything under the master media-library folder
+    const parentPrefix = `vault/${userId}/media-library/`;
+    const prefix = `${parentPrefix}${moduleName}/`;
+    
+    // Check/create parent 'media-library' collection if needed
+    const { data: parentExisting } = await supabase
+        .from('vault_collections')
+        .select('id')
+        .eq('key_prefix', parentPrefix)
+        .maybeSingle();
+
+    let parentId = parentExisting?.id;
+
+    if (!parentId) {
+        const { data: newParent } = await supabase
+            .from('vault_collections')
+            .insert([{
+                name: 'Media Library',
+                type: 'documents',
+                key_prefix: parentPrefix,
+                is_hidden: true,
+                is_secret: false
+            }])
+            .select()
+            .single();
+        if (newParent) parentId = newParent.id;
+    }
+    
+    // Check/create the sub-module collection
+    const { data: existing } = await supabase
+        .from('vault_collections')
+        .select('id')
+        .eq('key_prefix', prefix)
+        .maybeSingle();
+        
+    if (existing) return existing;
+    
+    // Create if not exists
+    const { data: newCollection, error } = await supabase
+        .from('vault_collections')
+        .insert([{
+            name: moduleName.replace(/_/g, ' ').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            type: 'documents',
+            key_prefix: prefix,
+            is_hidden: true,
+            is_secret: false,
+            parent_id: parentId || null
+        }])
+        .select()
+        .single();
+        
+    if (error) console.error(`Failed to create collection for ${moduleName}:`, error);
+    return newCollection;
+};
+
 /**
  * Upload a file to R2.
  * Pass { file: File, media_type, uploaded_from, source_id } and an optional onProgress callback.
  */
 export const uploadMedia = async (params, onProgress) => {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+        throw new Error('uploadMedia: User is not authenticated.');
+    }
+
     const mediaId = params.media_id || ('MED-' + Math.random().toString(36).substr(2, 9).toUpperCase());
 
     if (!(params.file instanceof File)) {
@@ -1132,7 +1141,13 @@ export const uploadMedia = async (params, onProgress) => {
 
     const file = params.file;
     const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const r2Key = `media-library/${params.uploaded_from || 'general'}/${Date.now()}-${safeFilename}`;
+    
+    // Dynamically route media to vault/<user_id>/media-library/<uploaded_from>/...
+    const moduleName = params.uploaded_from || 'media-library-files';
+    const r2Key = `vault/${userId}/media-library/${moduleName}/${Date.now()}-${safeFilename}`;
+
+    // Ensure the folder exists in the vault UI/hierarchy (hidden by default to not clutter root)
+    ensureModuleCollection(userId, moduleName).catch(console.error);
 
     // 1. Get presigned PUT URL
     if (onProgress) onProgress(5);
@@ -1609,6 +1624,12 @@ export const saveFinance = async (params) => {
         // Provide a manual ID since the preexisting finance table lacks an auto-generator
         params.id = `TX-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
     }
+    
+    // Ensure transaction collection exists for R2 organization
+    getCurrentUserId().then(userId => {
+        if (userId) ensureModuleCollection(userId, 'transaction').catch(console.error);
+    });
+
     const { data, error } = await supabase.from('finance').upsert([params]).select();
     if (error) throw error;
     return data[0];

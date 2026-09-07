@@ -181,7 +181,7 @@ function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
                 </div>
                 <div style={{ display: 'flex', gap: '1rem' }}>
                     <button onClick={(e) => { e.stopPropagation(); onLike(item); }} style={{ background: isLiked ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '48px', height: '48px', fontSize: '1.4rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {isLiked ? <Heart size={16} fill="#ef4444" color="#ef4444" /> : <Heart size={16} color="currentColor" />}
+                        {isLiked ? <Heart size={16} fill="#ef4444" color="#ef4444" /> : <Heart size={16} color="#fff" />}
                     </button>
                     <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '50%', width: '48px', height: '48px', fontSize: '1.4rem', cursor: 'pointer' }}>✕</button>
                 </div>
@@ -387,7 +387,7 @@ const VaultCard = React.memo(function VaultCard({ file, isLiked, onLike, onOpen,
                     onClick={(e) => { e.stopPropagation(); onLike(file); }}
                     style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)', transition: 'none', zIndex: 5 }}
                 >
-                    {isLiked ? <Heart size={16} fill="#ef4444" color="#ef4444" /> : <Heart size={16} color="currentColor" />}
+                    {isLiked ? <Heart size={16} fill="#ef4444" color="#ef4444" /> : <Heart size={16} color="#fff" />}
                 </button>
                 {/* Download button */}
                 <button

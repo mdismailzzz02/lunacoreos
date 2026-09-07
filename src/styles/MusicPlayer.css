@@ -5,6 +5,8 @@
   --player-bg: transparent;
   --panel-bg: rgba(255, 255, 255, 0.03);
   --panel-border: rgba(255, 255, 255, 0.06);
+  --accent: #ff073a;
+  --accent-rgb: 255, 7, 58;
   --accent-glow: rgba(var(--accent-rgb), 0.3);
 }
 

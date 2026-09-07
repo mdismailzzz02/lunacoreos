@@ -98,7 +98,7 @@ export default function MediaLibraryPage({ guestMode = false }) {
             : file.type.startsWith('audio/') ? 'audio'
             : file.type.startsWith('video/') ? 'video'
             : 'file';
-        await upload(file, mediaType, 'media_library', null);
+        await upload(file, mediaType, 'media-library-files', null);
     };
 
     if (loading) return <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>{[...Array(3)].map((_, i) => <SkeletonCard key={i} />)}</div>;

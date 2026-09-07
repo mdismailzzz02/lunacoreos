@@ -47,7 +47,7 @@ export default function AddTransactionModal({ onClose, onSaved, accounts, editTx
             if (receiptFile) {
                 setUploadProgress(10);
                 const ext = receiptFile.name.split('.').pop();
-                const r2Key = `finances/${user.id}/${Date.now()}-receipt.${ext}`;
+                const r2Key = `vault/${user.id}/media-library/transaction/${Date.now()}-receipt.${ext}`;
                 const { url: putUrl } = await api.getR2PresignedPut(r2Key, receiptFile.type || 'application/octet-stream');
                 
                 setUploadProgress(40);

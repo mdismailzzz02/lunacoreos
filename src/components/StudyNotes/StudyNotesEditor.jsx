@@ -13,6 +13,11 @@ import Blockquote from '@tiptap/extension-blockquote';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Image from '@tiptap/extension-image';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { Markdown } from 'tiptap-markdown';
 import TextareaAutosize from 'react-textarea-autosize';
 
 import { 
@@ -35,6 +40,7 @@ import {
     Maximize,
     Minimize,
     Grid3x3,
+    Table as TableIcon,
     BookOpen,
     ArrowLeft
 } from 'lucide-react';
@@ -161,6 +167,7 @@ export default function StudyNotesEditor({
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isReadOnlyFullscreen, setIsReadOnlyFullscreen] = useState(false);
     const [isContentLoading, setIsContentLoading] = useState(true);
+    const [contentWidth, setContentWidth] = useState('900px');
     const editorSurfaceRef = useRef(null);
 
     useEffect(() => {
@@ -220,6 +227,11 @@ export default function StudyNotesEditor({
         }));
 
     const editor = useEditor({
+        editorProps: {
+            attributes: {
+                spellcheck: 'false',
+            },
+        },
         extensions: [
             StarterKit.configure({
                 codeBlock: false,
@@ -230,6 +242,11 @@ export default function StudyNotesEditor({
             Heading.configure({ levels: [1, 2, 3] }),
             Underline,
             Blockquote,
+            Table.configure({ resizable: true }),
+            TableRow,
+            TableHeader,
+            TableCell,
+            Markdown,
             TextAlign.configure({ types: ['heading', 'paragraph'] }),
             Link.configure({ openOnClick: false, autolink: true }),
             Placeholder.configure({ placeholder: 'Start writing your note...' }),
@@ -790,32 +807,8 @@ export default function StudyNotesEditor({
                     </span>
                 </div>
                 
-                <div className="sn-editor-top-actions">
-                    <div className="sn-save-indicator">
-                        <div className={`sn-status-dot ${autoSaveStatus}`} />
-                        <span className="sn-status-text">
-                            {autoSaveStatus === 'saving' ? 'Syncing' : (autoSaveStatus === 'saved' ? 'Saved' : 'Waiting')}
-                        </span>
-                    </div>
-                    <span className="sn-header-date">
-                        {note.updated_at && !isNaN(new Date(note.updated_at))
-                            ? new Date(note.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                            : new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </span>
-                    <button onClick={toggleReadOnlyFullscreen} className="sn-nav-icon-btn" title={isReadOnlyFullscreen ? 'Exit Read Mode' : 'Read Mode'}>
-                        {isReadOnlyFullscreen ? <Minimize size={16} /> : <BookOpen size={16} />}
-                    </button>
-                    <button onClick={toggleFullscreen} className="sn-nav-icon-btn" title={isFullscreen && !isReadOnlyFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
-                        {isFullscreen && !isReadOnlyFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
-                    </button>
-                </div>
-            </div>
-
-            {/* 2. SCROLLABLE CANVAS */}
-            <div className="sn-editor-canvas-scroll">
-                
-                {/* FLOATING FORMATTING TOOLBAR (Sticky to top of scroll container) */}
-                <div className="sn-editor-toolbar-floating">
+                {/* INLINE FORMATTING TOOLBAR */}
+                <div className="sn-editor-toolbar-inline">
                     <select 
                         className="sn-custom-select-dark minimal" 
                         style={{ width: '70px' }}
@@ -841,6 +834,7 @@ export default function StudyNotesEditor({
                     
                     <div className="sn-toolbar-sep" />
                     <button className="sn-toolbar-btn" onClick={triggerImageInput} title="Image"><ImageIcon size={14} /></button>
+                    <button className="sn-toolbar-btn" onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} title="Table"><TableIcon size={14} /></button>
                     <button className="sn-toolbar-btn" onClick={() => editor?.chain().focus().insertContent({ type: 'grid', attrs: { rows: 1, columns: 3, cells: [] } }).run()} title="Grid"><Grid3x3 size={14} /></button>
                     <button className={`sn-toolbar-btn ${isRecording ? 'active sn-recording-btn' : ''}`} onClick={startStopRecording} title="Audio">
                         <Mic size={14} />
@@ -851,13 +845,58 @@ export default function StudyNotesEditor({
                     <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleFileInsert} />
                     <input type="file" ref={codeInputRef} style={{ display: 'none' }} accept=".js,.ts,.tsx,.jsx,.py,.css,.html,.json,.txt,.md,.sh,.env" onChange={handleCodeFileInsert} />
                     
-                    <div className="sn-toolbar-spacer" />
+                    {editor?.isActive('table') && (
+                        <>
+                            <div className="sn-toolbar-sep" />
+                            <button className="sn-toolbar-btn" onClick={() => editor.chain().focus().addColumnAfter().run()} title="Add Column">+C</button>
+                            <button className="sn-toolbar-btn" onClick={() => editor.chain().focus().deleteColumn().run()} title="Delete Column">-C</button>
+                            <button className="sn-toolbar-btn" onClick={() => editor.chain().focus().addRowAfter().run()} title="Add Row">+R</button>
+                            <button className="sn-toolbar-btn" onClick={() => editor.chain().focus().deleteRow().run()} title="Delete Row">-R</button>
+                            <button className="sn-toolbar-btn danger" onClick={() => editor.chain().focus().deleteTable().run()} title="Delete Table"><Trash2 size={14} /></button>
+                        </>
+                    )}
+                    
+                    <select 
+                        className="sn-custom-select-dark minimal" 
+                        style={{ width: '85px', marginRight: '12px' }}
+                        value={contentWidth}
+                        onChange={e => setContentWidth(e.target.value)}
+                        title="Document Width"
+                    >
+                        <option value="900px">Standard</option>
+                        <option value="1200px">Wide</option>
+                        <option value="100%">Full</option>
+                    </select>
                     <span className="sn-toolbar-word-count">{wordCount} words</span>
                     <button className="sn-toolbar-btn danger" onClick={onDelete}><Trash2 size={14} /></button>
                 </div>
+                
+                <div className="sn-editor-top-actions">
+                    <div className="sn-save-indicator">
+                        <div className={`sn-status-dot ${autoSaveStatus}`} />
+                        <span className="sn-status-text">
+                            {autoSaveStatus === 'saving' ? 'Syncing' : (autoSaveStatus === 'saved' ? 'Saved' : 'Waiting')}
+                        </span>
+                    </div>
+                    <span className="sn-header-date">
+                        {note.updated_at && !isNaN(new Date(note.updated_at))
+                            ? new Date(note.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </span>
+                    <button onClick={toggleReadOnlyFullscreen} className="sn-nav-icon-btn" title={isReadOnlyFullscreen ? 'Exit Read Mode' : 'Read Mode'}>
+                        {isReadOnlyFullscreen ? <Minimize size={16} /> : <BookOpen size={16} />}
+                    </button>
+                    <button onClick={toggleFullscreen} className="sn-nav-icon-btn" title={isFullscreen && !isReadOnlyFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
+                        {isFullscreen && !isReadOnlyFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+                    </button>
+                </div>
+            </div>
 
+            {/* 2. SCROLLABLE CANVAS */}
+            <div className="sn-editor-canvas-scroll">
+                
                 {/* THE DOCUMENT ITSELF */}
-                <div className="sn-editor-document-container">
+                <div className="sn-editor-document-container" style={{ maxWidth: isFullscreen ? '1600px' : contentWidth, transition: 'max-width 0.3s ease' }}>
                     
                     {/* NATIVE TITLE */}
                     <TextareaAutosize

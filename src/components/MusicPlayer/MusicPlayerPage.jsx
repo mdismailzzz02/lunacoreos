@@ -6,7 +6,7 @@ import {
     Search, ChevronDown, SkipBack, SkipForward,
     Volume2, ListMusic, FolderPlus, Folder,
     Repeat, Repeat1, Shuffle, X, Plus, Trash2, 
-    MoreVertical, ListVideo, Check
+    MoreVertical, ListVideo, Check, Upload
 } from 'lucide-react';
 import './MusicPlayerPage.css';
 
@@ -175,6 +175,8 @@ export default function MusicPlayerPage() {
     const [loading, setLoading]               = useState(true);
     const [syncing, setSyncing]               = useState(false);
     const [syncStatus, setSyncStatus]         = useState('');
+    const [uploading, setUploading]           = useState(false);
+    const fileInputRef                        = useRef(null);
     const [search, setSearch]                 = useState('');
     const [showAddFolder, setShowAddFolder]   = useState(false);
     const [showFolderMenu, setShowFolderMenu] = useState(false);
@@ -254,6 +256,61 @@ export default function MusicPlayerPage() {
             console.error('Failed to reload library', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleUpload = async (e) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        if (selectedFolderId === 'all') {
+            alert('Please select a specific folder from the dropdown before uploading tracks.');
+            return;
+        }
+
+        const selectedFolder = folders.find(f => f.id === selectedFolderId);
+        if (!selectedFolder) return;
+
+        setUploading(true);
+        setSyncStatus('Uploading...');
+        
+        try {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+                const r2Key = `vault/${userId}/documents-music-folders/${selectedFolder.name}/${Date.now()}-${safeFilename}`;
+                
+                setSyncStatus(`Requesting upload ${i + 1}/${files.length}...`);
+                const { url: putUrl } = await api.getR2PresignedPut(r2Key, file.type || 'audio/mpeg');
+                
+                await new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('PUT', putUrl);
+                    xhr.setRequestHeader('Content-Type', file.type || 'audio/mpeg');
+                    
+                    xhr.upload.onprogress = (e) => {
+                        if (e.lengthComputable) {
+                            const percent = Math.round((e.loaded / e.total) * 100);
+                            setSyncStatus(`Uploading ${i + 1}/${files.length} (${percent}%)`);
+                        }
+                    };
+                    
+                    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`PUT failed: ${xhr.status}`)));
+                    xhr.onerror = () => reject(new Error('Upload network error'));
+                    xhr.send(file);
+                });
+            }
+            
+            // Trigger sync automatically
+            setSyncStatus('Indexing...');
+            await handleSync();
+        } catch (err) {
+            console.error('Upload failed:', err);
+            setSyncStatus('Upload Error');
+            setTimeout(() => setSyncStatus(''), 5000);
+        } finally {
+            setUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
 
@@ -397,6 +454,25 @@ export default function MusicPlayerPage() {
                         />
                         {search && <button onClick={() => setSearch('')}><X size={14} /></button>}
                     </div>
+                    
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        style={{ display: 'none' }} 
+                        multiple 
+                        accept="audio/*" 
+                        onChange={handleUpload} 
+                    />
+                    <button
+                        className={`mp-btn mp-btn-ghost ${uploading ? 'syncing' : ''}`}
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading || syncing}
+                        title="Upload MP3s to current folder"
+                    >
+                        <Upload size={16} className={uploading ? 'mp-spin' : ''} />
+                        {uploading ? 'Uploading...' : 'Upload Tracks'}
+                    </button>
+                    
                     <button
                         className={`mp-btn mp-btn-sync ${syncing ? 'syncing' : ''}`}
                         onClick={handleSync}

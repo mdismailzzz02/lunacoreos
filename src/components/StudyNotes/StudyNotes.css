@@ -194,6 +194,19 @@
 .sn-folder-list {
   display: flex;
   flex-direction: column;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.sn-folder-list::-webkit-scrollbar {
+  width: 4px;
+}
+.sn-folder-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sn-folder-list::-webkit-scrollbar-thumb {
+  background: var(--sn-border);
+  border-radius: 4px;
 }
 
 .sn-folder-row {
@@ -653,27 +666,18 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* Floating Sticky Toolbar */
-.sn-editor-toolbar-floating {
-  position: sticky;
-  top: 16px;
-  z-index: 50;
+/* Inline Toolbar */
+.sn-editor-toolbar-inline {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 12px;
-  background: rgba(20, 18, 32, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  margin-bottom: 32px;
-  max-width: 900px;
-  width: calc(100% - 48px);
-}
-
-.sn-editor-surface.sn-is-fullscreen .sn-editor-toolbar-floating {
-  max-width: 1600px;
+  background: rgba(20, 0, 0, 0.4);
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 7, 58, 0.4);
+  box-shadow: 0 0 15px rgba(255, 7, 58, 0.15);
+  flex: 0 1 auto;
+  justify-content: center;
 }
 
 .sn-toolbar-btn {
@@ -693,13 +697,14 @@
 }
 
 .sn-toolbar-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--sn-text);
+  background: rgba(255, 7, 58, 0.15);
+  color: #ff073a;
 }
 
 .sn-toolbar-btn.active {
-  color: var(--sn-accent-purple);
-  background: rgba(139, 92, 246, 0.15);
+  color: #ff073a;
+  background: rgba(255, 7, 58, 0.2);
+  box-shadow: 0 0 8px rgba(255, 7, 58, 0.4);
 }
 
 .sn-toolbar-btn.danger:hover {
@@ -737,7 +742,7 @@ select.sn-custom-select-dark.minimal {
 .sn-editor-document-container {
   width: 100%;
   max-width: 900px;
-  padding: 0 48px 120px 48px;
+  padding: 48px 48px 120px 48px;
   display: flex;
   flex-direction: column;
 }
@@ -1539,4 +1544,50 @@ select.sn-custom-select-dark.minimal {
   background: var(--sn-accent-pink);
   margin-right: 6px;
   display: inline-block;
+}
+
+/* Tiptap Table Styles */
+.ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 1.5rem 0;
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+
+/* Writing page tiptap wrapper */
+.sn-tiptap-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sn-tiptap-editor > .ProseMirror {
+  flex: 1;
+  min-height: 300px;
+}
+
+.ProseMirror td,
+.ProseMirror th {
+  min-width: 1em;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 10px 14px;
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.ProseMirror th {
+  background-color: rgba(255, 255, 255, 0.08);
+  font-weight: 600;
+  text-align: left;
+  color: #fff;
+}
+
+.ProseMirror tr:nth-child(even) td {
+  background-color: rgba(255, 255, 255, 0.04);
 }

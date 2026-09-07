@@ -2097,20 +2097,87 @@ textarea.field-input {
 .lightbox-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.88);
+  background: rgba(0, 0, 0, 0.92);
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
   z-index: 1000;
 }
 
-.lightbox-img {
-  max-width: 90vw;
-  max-height: 85vh;
-  border-radius: var(--radius);
-  object-fit: contain;
+/* Top bar */
+.lightbox-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1rem;
+  background: rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
 }
 
+.lightbox-title {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Image area */
+.lightbox-img-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.lightbox-img {
+  max-width: 90%;
+  max-height: 100%;
+  border-radius: var(--radius);
+  object-fit: contain;
+  display: block;
+}
+
+/* Thumbnail strip */
+.lightbox-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.lightbox-strip-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.lightbox-strip-thumb.active {
+  border-color: #ff073a;
+  opacity: 1;
+}
+
+.lightbox-strip-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Nav buttons */
 .lightbox-nav {
   position: absolute;
   top: 50%;
@@ -2123,30 +2190,43 @@ textarea.field-input {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s;
+  z-index: 10;
 }
 
 .lightbox-nav:hover {
   background: rgba(255, 255, 255, 0.22);
 }
 
-.lightbox-prev {
-  left: 1rem;
-}
+.lightbox-prev { left: 1rem; }
+.lightbox-next { right: 1rem; }
 
-.lightbox-next {
-  right: 1rem;
-}
-
+/* Close button */
 .lightbox-close {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
   background: rgba(255, 255, 255, 0.12);
   border: none;
   color: #fff;
-  font-size: 1.3rem;
-  padding: 0.5rem;
+  font-size: 1.2rem;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.lightbox-reset-zoom {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  font-size: 0.8rem;
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
   cursor: pointer;
 }
 
@@ -2380,18 +2460,7 @@ textarea.field-input {
   background-size: 200% 100%;
 }
 
-.lightbox-close {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  background: rgba(255, 255, 255, 0.12);
-  border: none;
-  color: #fff;
-  font-size: 1.3rem;
-  padding: 0.5rem;
-  border-radius: 50%;
-  cursor: pointer;
-}
+
 
 /* ── Recording indicator ──────────────────────────────────── */
 .rec-indicator {

@@ -227,6 +227,28 @@ export default function SmartActions({ activeTab, onNavigate, tabHistory, onClos
             </div>
 
             <div className={`sa-container ${isOpen && !isClosing ? 'open' : ''} ${isClosing ? 'closing' : ''}`}>
+                {currentTrack && (
+                    <div className="cmd-music-pill" onClick={() => { closeSA(); onNavigate('musicplayer'); }} style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: '24px' }}>
+                        <div className={`pill-disc ${playing ? 'spinning' : ''}`}>
+                            <Disc size={18} />
+                        </div>
+                        <div className="pill-info">
+                            <span className="pill-title" title={currentTrack.title}>{currentTrack.title}</span>
+                            <span className="pill-artist" title={currentTrack.artist}>{currentTrack.artist}</span>
+                        </div>
+                        <div className="pill-controls" onClick={e => e.stopPropagation()}>
+                            <button className="pill-btn" onClick={() => playTrack(currentTrack)} title={playing ? 'Pause' : 'Play'}>
+                                {playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" style={{ marginLeft: 1 }} />}
+                            </button>
+                            <button className="pill-btn" onClick={playNext} title="Next">
+                                <SkipForward size={14} fill="currentColor" />
+                            </button>
+                            <button className="pill-btn" onClick={stopTrack} title="Close Player" style={{ marginLeft: 4, opacity: 0.7 }}>
+                                <X size={16} />
+                            </button>
+                        </div>
+                    </div>
+                )}
                 <div className="sa-glass">
                     <div className="sa-input-wrap">
                         <Search size={18} className="sa-search-icon" />
@@ -276,29 +298,6 @@ export default function SmartActions({ activeTab, onNavigate, tabHistory, onClos
                     </div>
                 </div>
             </div>
-
-            {currentTrack && (
-                <div className="cmd-music-pill" onClick={() => { closeSA(); onNavigate('musicplayer'); }}>
-                    <div className={`pill-disc ${playing ? 'spinning' : ''}`}>
-                        <Disc size={18} />
-                    </div>
-                    <div className="pill-info">
-                        <span className="pill-title">{currentTrack.title}</span>
-                        <span className="pill-artist">{currentTrack.artist}</span>
-                    </div>
-                    <div className="pill-controls" onClick={e => e.stopPropagation()}>
-                        <button className="pill-btn" onClick={() => playTrack(currentTrack)} title={playing ? 'Pause' : 'Play'}>
-                            {playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" style={{ marginLeft: 1 }} />}
-                        </button>
-                        <button className="pill-btn" onClick={playNext} title="Next">
-                            <SkipForward size={14} fill="currentColor" />
-                        </button>
-                        <button className="pill-btn" onClick={stopTrack} title="Close Player" style={{ marginLeft: 4, opacity: 0.7 }}>
-                            <X size={16} />
-                        </button>
-                    </div>
-                </div>
-            )}
         </>
     );
 }

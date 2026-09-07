@@ -351,30 +351,35 @@
     z-index: 900;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 0.5rem 0.85rem;
+    gap: 16px;
+    padding: 0.75rem 1.25rem;
     border-radius: 100px;
-    background: rgba(13, 17, 28, 0.85);
-    border: 1px solid rgba(232, 160, 69, 0.2);
-    backdrop-filter: blur(16px);
+    background: linear-gradient(135deg, rgba(255, 7, 58, 0.15) 0%, rgba(13, 17, 28, 0.95) 40%, rgba(13, 17, 28, 0.95) 100%);
+    border: 1px solid rgba(255, 7, 58, 0.4);
+    backdrop-filter: blur(20px);
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    max-width: 260px;
+    box-shadow: 0 10px 40px rgba(255, 7, 58, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    min-width: 280px;
+    max-width: 360px;
 }
 
 .cmd-music-pill:hover {
-    border-color: rgba(232, 160, 69, 0.4);
-    box-shadow: 0 4px 25px rgba(0, 0, 0, 0.5),
-                0 0 15px rgba(232, 160, 69, 0.1);
+    border-color: rgba(255, 7, 58, 0.8);
+    box-shadow: 0 10px 40px rgba(255, 7, 58, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .cmd-music-pill .pill-disc {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 2px solid #ff073a;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--accent, #e8a045);
+    color: #ff073a;
     flex-shrink: 0;
+    box-shadow: 0 0 15px rgba(255, 7, 58, 0.4);
 }
 
 .cmd-music-pill .pill-disc.spinning {
@@ -388,17 +393,18 @@
 }
 
 .cmd-music-pill .pill-title {
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.95);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    margin-bottom: 2px;
 }
 
 .cmd-music-pill .pill-artist {
-    font-size: 0.6rem;
-    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -406,13 +412,14 @@
 
 .cmd-music-pill .pill-controls {
     display: flex;
-    gap: 4px;
+    gap: 6px;
     flex-shrink: 0;
+    margin-left: auto;
 }
 
 .cmd-music-pill .pill-btn {
-    width: 28px;
-    height: 28px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     border: none;
     background: rgba(255, 255, 255, 0.06);
@@ -425,8 +432,8 @@
 }
 
 .cmd-music-pill .pill-btn:hover {
-    background: rgba(232, 160, 69, 0.2);
-    color: var(--accent, #e8a045);
+    background: rgba(255, 7, 58, 0.2);
+    color: #ff073a;
 }
 
 /* ── Animations ───────────────────────────────────────────── */

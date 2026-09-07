@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import VaultMediaGrid from './VaultMediaGrid';
-import PeopleView from './PeopleView';
 import TrashView from './TrashView';
 import VaultLock from './VaultLock';
 import SecondaryVaultLock from './SecondaryVaultLock';
@@ -12,7 +11,7 @@ import {
 } from '../../services/api';
 import { 
     Image, FileText, Code, Plus, Lock, Ghost, EyeOff, 
-    RefreshCw, Search, Users, Trash2, Folder, X, PlusCircle 
+    RefreshCw, Search, Trash2, Folder, X, PlusCircle 
 } from 'lucide-react';
 
 // ─── Bytes → Human-Readable ────────────────────────────────────
@@ -353,7 +352,6 @@ function VaultPage() {
                 <div className="vault-segments" style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '12px' }}>
 
                     <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'folders_menu' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('folders_menu')}><Folder size={14} /> Collections</button>
-                    <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'people' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('people')}><Users size={14} /> People</button>
                     <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: activeTab === 'trash' ? '#a78bfa' : 'transparent', color: 'white' }} onClick={() => setActiveTab('trash')}><Trash2 size={14} /> Trash</button>
                 </div>
             </div>
@@ -409,12 +407,6 @@ function VaultPage() {
                 {/* Scrollable body */}
                 <div className="vault-sidebar-body">
                     <div className="vault-nav-scroll">
-                        <NavBtn
-                            active={activeTab === 'people'}
-                            onClick={() => setActiveTab('people')}
-                            icon={<Users size={16} />}
-                            label="People & Groups"
-                        />
 
                         <NavBtn
                             active={activeTab === 'trash'}
@@ -509,8 +501,6 @@ function VaultPage() {
                             })()}
                         </div>
                     </div>
-                ) : activeTab === 'people' ? (
-                    <PeopleView collections={collections} />
                 ) : activeTab === 'trash' ? (
                     <TrashView />
                 ) : (
