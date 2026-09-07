@@ -70,3 +70,23 @@ create table if not exists finance_networth_snapshots (
   net_worth numeric,
   created_at timestamptz default now()
 );
+
+-- 7. Product Lifespan & Goals
+create table if not exists finance_product_goals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  product_name text not null,
+  purchase_price numeric not null,
+  purchase_date date not null,
+  lifespan_goal_years numeric not null,
+  created_at timestamptz default now()
+);
+
+create table if not exists finance_product_maintenance (
+  id uuid primary key default gen_random_uuid(),
+  goal_id uuid references finance_product_goals(id) on delete cascade,
+  amount numeric not null,
+  service_date date not null,
+  note text,
+  created_at timestamptz default now()
+);

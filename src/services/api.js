@@ -2578,3 +2578,47 @@ export const deleteWishlistItem = async (id) => {
     if (error) throw error;
 };
 
+// ─── Finance Product Goals & Lifespan ────────────────────────────────────────
+export const getProductGoals = async () => {
+    const { data, error } = await supabase.from('finance_product_goals').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return data;
+};
+
+export const createProductGoal = async (params) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id && !params.user_id) {
+        params.user_id = session.user.id;
+    }
+    const { data, error } = await supabase.from('finance_product_goals').insert([params]).select();
+    if (error) throw error;
+    return data[0];
+};
+
+export const updateProductGoal = async (id, updates) => {
+    const { data, error } = await supabase.from('finance_product_goals').update(updates).eq('id', id).select();
+    if (error) throw error;
+    return data[0];
+};
+
+export const deleteProductGoal = async (id) => {
+    const { error } = await supabase.from('finance_product_goals').delete().eq('id', id);
+    if (error) throw error;
+};
+
+export const getProductMaintenance = async (goal_id) => {
+    const { data, error } = await supabase.from('finance_product_maintenance').select('*').eq('goal_id', goal_id).order('service_date', { ascending: false });
+    if (error) throw error;
+    return data;
+};
+
+export const createProductMaintenance = async (params) => {
+    const { data, error } = await supabase.from('finance_product_maintenance').insert([params]).select();
+    if (error) throw error;
+    return data[0];
+};
+
+export const deleteProductMaintenance = async (id) => {
+    const { error } = await supabase.from('finance_product_maintenance').delete().eq('id', id);
+    if (error) throw error;
+};

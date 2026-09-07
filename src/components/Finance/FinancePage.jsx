@@ -7,6 +7,7 @@ import BudgetPanel from './BudgetPanel';
 import RecurringPanel from './RecurringPanel';
 import AccountsPanel from './AccountsPanel';
 import WishlistPanel from './WishlistPanel';
+import GoalsPanel from './GoalsPanel';
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 
@@ -339,11 +340,7 @@ export default function FinancePage() {
                 )}
 
                 {activeTab === 'goals' && (
-                    <div style={{ padding: '4rem', textAlign: 'center', opacity: 0.5, background: 'var(--card-bg, #1a1a1a)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        <Settings size={48} style={{ marginBottom: '1rem', opacity: 0.5 }} />
-                        <h2>Goals Module</h2>
-                        <p>This module is available in the data layer but the UI is under construction.</p>
-                    </div>
+                    <GoalsPanel />
                 )}
 
                 {activeTab === 'accounts' && (
