@@ -533,6 +533,40 @@ export const permanentlyDeleteFile = async (fileId) => {
 };
 
 /**
+ * Ensure the trash collection exists for the current user
+ */
+export const ensureTrashCollection = async () => {
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
+    
+    const prefix = `vault/${userId}/documents-lunatrash/`;
+    
+    const { data: existing, error: checkErr } = await supabase
+        .from('vault_collections')
+        .select('*')
+        .eq('key_prefix', prefix)
+        .maybeSingle();
+        
+    if (existing) return existing;
+    
+    // Create if not exists
+    const { data: newTrash, error: createErr } = await supabase
+        .from('vault_collections')
+        .insert([{
+            name: 'Trash',
+            type: 'documents',
+            key_prefix: prefix,
+            is_hidden: true,
+            is_secret: false
+        }])
+        .select()
+        .single();
+        
+    if (createErr) console.error('Failed to create trash collection:', createErr);
+    return newTrash;
+};
+
+/**
  * Get all trashed files
  */
 export const getTrashFiles = async (page = 1, pageSize = 50) => {

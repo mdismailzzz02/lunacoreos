@@ -5,6 +5,7 @@ import {
     permanentlyDeleteFile,
     emptyTrash,
     getR2PresignedGet,
+    ensureTrashCollection,
 } from '../../services/api';
 
 const urlCache = new Map();
@@ -163,6 +164,7 @@ export default function TrashView() {
     const [hasMore, setHasMore] = useState(false);
 
     useEffect(() => {
+        ensureTrashCollection().catch(console.error);
         loadTrash();
     }, [page]);
 
