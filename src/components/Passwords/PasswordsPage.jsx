@@ -7,7 +7,7 @@ import {
 import {
     deriveKeyFromMaster, hasSessionKey, clearSessionKey, encryptPassword,
     decryptPassword, scorePasswordStrength, copyWithAutoClear,
-    saveCanary, verifyCanary, hasCanary,
+    saveCanary, verifyCanary, hasCanary, rotateMasterKey,
 } from '../../services/cryptoService';
 
 import {
@@ -66,10 +66,14 @@ function StrengthBar({ password }) {
 
 // ── Unlock Prompt (derive key if not yet set) ────────────────────────────────
 function UnlockPrompt({ onUnlocked, onFirstUnlock, initialError }) {
-    const [pwd, setPwd] = useState('');
-    const [err, setErr] = useState(initialError || '');
-    const [loading, setLoading] = useState(false);
-    const [tick, setTick] = useState(0);
+    const [pwd, setPwd]           = useState('');
+    const [err, setErr]           = useState(initialError || '');
+    const [loading, setLoading]   = useState(false);
+    const [tick, setTick]         = useState(0);
+    const [recoveryMode, setRecoveryMode] = useState(false);
+    const [oldPwd, setOldPwd]     = useState('');
+    const [newPwd, setNewPwd]     = useState('');
+    const [recoveryStatus, setRecoveryStatus] = useState(''); // progress text
 
     useEffect(() => {
         const id = setInterval(() => setTick(t => t + 1), 1000);
@@ -84,11 +88,9 @@ function UnlockPrompt({ onUnlocked, onFirstUnlock, initialError }) {
             await deriveKeyFromMaster(pwd);
 
             if (!hasCanary()) {
-                // First-time setup: save a canary so future unlocks can verify
                 await saveCanary();
-                onFirstUnlock?.(); // signal parent to verify against real data
+                onFirstUnlock?.();
             } else {
-                // Verify the derived key is correct before opening the vault
                 try {
                     await verifyCanary();
                 } catch {
@@ -107,10 +109,59 @@ function UnlockPrompt({ onUnlocked, onFirstUnlock, initialError }) {
         }
     };
 
+    // ── Recovery: re-encrypt all entries from old key → new key ──────────────
+    const handleRecover = async (e) => {
+        e.preventDefault();
+        if (!oldPwd || !newPwd) { setErr('Both passwords are required.'); return; }
+        if (oldPwd === newPwd)  { setErr('Old and new passwords are the same.'); return; }
+        setLoading(true);
+        setErr('');
+        setRecoveryStatus('Deriving old key…');
+        try {
+            // 1. Load old key
+            await deriveKeyFromMaster(oldPwd);
 
-    const accent = '#38bdf8'; // sky blue for passwords
-    const glow = 'rgba(56,189,248,0.4)';
-    const now = new Date();
+            // 2. Fetch all entries and decrypt with old key to verify it works
+            setRecoveryStatus('Fetching vault entries…');
+            const entries = await getPasswords();
+
+            if (entries.length > 0) {
+                setRecoveryStatus('Verifying old password…');
+                // Test-decrypt the first entry to confirm old key is correct
+                try {
+                    await decryptPassword(entries[0].enc_password, entries[0].enc_iv);
+                } catch {
+                    clearSessionKey();
+                    setErr('Old password is incorrect — decryption failed.');
+                    setRecoveryStatus('');
+                    setLoading(false);
+                    return;
+                }
+            }
+
+            // 3. Re-encrypt all entries with new key
+            setRecoveryStatus(`Re-encrypting ${entries.length} entries…`);
+            await rotateMasterKey(
+                newPwd,
+                entries,
+                (id, enc_password, enc_iv) => updatePassword({ id, enc_password, enc_iv })
+            );
+
+            setRecoveryStatus('Done! Opening vault…');
+            // rotateMasterKey already set _sessionKey = newKey and saved canary
+            onUnlocked();
+        } catch (ex) {
+            setErr('Recovery failed: ' + ex.message);
+            setRecoveryStatus('');
+            clearSessionKey();
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const accent = '#38bdf8';
+    const glow   = 'rgba(56,189,248,0.4)';
+    const now    = new Date();
     const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
@@ -125,7 +176,6 @@ function UnlockPrompt({ onUnlocked, onFirstUnlock, initialError }) {
                 @keyframes pwdl-pulse { 0%,100%{opacity:0.6;transform:scale(1)} 50%{opacity:1;transform:scale(1.04)} }
                 @keyframes pwdl-ring { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
                 @keyframes pwdl-ring2 { 0%{transform:rotate(0deg)} 100%{transform:rotate(-360deg)} }
-                @keyframes pwdl-blink { 0%,100%{opacity:1} 50%{opacity:0} }
                 @keyframes pwdl-fadeup { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
                 .pwdl-input { flex:1; background:transparent; border:none; outline:none; color:#e0e0e0; font-family:'Menlo','Monaco','Courier New',monospace; font-size:1rem; letter-spacing:0.25rem; caret-color:${accent}; }
                 .pwdl-input::placeholder { color:rgba(255,255,255,0.18); letter-spacing:0.05rem; }
@@ -133,39 +183,43 @@ function UnlockPrompt({ onUnlocked, onFirstUnlock, initialError }) {
                 .pwdl-btn { margin-top:28px; padding:10px 28px; background:transparent; border:1px solid ${accent}66; color:${accent}; font-family:'Menlo','Monaco',monospace; font-size:0.82rem; border-radius:6px; cursor:pointer; letter-spacing:0.08em; transition:all 0.2s; align-self:flex-start; }
                 .pwdl-btn:hover:not(:disabled) { background:${accent}14; border-color:${accent}; box-shadow:0 0 20px ${glow}; }
                 .pwdl-btn:disabled { opacity:0.4; cursor:not-allowed; }
+                .pwdl-recover-btn { margin-top:28px; padding:10px 28px; background:rgba(249,115,22,0.12); border:1px solid #f9731666; color:#f97316; font-family:'Menlo','Monaco',monospace; font-size:0.82rem; border-radius:6px; cursor:pointer; letter-spacing:0.08em; transition:all 0.2s; align-self:flex-start; }
+                .pwdl-recover-btn:hover:not(:disabled) { background:rgba(249,115,22,0.22); border-color:#f97316; }
+                .pwdl-recover-btn:disabled { opacity:0.4; cursor:not-allowed; }
                 .pwdl-meta { display:flex; align-items:center; gap:8px; font-size:0.72rem; color:rgba(255,255,255,0.3); font-family:'Menlo',monospace; letter-spacing:0.05em; }
                 .pwdl-dot { width:5px;height:5px;border-radius:50%;background:${accent};box-shadow:0 0 6px ${glow}; }
+                .pwdl-field-row { display:flex; align-items:center; gap:10px; padding-bottom:10px; border-bottom:1px solid ${accent}20; margin-bottom:14px; }
             `}</style>
 
             <div style={{
                 width: '100%', maxWidth: '960px', minHeight: '520px',
                 display: 'flex', borderRadius: '16px', overflow: 'hidden',
-                border: `1px solid ${accent}30`,
-                boxShadow: `0 40px 80px rgba(0,0,0,0.8), 0 0 60px ${glow}20`,
+                border: `1px solid ${recoveryMode ? '#f9731630' : accent + '30'}`,
+                boxShadow: `0 40px 80px rgba(0,0,0,0.8), 0 0 60px ${recoveryMode ? 'rgba(249,115,22,0.15)' : glow + '20'}`,
                 animation: 'pwdl-fadeup 0.4s ease',
             }}>
                 {/* LEFT */}
                 <div style={{
                     width: '340px', flexShrink: 0,
-                    background: `radial-gradient(ellipse at 60% 40%, ${accent}18 0%, rgba(10,10,14,0.98) 70%)`,
-                    borderRight: `1px solid ${accent}20`,
+                    background: `radial-gradient(ellipse at 60% 40%, ${recoveryMode ? 'rgba(249,115,22,0.12)' : accent + '18'} 0%, rgba(10,10,14,0.98) 70%)`,
+                    borderRight: `1px solid ${recoveryMode ? '#f9731620' : accent + '20'}`,
                     display: 'flex', flexDirection: 'column',
                     alignItems: 'center', justifyContent: 'center',
                     padding: '48px 32px', gap: '32px',
                 }}>
                     <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
-                        <div style={{ position: 'absolute', inset: -2, borderRadius: '50%', border: `1px solid ${accent}30`, animation: 'pwdl-ring 8s linear infinite' }} />
-                        <div style={{ position: 'absolute', inset: 10, borderRadius: '50%', border: `1px dashed ${accent}50`, animation: 'pwdl-ring2 5s linear infinite' }} />
-                        <div style={{ position: 'absolute', inset: 22, borderRadius: '50%', background: `radial-gradient(circle at 40% 35%, ${accent}cc, ${accent}44 60%, transparent)`, boxShadow: `0 0 30px ${glow}, 0 0 60px ${glow}60`, animation: 'pwdl-pulse 3s ease-in-out infinite', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.6rem' }}>
-                            🔑
+                        <div style={{ position: 'absolute', inset: -2, borderRadius: '50%', border: `1px solid ${recoveryMode ? '#f9731630' : accent + '30'}`, animation: 'pwdl-ring 8s linear infinite' }} />
+                        <div style={{ position: 'absolute', inset: 10, borderRadius: '50%', border: `1px dashed ${recoveryMode ? '#f9731650' : accent + '50'}`, animation: 'pwdl-ring2 5s linear infinite' }} />
+                        <div style={{ position: 'absolute', inset: 22, borderRadius: '50%', background: recoveryMode ? 'radial-gradient(circle at 40% 35%, #f97316cc, #f9731644 60%, transparent)' : `radial-gradient(circle at 40% 35%, ${accent}cc, ${accent}44 60%, transparent)`, boxShadow: recoveryMode ? '0 0 30px rgba(249,115,22,0.4), 0 0 60px rgba(249,115,22,0.25)' : `0 0 30px ${glow}, 0 0 60px ${glow}60`, animation: 'pwdl-pulse 3s ease-in-out infinite', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.6rem' }}>
+                            {recoveryMode ? '🔓' : '🔑'}
                         </div>
                     </div>
                     <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '0.65rem', letterSpacing: '0.2em', textTransform: 'uppercase', color: `${accent}99`, marginBottom: '8px', fontFamily: 'Menlo, monospace' }}>LunaCore /passwords</div>
-                        <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#fff', fontFamily: '-apple-system, sans-serif', letterSpacing: '-0.02em' }}>Password Vault</div>
-                        <div style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', background: `${accent}18`, border: `1px solid ${accent}40` }}>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: accent, display: 'inline-block', boxShadow: `0 0 6px ${accent}` }} />
-                            <span style={{ fontSize: '0.65rem', color: accent, fontFamily: 'Menlo, monospace', letterSpacing: '0.12em' }}>LOCKED</span>
+                        <div style={{ fontSize: '0.65rem', letterSpacing: '0.2em', textTransform: 'uppercase', color: recoveryMode ? '#f9731699' : `${accent}99`, marginBottom: '8px', fontFamily: 'Menlo, monospace' }}>LunaCore /passwords</div>
+                        <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#fff', fontFamily: '-apple-system, sans-serif', letterSpacing: '-0.02em' }}>{recoveryMode ? 'Key Recovery' : 'Password Vault'}</div>
+                        <div style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', background: recoveryMode ? 'rgba(249,115,22,0.12)' : `${accent}18`, border: `1px solid ${recoveryMode ? '#f9731640' : accent + '40'}` }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: recoveryMode ? '#f97316' : accent, display: 'inline-block', boxShadow: `0 0 6px ${recoveryMode ? '#f97316' : accent}` }} />
+                            <span style={{ fontSize: '0.65rem', color: recoveryMode ? '#f97316' : accent, fontFamily: 'Menlo, monospace', letterSpacing: '0.12em' }}>{recoveryMode ? 'RECOVERY' : 'LOCKED'}</span>
                         </div>
                     </div>
                     <div style={{ textAlign: 'center' }}>
@@ -197,48 +251,67 @@ function UnlockPrompt({ onUnlocked, onFirstUnlock, initialError }) {
                             Session started {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                         </div>
 
-                        <form onSubmit={handleUnlock} style={{ display: 'flex', flexDirection: 'column' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '18px', gap: '10px' }}>
-                                <span style={{ color: accent, fontWeight: 600 }}>~/passwords$</span>
-                                <span style={{ color: 'rgba(255,255,255,0.5)' }}>./decrypt --cipher=AES-256-GCM</span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '10px', borderBottom: `1px solid ${accent}20` }}>
-                                <span style={{ color: accent, fontWeight: 600, whiteSpace: 'nowrap' }}>Master key:</span>
-                                <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} autoFocus required autoComplete="current-password" className="pwdl-input" placeholder="············" disabled={loading} />
-                            </div>
-                            {err && <div style={{ marginTop: '16px', color: '#ff5f56', fontSize: '0.85rem' }}>✗ {err}</div>}
-                            <button type="submit" disabled={loading} className="pwdl-btn">
-                                {loading ? '[ decrypting... ]' : '[ unlock vault ]'}
-                            </button>
-                            <div style={{ marginTop: '20px', fontSize: '0.72rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Menlo, monospace' }}>
-                                Press ↵ to submit · Red dot to exit
-                            </div>
-                            {hasCanary() && (
+                        {/* ── Normal unlock ── */}
+                        {!recoveryMode && (
+                            <form onSubmit={handleUnlock} style={{ display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '18px', gap: '10px' }}>
+                                    <span style={{ color: accent, fontWeight: 600 }}>~/passwords$</span>
+                                    <span style={{ color: 'rgba(255,255,255,0.5)' }}>./decrypt --cipher=AES-256-GCM</span>
+                                </div>
+                                <div className="pwdl-field-row">
+                                    <span style={{ color: accent, fontWeight: 600, whiteSpace: 'nowrap' }}>Master key:</span>
+                                    <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} autoFocus required autoComplete="current-password" className="pwdl-input" placeholder="············" disabled={loading} />
+                                </div>
+                                {err && <div style={{ marginTop: '16px', color: '#ff5f56', fontSize: '0.85rem' }}>✗ {err}</div>}
+                                <button type="submit" disabled={loading} className="pwdl-btn">
+                                    {loading ? '[ decrypting... ]' : '[ unlock vault ]'}
+                                </button>
+                                <div style={{ marginTop: '20px', fontSize: '0.72rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Menlo, monospace' }}>
+                                    Press ↵ to submit · Red dot to exit
+                                </div>
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        localStorage.removeItem('lc_pwd_canary');
-                                        setErr('');
-                                        setPwd('');
-                                    }}
-                                    style={{
-                                        marginTop: '28px',
-                                        background: 'none',
-                                        border: 'none',
-                                        color: 'rgba(255,255,255,0.18)',
-                                        fontSize: '0.68rem',
-                                        fontFamily: 'Menlo, monospace',
-                                        cursor: 'pointer',
-                                        textDecoration: 'underline',
-                                        textUnderlineOffset: '3px',
-                                        padding: 0,
-                                        alignSelf: 'flex-start',
-                                    }}
+                                    onClick={() => { setRecoveryMode(true); setErr(''); }}
+                                    style={{ marginTop: '28px', background: 'none', border: 'none', color: 'rgba(255,255,255,0.18)', fontSize: '0.68rem', fontFamily: 'Menlo, monospace', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px', padding: 0, alignSelf: 'flex-start' }}
                                 >
-                                    Changed your password? Reset vault key
+                                    Changed your password? Recover vault →
                                 </button>
-                            )}
-                        </form>
+                            </form>
+                        )}
+
+                        {/* ── Recovery mode ── */}
+                        {recoveryMode && (
+                            <form onSubmit={handleRecover} style={{ display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '18px', gap: '10px' }}>
+                                    <span style={{ color: '#f97316', fontWeight: 600 }}>~/passwords$</span>
+                                    <span style={{ color: 'rgba(255,255,255,0.5)' }}>./recover --reencrypt-all</span>
+                                </div>
+                                <div style={{ marginBottom: '16px', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)', lineHeight: 1.6, padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(249,115,22,0.2)', background: 'rgba(249,115,22,0.06)' }}>
+                                    Enter your <strong style={{ color: '#f97316' }}>old</strong> password and <strong style={{ color: '#38bdf8' }}>new</strong> password below.<br />
+                                    All vault entries will be re-encrypted automatically.
+                                </div>
+                                <div className="pwdl-field-row">
+                                    <span style={{ color: '#f97316', fontWeight: 600, whiteSpace: 'nowrap', minWidth: '80px' }}>Old key:</span>
+                                    <input type="password" value={oldPwd} onChange={e => setOldPwd(e.target.value)} autoFocus required autoComplete="off" className="pwdl-input" placeholder="············" disabled={loading} />
+                                </div>
+                                <div className="pwdl-field-row">
+                                    <span style={{ color: accent, fontWeight: 600, whiteSpace: 'nowrap', minWidth: '80px' }}>New key:</span>
+                                    <input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} required autoComplete="new-password" className="pwdl-input" placeholder="············" disabled={loading} />
+                                </div>
+                                {err && <div style={{ marginTop: '8px', color: '#ff5f56', fontSize: '0.85rem' }}>✗ {err}</div>}
+                                {recoveryStatus && <div style={{ marginTop: '8px', color: '#f97316', fontSize: '0.82rem' }}>⟳ {recoveryStatus}</div>}
+                                <button type="submit" disabled={loading} className="pwdl-recover-btn">
+                                    {loading ? `[ ${recoveryStatus || 'working...'} ]` : '[ recover & re-encrypt vault ]'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setRecoveryMode(false); setErr(''); setOldPwd(''); setNewPwd(''); setRecoveryStatus(''); }}
+                                    style={{ marginTop: '16px', background: 'none', border: 'none', color: 'rgba(255,255,255,0.18)', fontSize: '0.68rem', fontFamily: 'Menlo, monospace', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px', padding: 0, alignSelf: 'flex-start' }}
+                                >
+                                    ← Back to unlock
+                                </button>
+                            </form>
+                        )}
                     </div>
                 </div>
             </div>
