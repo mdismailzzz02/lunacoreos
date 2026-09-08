@@ -14,6 +14,8 @@
 
 const SALT = 'lunacoreos-passwords-v1'; // Fixed salt for deterministic key derivation
 const PBKDF2_ITERATIONS = 200_000;
+const CANARY_STORAGE_KEY = 'lc_pwd_canary';
+const CANARY_PLAINTEXT   = 'lunacoreos-canary-v1';
 
 // In-memory key store (cleared on page unload)
 let _sessionKey = null;
@@ -153,6 +155,43 @@ export function scorePasswordStrength(password) {
     if (score <= 2) return 'weak';
     if (score <= 4) return 'fair';
     return 'strong';
+}
+
+/**
+ * Saves an encrypted canary to localStorage so future unlock attempts can
+ * verify the master password before the vault opens.
+ * Call this once after the very first successful key derivation.
+ *
+ * @returns {Promise<void>}
+ */
+export async function saveCanary() {
+    const { enc_password, enc_iv } = await encryptPassword(CANARY_PLAINTEXT);
+    localStorage.setItem(CANARY_STORAGE_KEY, JSON.stringify({ enc_password, enc_iv }));
+}
+
+/**
+ * Returns true when no canary exists yet (first-time setup).
+ * @returns {boolean}
+ */
+export function hasCanary() {
+    return localStorage.getItem(CANARY_STORAGE_KEY) !== null;
+}
+
+/**
+ * Verifies the current session key against the stored canary.
+ * Throws if the canary is missing or if decryption produces the wrong value
+ * (i.e. the master password is incorrect).
+ *
+ * @returns {Promise<void>}
+ */
+export async function verifyCanary() {
+    const raw = localStorage.getItem(CANARY_STORAGE_KEY);
+    if (!raw) throw new Error('No canary found.');
+    const { enc_password, enc_iv } = JSON.parse(raw);
+    const plain = await decryptPassword(enc_password, enc_iv);
+    if (plain !== CANARY_PLAINTEXT) {
+        throw new Error('Canary mismatch — wrong master key.');
+    }
 }
 
 /**

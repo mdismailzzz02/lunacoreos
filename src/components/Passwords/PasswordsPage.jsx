@@ -6,8 +6,10 @@ import {
 } from 'lucide-react';
 import {
     deriveKeyFromMaster, hasSessionKey, clearSessionKey, encryptPassword,
-    decryptPassword, scorePasswordStrength, copyWithAutoClear
+    decryptPassword, scorePasswordStrength, copyWithAutoClear,
+    saveCanary, verifyCanary, hasCanary,
 } from '../../services/cryptoService';
+
 import {
     getPasswords, createPassword, updatePassword,
     deletePassword, bulkCreatePasswords
@@ -63,9 +65,9 @@ function StrengthBar({ password }) {
 }
 
 // ── Unlock Prompt (derive key if not yet set) ────────────────────────────────
-function UnlockPrompt({ onUnlocked }) {
+function UnlockPrompt({ onUnlocked, onFirstUnlock, initialError }) {
     const [pwd, setPwd] = useState('');
-    const [err, setErr] = useState('');
+    const [err, setErr] = useState(initialError || '');
     const [loading, setLoading] = useState(false);
     const [tick, setTick] = useState(0);
 
@@ -80,6 +82,23 @@ function UnlockPrompt({ onUnlocked }) {
         setErr('');
         try {
             await deriveKeyFromMaster(pwd);
+
+            if (!hasCanary()) {
+                // First-time setup: save a canary so future unlocks can verify
+                await saveCanary();
+                onFirstUnlock?.(); // signal parent to verify against real data
+            } else {
+                // Verify the derived key is correct before opening the vault
+                try {
+                    await verifyCanary();
+                } catch {
+                    clearSessionKey();
+                    setErr('Wrong master password — please try again.');
+                    setLoading(false);
+                    return;
+                }
+            }
+
             onUnlocked();
         } catch {
             setErr('Decryption failed — invalid master key.');
@@ -87,6 +106,7 @@ function UnlockPrompt({ onUnlocked }) {
             setLoading(false);
         }
     };
+
 
     const accent = '#38bdf8'; // sky blue for passwords
     const glow = 'rgba(56,189,248,0.4)';
@@ -676,6 +696,8 @@ export default function PasswordsPage() {
     const [showCsv, setShowCsv] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [toast, setToast] = useState('');
+    const [unlockError, setUnlockError] = useState('');
+    const firstUnlockRef = useRef(false); // true when canary was just created this session
 
     const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
@@ -694,6 +716,27 @@ export default function PasswordsPage() {
         setLoading(true);
         try {
             const data = await getPasswords();
+
+            // First-time canary bootstrap: verify the key actually decrypts real data.
+            // If there are existing passwords and decryption fails, the user typed the
+            // wrong master password — re-lock and clear the bad canary.
+            if (firstUnlockRef.current && data?.length > 0) {
+                firstUnlockRef.current = false;
+                try {
+                    await decryptPassword(data[0].enc_password, data[0].enc_iv);
+                } catch {
+                    // Wrong key — undo everything
+                    localStorage.removeItem('lc_pwd_canary');
+                    clearSessionKey();
+                    setUnlocked(false);
+                    setUnlockError('Wrong master password — please try again.');
+                    setLoading(false);
+                    return;
+                }
+            } else {
+                firstUnlockRef.current = false;
+            }
+
             setPasswords(data || []);
         } catch (e) {
             showToast('Failed to load passwords: ' + e.message);
@@ -701,6 +744,7 @@ export default function PasswordsPage() {
             setLoading(false);
         }
     }, [unlocked]);
+
 
     // Re-lock the vault whenever the user navigates away
     useEffect(() => {
@@ -748,7 +792,11 @@ export default function PasswordsPage() {
     if (!unlocked) {
         return (
             <>
-                <UnlockPrompt onUnlocked={() => setUnlocked(true)} />
+                <UnlockPrompt
+                    onUnlocked={() => { setUnlockError(''); setUnlocked(true); }}
+                    onFirstUnlock={() => { firstUnlockRef.current = true; }}
+                    initialError={unlockError}
+                />
                 <PwdStyles />
             </>
         );
