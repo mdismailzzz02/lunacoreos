@@ -195,6 +195,70 @@ export async function verifyCanary() {
 }
 
 /**
+ * Rotates the master password:
+ *  1. Decrypts every existing vault entry with the current (old) session key.
+ *  2. Derives a new AES-256-GCM key from `newMasterPassword`.
+ *  3. Re-encrypts every entry with the new key.
+ *  4. Saves a fresh canary encrypted with the new key.
+ *  5. Installs the new key as the session key.
+ *
+ * Callers must pass the full list of entries and an async `updateFn(id, enc_password, enc_iv)`
+ * that persists each re-encrypted entry.
+ *
+ * @param {string} newMasterPassword
+ * @param {Array<{id:string, enc_password:string, enc_iv:string}>} entries
+ * @param {(id:string, enc_password:string, enc_iv:string) => Promise<void>} updateFn
+ * @returns {Promise<void>}
+ */
+export async function rotateMasterKey(newMasterPassword, entries, updateFn) {
+    const oldKey = getSessionKey(); // still set to old key at this point
+
+    // Step 1: derive new key (do NOT set as session yet)
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        strToBytes(newMasterPassword),
+        { name: 'PBKDF2' },
+        false,
+        ['deriveKey']
+    );
+    const newKey = await crypto.subtle.deriveKey(
+        {
+            name: 'PBKDF2',
+            salt: strToBytes(SALT),
+            iterations: PBKDF2_ITERATIONS,
+            hash: 'SHA-256',
+        },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+    );
+
+    // Step 2: re-encrypt every entry
+    for (const entry of entries) {
+        const plainBuffer = await crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv: b64ToBytes(entry.enc_iv) },
+            oldKey,
+            b64ToBytes(entry.enc_password)
+        );
+        const plain = new TextDecoder().decode(plainBuffer);
+
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const cipherBuffer = await crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv },
+            newKey,
+            strToBytes(plain)
+        );
+
+        await updateFn(entry.id, bytesToB64(cipherBuffer), bytesToB64(iv));
+    }
+
+    // Step 3: install new key and refresh canary
+    _sessionKey = newKey;
+    await saveCanary();
+}
+
+/**
  * Copies text to clipboard and auto-clears after `clearAfterMs` milliseconds.
  *
  * @param {string} text

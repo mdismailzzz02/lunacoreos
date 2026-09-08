@@ -5,6 +5,8 @@ import { forceGoogleReauth } from '../../services/googleAuth';
 import { useToast } from '../../context/ToastContext';
 import AppleLoader from '../Layout/AppleLoader';
 import { supabase } from '../../services/supabaseClient';
+import { hasSessionKey, rotateMasterKey } from '../../services/cryptoService';
+import { getPasswords, updatePassword } from '../../services/api';
 
 export default function SettingsPage() {
     const { addToast } = useToast();
@@ -41,7 +43,34 @@ export default function SettingsPage() {
         try {
             const { error } = await supabase.auth.updateUser({ password: newPassword });
             if (error) throw error;
-            addToast('Password updated successfully', 'success');
+
+            // Keep the vault in sync with the new login password.
+            // The vault master key is derived from the same password via PBKDF2,
+            // so we must re-encrypt all vault entries and refresh the canary.
+            if (hasSessionKey()) {
+                try {
+                    const entries = await getPasswords();
+                    await rotateMasterKey(
+                        newPassword,
+                        entries,
+                        (id, enc_password, enc_iv) =>
+                            updatePassword({ id, enc_password, enc_iv })
+                    );
+                    addToast('Password updated & vault re-encrypted ✓', 'success');
+                } catch (rotateErr) {
+                    // Auth password changed but vault rotation failed — canary is stale.
+                    // Clear it so the user is asked to "first-time" set it again on next vault open.
+                    localStorage.removeItem('lc_pwd_canary');
+                    addToast('Password updated. Please re-open the vault to sync encryption.', 'warning');
+                    console.error('[CryptoService] Key rotation failed:', rotateErr);
+                }
+            } else {
+                // Vault wasn't unlocked this session — the old canary is now stale.
+                // Remove it so the next vault open treats it as a first-time setup.
+                localStorage.removeItem('lc_pwd_canary');
+                addToast('Password updated. Open the vault with your new password to complete re-encryption.', 'success');
+            }
+
             setNewPassword('');
             setNewPasswordConfirm('');
         } catch (e) {
@@ -50,6 +79,7 @@ export default function SettingsPage() {
             setChangingPassword(false);
         }
     };
+
 
     useEffect(() => {
         loadSettings();

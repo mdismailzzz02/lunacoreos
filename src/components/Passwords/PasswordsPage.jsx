@@ -213,6 +213,31 @@ function UnlockPrompt({ onUnlocked, onFirstUnlock, initialError }) {
                             <div style={{ marginTop: '20px', fontSize: '0.72rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Menlo, monospace' }}>
                                 Press ↵ to submit · Red dot to exit
                             </div>
+                            {hasCanary() && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        localStorage.removeItem('lc_pwd_canary');
+                                        setErr('');
+                                        setPwd('');
+                                    }}
+                                    style={{
+                                        marginTop: '28px',
+                                        background: 'none',
+                                        border: 'none',
+                                        color: 'rgba(255,255,255,0.18)',
+                                        fontSize: '0.68rem',
+                                        fontFamily: 'Menlo, monospace',
+                                        cursor: 'pointer',
+                                        textDecoration: 'underline',
+                                        textUnderlineOffset: '3px',
+                                        padding: 0,
+                                        alignSelf: 'flex-start',
+                                    }}
+                                >
+                                    Changed your password? Reset vault key
+                                </button>
+                            )}
                         </form>
                     </div>
                 </div>
