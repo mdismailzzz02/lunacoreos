@@ -10,7 +10,7 @@ import {
 
 const TABS = [
     { id: 'dashboard', Icon: Home, label: 'Dashboard' },
-
+    { id: 'lifegoals', Icon: Dna, label: 'Life Goals' },
 
 
 

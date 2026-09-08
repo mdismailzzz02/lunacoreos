@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles } from 'lucide-react';
-import { getTodos, getEntries, getWritings, getWatchlist, getReadingList, getHabits, getStreaks, getStudyNotes, getLifeMap, getWhoAmI } from '../../services/api';
+import { getTodos, getEntries, getWritings, getWatchlist, getReadingList, getHabits, getStreaks, getStudyNotes, getLifeMap, getWhoAmI, getLifeGoals } from '../../services/api';
 import { askLuna } from '../../services/aiService';
 
 export default function LunaAIPage() {
@@ -17,7 +17,7 @@ export default function LunaAIPage() {
         async function fetchContext() {
             try {
                 // Fetch context data
-                const [todos, entries, writings, watchlist, readingList, habits, streaks, studyNotes, lifemap, whoami] = await Promise.all([
+                const [todos, entries, writings, watchlist, readingList, habits, streaks, studyNotes, lifemap, whoami, lifegoals] = await Promise.all([
                     getTodos({ limit: 10 }),
                     getEntries({ limit: 3 }),
                     getWritings(),
@@ -27,7 +27,8 @@ export default function LunaAIPage() {
                     getStreaks(),
                     getStudyNotes(),
                     getLifeMap(),
-                    getWhoAmI()
+                    getWhoAmI(),
+                    getLifeGoals()
                 ]);
                 
                 const contextStr = `
@@ -54,6 +55,9 @@ ${readingList.slice(0, 3).map(b => `- ${b.title || 'Untitled'}`).join('\n')}
 [HABITS & STREAKS]
 Habits: ${habits.filter(h => h.status !== 'archived').slice(0, 5).map(h => h.title).join(', ')}
 Streaks: ${streaks.slice(0, 3).map(s => `${s.title} (${s.count} days)`).join(', ')}
+
+[LIFE GOALS]
+${lifegoals && lifegoals.length > 0 ? lifegoals.filter(g => g.status === 'active').map(g => `- [${g.priority}] ${g.title} (${g.category}) - ${g.progress_pct}% done`).join('\n') : 'None'}
 
 [STUDY NOTES (titles only)]
 ${studyNotes.slice(0, 5).map(n => `- ${n.title || 'Untitled'}`).join('\n')}

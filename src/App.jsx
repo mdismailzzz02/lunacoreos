@@ -22,6 +22,7 @@ import DelegationPage from './components/Delegation/DelegationPage';
 import NotificationsPage from './components/Notifications/NotificationsPage';
 import InformationPage from './components/Information/InformationPage';
 import MusicPlayerPage from './components/MusicPlayer/MusicPlayerPage';
+import LifeGoalsPage from './components/LifeGoals/LifeGoalsPage';
 
 import SettingsPage from './components/Settings/SettingsPage';
 import PasswordsPage from './components/Passwords/PasswordsPage';
@@ -561,6 +562,7 @@ export default function App() {
             case 'notifications': return <NotificationsPage />;
             case 'information': return <InformationPage />;
             case 'musicplayer': return <MusicPlayerPage />;
+            case 'lifegoals': return <LifeGoalsPage />;
 
 
             default:

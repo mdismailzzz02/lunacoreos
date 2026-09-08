@@ -13,8 +13,7 @@ import './SmartActions.css';
 // ── All navigable items ─────────────────────────────────────────
 const ALL_ITEMS = [
     { id: 'dashboard',      Icon: Home, label: 'Dashboard',     keywords: 'home main overview' },
-
-
+    { id: 'lifegoals',      Icon: Dna, label: 'Life Goals',     keywords: 'goals life future decisions ai' },
 
     { id: 'journal',        Icon: BookOpen, label: 'Journal',        keywords: 'diary entry write daily log' },
     { id: 'studynotes',     Icon: FileText, label: 'Study Notes',    keywords: 'notes study learning education' },

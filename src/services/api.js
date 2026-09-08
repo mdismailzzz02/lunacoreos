@@ -2622,3 +2622,58 @@ export const deleteProductMaintenance = async (id) => {
     const { error } = await supabase.from('finance_product_maintenance').delete().eq('id', id);
     if (error) throw error;
 };
+
+// --- AI GLOBAL CONTEXT PIPELINE ---
+
+export const getGlobalAiContext = async () => {
+    try {
+        const [
+            journalRes,
+            todosRes,
+            habitsRes,
+            lifeGoalsRes,
+            financeContext,
+            bookmarksRes,
+            readingRes,
+            watchlistRes,
+            delegationRes,
+            studyNotesRes,
+            writingRes,
+            whoamiRes,
+            yearlyRes
+        ] = await Promise.all([
+            getEntries({ limit: 7 }),
+            getTodos({ status: 'pending' }),
+            getHabits(),
+            getLifeGoals(),
+            getFinancialContext(),
+            getBookmarks(),
+            getReadingList(),
+            getWatchlist(),
+            getDelegation(),
+            getStudyNotes(),
+            getWritings(),
+            getWhoAmI(),
+            getYearlyReviews()
+        ]);
+
+        return {
+            journal: journalRes || [],
+            todos: todosRes || [],
+            habits: (habitsRes || []).filter(h => !h.archived),
+            lifeGoals: (lifeGoalsRes || []).filter(g => g.status === 'active' || g.status === 'paused'),
+            finance: financeContext || { accounts: [], budgets: [], goals: [] },
+            bookmarks: bookmarksRes || [],
+            readingList: readingRes || [],
+            watchlist: watchlistRes || [],
+            delegation: (delegationRes || []).filter(d => d.status === 'pending' || d.status === 'Active'),
+            studyNotes: (studyNotesRes || []).slice(0, 15).map(n => ({ title: n.title, tags: n.tags, category: n.category })),
+            writing: (writingRes || []).slice(0, 15).map(w => ({ title: w.title, status: w.status })),
+            whoami: whoamiRes || [],
+            yearlyReview: (yearlyRes || []).slice(0, 2)
+        };
+    } catch (e) {
+        console.error("Failed to fetch global AI context:", e);
+        throw e;
+    }
+};
