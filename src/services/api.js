@@ -2623,6 +2623,51 @@ export const deleteProductMaintenance = async (id) => {
     if (error) throw error;
 };
 
+// --- Life Goals ---
+export const getLifeGoals = async () => {
+    const { data, error } = await supabase.from('life_goals').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return data;
+};
+
+export const createLifeGoal = async (params) => {
+    const { data, error } = await supabase.from('life_goals').insert([params]).select();
+    if (error) throw error;
+    return data[0];
+};
+
+export const updateLifeGoal = async (id, updates) => {
+    const { data, error } = await supabase.from('life_goals').update(updates).eq('id', id).select();
+    if (error) throw error;
+    return data[0];
+};
+
+export const deleteLifeGoal = async (id) => {
+    const { error } = await supabase.from('life_goals').delete().eq('id', id);
+    if (error) throw error;
+};
+
+// --- Decision Analyses ---
+export const getDecisionAnalyses = async () => {
+    const { data, error } = await supabase.from('decision_analyses').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return data;
+};
+
+export const createDecisionAnalysis = async (params) => {
+    const { data, error } = await supabase.from('decision_analyses').insert([params]).select();
+    if (error) throw error;
+    return data[0];
+};
+
+// --- Financial Context ---
+export const getFinancialContext = async () => {
+    const { data: accounts } = await supabase.from('finance_accounts').select('*').catch(()=>({data:[]}));
+    const { data: budgets } = await supabase.from('finance_budgets').select('*').catch(()=>({data:[]}));
+    const { data: goals } = await supabase.from('finance_goals').select('*').catch(()=>({data:[]}));
+    return { accounts: accounts || [], budgets: budgets || [], goals: goals || [] };
+};
+
 // --- AI GLOBAL CONTEXT PIPELINE ---
 
 export const getGlobalAiContext = async () => {

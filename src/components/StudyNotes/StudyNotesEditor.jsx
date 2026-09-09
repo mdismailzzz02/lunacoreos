@@ -227,11 +227,6 @@ export default function StudyNotesEditor({
         }));
 
     const editor = useEditor({
-        editorProps: {
-            attributes: {
-                spellcheck: 'false',
-            },
-        },
         extensions: [
             StarterKit.configure({
                 codeBlock: false,
@@ -316,6 +311,7 @@ export default function StudyNotesEditor({
         editorProps: {
             attributes: {
                 class: 'sn-prose-editor',
+                spellcheck: 'false',
             },
             handlePaste: (view, event) => {
                 const items = Array.from(event.clipboardData?.items || []);
