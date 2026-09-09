@@ -2662,10 +2662,20 @@ export const createDecisionAnalysis = async (params) => {
 
 // --- Financial Context ---
 export const getFinancialContext = async () => {
-    const { data: accounts } = await supabase.from('finance_accounts').select('*').catch(()=>({data:[]}));
-    const { data: budgets } = await supabase.from('finance_budgets').select('*').catch(()=>({data:[]}));
-    const { data: goals } = await supabase.from('finance_goals').select('*').catch(()=>({data:[]}));
-    return { accounts: accounts || [], budgets: budgets || [], goals: goals || [] };
+    const safeFetch = async (table) => {
+        try {
+            const { data } = await supabase.from(table).select('*');
+            return data || [];
+        } catch (e) {
+            return [];
+        }
+    };
+    const [accounts, budgets, goals] = await Promise.all([
+        safeFetch('finance_accounts'),
+        safeFetch('finance_budgets'),
+        safeFetch('finance_goals')
+    ]);
+    return { accounts, budgets, goals };
 };
 
 // --- AI GLOBAL CONTEXT PIPELINE ---
