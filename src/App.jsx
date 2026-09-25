@@ -304,6 +304,15 @@ export default function App() {
                 }
             }
 
+            // TOKEN_REFRESHED fires every ~1hr automatically — don't re-check the vault
+            // lock on token refresh or it will sign the user out mid-session if sessionStorage
+            // was cleared or this is a second tab that hasn't been explicitly unlocked.
+            if (_event === 'TOKEN_REFRESHED') {
+                if (session?.user) setUser(session.user);
+                setAuthLoading(false);
+                return;
+            }
+
             const isUnlocked = sessionStorage.getItem('luna_vault_unlocked') === 'true';
             if (session?.user && !isUnlocked) {
                 console.log('[Vault] 🔒 Locked — master key required.');
@@ -493,10 +502,26 @@ export default function App() {
     }, []);
 
     useEffect(() => {
-        // Responder for tab sync
+        // ── Cross-tab vault state sync ──────────────────────────────────────
+        // sessionStorage is per-tab, so unlocking in one tab must be broadcast
+        // to other tabs so they don't lock themselves out on the next auth event.
         const bc = new BroadcastChannel('luna_auth_sync');
         bc.onmessage = (e) => {
-            if (e.data === 'ping') bc.postMessage('pong');
+            if (e.data === 'ping') {
+                // Reply so the tab-close detector knows another tab is alive
+                bc.postMessage('pong');
+            } else if (e.data === 'vault_unlocked') {
+                // Another tab just unlocked — mirror the unlock in this tab
+                sessionStorage.setItem('luna_vault_unlocked', 'true');
+                // Re-read the current Supabase session and surface the user
+                supabase.auth.getSession().then(({ data: { session } }) => {
+                    if (session?.user) setUser(session.user);
+                });
+            } else if (e.data === 'vault_locked') {
+                // Another tab explicitly locked — lock this tab too
+                sessionStorage.removeItem('luna_vault_unlocked');
+                setUser(null);
+            }
         };
         return () => bc.close();
     }, []);
@@ -698,9 +723,13 @@ export default function App() {
                                                 }
 
                                                 sessionStorage.setItem('luna_vault_unlocked', 'true');
+                                                // Broadcast unlock to all other open tabs
+                                                new BroadcastChannel('luna_auth_sync').postMessage('vault_unlocked');
 
-                                                // forcefully sign out any background stale session before attempting a new sign in/up
-                                                await supabase.auth.signOut();
+                                                // Sign out locally only — 'local' scope avoids broadcasting
+                                                // a SIGNED_OUT event to other open tabs, which would kick
+                                                // them out even though they were actively being used.
+                                                await supabase.auth.signOut({ scope: 'local' });
                                                 OfflineCache.clearAll();
 
                                                 if (authMode === 'register') {

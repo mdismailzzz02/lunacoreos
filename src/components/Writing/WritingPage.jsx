@@ -41,7 +41,10 @@ export default function WritingPage() {
 
     const editor = useEditor({
         extensions: [
-            StarterKit,
+            StarterKit.configure({
+                // Disable built-ins we register explicitly below to avoid duplicate warnings
+                underline: false,
+            }),
             Markdown,
             Underline,
             Table.configure({ resizable: true }),

@@ -233,6 +233,9 @@ export default function StudyNotesEditor({
                 heading: false,
                 blockquote: false,
                 history: true,
+                // Disable built-ins we register explicitly below to avoid duplicate warnings
+                underline: false,
+                link: false,
             }),
             Heading.configure({ levels: [1, 2, 3] }),
             Underline,
