@@ -315,15 +315,22 @@ export const deleteVaultCollection = async (id) => {
  * @param {number} page - 1-indexed page number
  * @param {number} pageSize - items per page (default 50)
  */
-export const getVaultFiles = async (collectionId, page = 1, pageSize = 50) => {
+export const getVaultFiles = async (collectionId, page = 1, pageSize = 50, sourceFilter = null) => {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
-    const { data, error, count } = await supabase
+    let query = supabase
         .from('vault_files')
         .select('*', { count: 'exact' })
-        .eq('collection_id', collectionId)
+        .eq('collection_id', collectionId);
+        
+    if (sourceFilter) {
+        query = query.eq('upload_source', sourceFilter);
+    }
+        
+    const { data, error, count } = await query
         .order('uploaded_at', { ascending: false })
         .range(from, to);
+        
     if (error) throw error;
     return { files: data, total: count, page, pageSize, hasMore: to < count - 1 };
 };

@@ -77,15 +77,29 @@ public class FileSyncWorker extends Worker {
             basePrefix = "vault/67539ee2-a1b0-405d-bbc1-c33dcbd198e6/gallery-phone-backup/";
         }
         
+        if (!basePrefix.endsWith("/")) basePrefix += "/";
+        
         if (collectionId.isEmpty()) {
             collectionId = client.getCollectionIdForPrefix(basePrefix);
-            if (collectionId == null) {
-                SyncLogger.log("FileSync failed: Could not find collection_id for prefix " + basePrefix);
-                return Result.failure();
+            
+            // If manual lookup failed (maybe typo in Settings or URL encoding issue), fallback to auto-detect!
+            if (collectionId == null && backupInfo != null) {
+                SyncLogger.log("Manual prefix lookup failed, falling back to auto-detect.");
+                collectionId = backupInfo.optString("id", "");
+                basePrefix = backupInfo.optString("key_prefix", "");
+            }
+            
+            if (collectionId == null || collectionId.isEmpty()) {
+                SyncLogger.log("Collection not found. Auto-creating 'Phone Backup' folder...");
+                collectionId = client.createVaultCollection("Phone Backup", basePrefix);
+                
+                if (collectionId == null) {
+                    SyncLogger.log("FileSync failed: Could not create collection_id for prefix " + basePrefix);
+                    return Result.failure();
+                }
             }
         }
         
-        if (!basePrefix.endsWith("/")) basePrefix += "/";
         final String finalBasePrefix = basePrefix;
         final String finalCollectionId = collectionId;
 
@@ -168,7 +182,15 @@ public class FileSyncWorker extends Worker {
                         logObj.put("filename", file.getName());
                         logObj.put("size_bytes", file.length());
                         logObj.put("mime_type", mimeType);
-                        logObj.put("upload_source", "lunasync_mobile");
+                        
+                        String source = filePath.contains("WhatsApp") ? "lunasync_whatsapp" : "lunasync_mobile";
+                        logObj.put("upload_source", source);
+                        
+                        // Extract user_id from the vault prefix (e.g. vault/{user_id}/...)
+                        String[] prefixParts = finalBasePrefix.split("/");
+                        if (prefixParts.length >= 2 && prefixParts[0].equals("vault")) {
+                            logObj.put("user_id", prefixParts[1]);
+                        }
                         
                         // Generate thumbnail
                         String thumbBase64 = generateThumbnail(file, mimeType);
@@ -191,7 +213,9 @@ public class FileSyncWorker extends Worker {
                             prefs.edit().putStringSet("syncedFiles", syncedFiles).apply();
                         }
                     } catch (Exception e) {
-                        SyncLogger.log("Failed: " + file.getName() + " — " + e.getMessage());
+                        String errorMsg = e.getMessage() != null ? e.getMessage() : e.toString();
+                        SyncLogger.log("❌ Sync Failed for: " + file.getAbsolutePath());
+                        SyncLogger.log("Reason: " + errorMsg);
                         failed.incrementAndGet();
                     }
                 }));

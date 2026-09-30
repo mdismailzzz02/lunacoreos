@@ -100,8 +100,8 @@ public class SupabaseClient {
 
     public org.json.JSONObject getPhoneBackupInfo() {
         try {
-            // Use ilike to make it case-insensitive and allow it to be inside subfolders (ignore parent_id constraint)
-            URL url = new URL(baseUrl + "/rest/v1/vault_collections?name=ilike.*phone%20backup*&select=id,key_prefix&limit=1");
+            // Use wildcard between phone and backup to match "Phone Backup", "phone-backup", etc.
+            URL url = new URL(baseUrl + "/rest/v1/vault_collections?name=ilike.*phone*backup*&select=id,key_prefix&limit=1");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("apikey", apiKey);
@@ -126,13 +126,15 @@ public class SupabaseClient {
     
     public String getCollectionIdForPrefix(String prefix) {
         try {
-            URL url = new URL(baseUrl + "/rest/v1/vault_collections?key_prefix=eq." + java.net.URLEncoder.encode(prefix, "UTF-8") + "&select=id&limit=1");
+            String safePrefix = java.net.URLEncoder.encode(prefix, "UTF-8").replace("+", "%20");
+            URL url = new URL(baseUrl + "/rest/v1/vault_collections?key_prefix=eq." + safePrefix + "&select=id&limit=1");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("apikey", apiKey);
             conn.setRequestProperty("Authorization", "Bearer " + apiKey);
             
-            if (conn.getResponseCode() >= 200 && conn.getResponseCode() < 300) {
+            int code = conn.getResponseCode();
+            if (code >= 200 && code < 300) {
                 java.io.InputStream is = conn.getInputStream();
                 java.util.Scanner s = new java.util.Scanner(is).useDelimiter("\\A");
                 String result = s.hasNext() ? s.next() : "";
@@ -140,12 +142,75 @@ public class SupabaseClient {
                 org.json.JSONArray array = new org.json.JSONArray(result);
                 if (array.length() > 0) {
                     return array.getJSONObject(0).getString("id");
+                } else {
+                    SyncLogger.log("getCollectionIdForPrefix: Collection not found for " + prefix);
+                }
+            } else {
+                java.io.InputStream es = conn.getErrorStream();
+                if (es != null) {
+                    java.util.Scanner s = new java.util.Scanner(es).useDelimiter("\\A");
+                    SyncLogger.log("getCollectionIdForPrefix HTTP " + code + ": " + (s.hasNext() ? s.next() : ""));
+                    es.close();
+                } else {
+                    SyncLogger.log("getCollectionIdForPrefix HTTP " + code);
                 }
             }
-        } catch (Exception e) {}
+            conn.disconnect();
+        } catch (Exception e) {
+            SyncLogger.log("getCollectionIdForPrefix Exception: " + e.getMessage());
+        }
         return null;
     }
 
+    public String createVaultCollection(String name, String keyPrefix) {
+        try {
+            org.json.JSONObject payload = new org.json.JSONObject();
+            payload.put("name", name);
+            payload.put("type", "gallery");
+            payload.put("key_prefix", keyPrefix);
+            payload.put("is_hidden", false);
+            payload.put("is_secret", false);
+            
+            org.json.JSONArray array = new org.json.JSONArray();
+            array.put(payload);
+            
+            String urlStr = baseUrl + "/rest/v1/vault_collections?select=id";
+            URL url = new URL(urlStr);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("apikey", apiKey);
+            conn.setRequestProperty("Authorization", "Bearer " + apiKey);
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("Prefer", "return=representation");
+            conn.setDoOutput(true);
+            
+            try (OutputStream os = conn.getOutputStream()) {
+                byte[] input = array.toString().getBytes("utf-8");
+                os.write(input, 0, input.length);
+            }
+            
+            if (conn.getResponseCode() >= 200 && conn.getResponseCode() < 300) {
+                java.io.InputStream is = conn.getInputStream();
+                java.util.Scanner s = new java.util.Scanner(is).useDelimiter("\\A");
+                String result = s.hasNext() ? s.next() : "";
+                is.close();
+                org.json.JSONArray resArray = new org.json.JSONArray(result);
+                if (resArray.length() > 0) {
+                    return resArray.getJSONObject(0).getString("id");
+                }
+            } else {
+                java.io.InputStream es = conn.getErrorStream();
+                if (es != null) {
+                    java.util.Scanner s = new java.util.Scanner(es).useDelimiter("\\A");
+                    SyncLogger.log("createVaultCollection error: " + (s.hasNext() ? s.next() : ""));
+                }
+            }
+        } catch (Exception e) {
+            SyncLogger.log("createVaultCollection exception: " + e.getMessage());
+        }
+        return null;
+    }
+    
     /**
      * Get a presigned upload URL from the Cloudflare R2 edge function.
      */

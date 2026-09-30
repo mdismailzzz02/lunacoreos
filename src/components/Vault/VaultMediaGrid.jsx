@@ -628,6 +628,7 @@ export default function VaultMediaGrid({ activeTab, collections, onTabChange, on
     const [folderDownloading, setFolderDownloading] = useState(false);
     const [folderDownloadMsg, setFolderDownloadMsg] = useState('');
     const [subfolderSearch, setSubfolderSearch] = useState('');
+    const [sourceFilter, setSourceFilter] = useState('all'); // 'all', 'lunasync_mobile', 'lunasync_whatsapp'
     const [toolbarHeight, setToolbarHeight] = useState(120);
     const toolbarRef = useRef(null);
     const lastAutoSyncedCollection = useRef(null);
@@ -699,10 +700,10 @@ export default function VaultMediaGrid({ activeTab, collections, onTabChange, on
         setScannedGroups(null);
     }, [activeTab, collections]); // We don't add isRandomView here because toggle button handles its own fetch
 
-    const fetchCollectionPage = async (collectionId, page) => {
+    const fetchCollectionPage = async (collectionId, page, currentFilter = sourceFilter) => {
         setLoading(true);
         try {
-            const res = await getVaultFiles(collectionId, page, 50);
+            const res = await getVaultFiles(collectionId, page, 50, currentFilter !== 'all' ? currentFilter : null);
             const newFiles = res.files || [];
 
             // Batch-prefetch thumbnail presigned URLs (20 at a time)
@@ -1134,6 +1135,20 @@ export default function VaultMediaGrid({ activeTab, collections, onTabChange, on
                     <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '10px', flexShrink: 0 }}>
                         <button onClick={() => setInnerTab('all')} style={{ padding: '6px 16px', borderRadius: '8px', border: 'none', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', background: innerTab === 'all' ? 'rgba(167,139,250,0.25)' : 'transparent', color: innerTab === 'all' ? '#c4b5fd' : 'rgba(255,255,255,0.35)' }}>ALL FILES</button>
                         <button onClick={() => setInnerTab('favorites')} style={{ padding: '6px 16px', borderRadius: '8px', border: 'none', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', background: innerTab === 'favorites' ? 'rgba(239,68,68,0.2)' : 'transparent', color: innerTab === 'favorites' ? '#fca5a5' : 'rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', gap: '6px' }}><Heart size={14} fill={innerTab === 'favorites' ? '#fca5a5' : 'none'} color={innerTab === 'favorites' ? '#fca5a5' : 'rgba(255,255,255,0.35)'} /> FAVORITES {collectionLiked.length > 0 ? `(${collectionLiked.length})` : ''}</button>
+                        {col.name?.toLowerCase().includes('phone') && (
+                            <select 
+                                value={sourceFilter}
+                                onChange={(e) => {
+                                    setSourceFilter(e.target.value);
+                                    fetchCollectionPage(col.id, 1, e.target.value);
+                                }}
+                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '0.72rem', fontWeight: 700, outline: 'none', cursor: 'pointer' }}
+                            >
+                                <option value="all">ALL SOURCES</option>
+                                <option value="lunasync_mobile">CAMERA / DOWNLOADS</option>
+                                <option value="lunasync_whatsapp">WHATSAPP</option>
+                            </select>
+                        )}
                     </div>
                     {/* Search — always visible, searches folders + files at any depth */}
                     <div style={{ position: 'relative', flex: 1, minWidth: '160px' }}>
