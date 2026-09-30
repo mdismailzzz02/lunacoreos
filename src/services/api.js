@@ -874,13 +874,19 @@ export const uploadFileToR2 = async (file, collectionId, onProgress) => {
     const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const r2Key = `${col.key_prefix}${Date.now()}-${safeFilename}`;
 
-    // 2.5 Generate Thumbnail (if image)
+    // 2.5 Generate Thumbnail (if image or video)
     let thumbnailB64 = null;
     if (file.type && file.type.startsWith('image/')) {
         try {
             thumbnailB64 = await resizeImageToWebP(file, 400);
         } catch (e) {
-            console.warn('Failed to generate local thumbnail', e);
+            console.warn('Failed to generate local image thumbnail', e);
+        }
+    } else if (file.type && file.type.startsWith('video/')) {
+        try {
+            thumbnailB64 = await generateVideoThumbnail(file, 400);
+        } catch (e) {
+            console.warn('Failed to generate local video thumbnail', e);
         }
     }
 
@@ -1536,6 +1542,63 @@ export const getStreakLogs = async (streak_id) => {
     const { data, error } = await supabase.from('streak_logs').select('*').eq('streak_id', streak_id);
     if (error) throw error;
     return data;
+};
+
+// ─── Video Thumbnail Generator (Browser-side) ─────────────────────
+const generateVideoThumbnail = (file, maxDimension = 400) => {
+    return new Promise((resolve, reject) => {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.playsInline = true;
+        video.muted = true;
+        
+        const fileUrl = URL.createObjectURL(file);
+        video.src = fileUrl;
+        
+        // Timeout to prevent hanging if video can't be decoded
+        const timeout = setTimeout(() => {
+            URL.revokeObjectURL(fileUrl);
+            reject(new Error('Video thumbnail generation timed out'));
+        }, 5000);
+
+        video.onloadeddata = () => {
+            // Seek to 1 second to avoid black frames
+            video.currentTime = Math.min(1, video.duration / 2);
+        };
+        
+        video.onseeked = () => {
+            clearTimeout(timeout);
+            try {
+                let { videoWidth: width, videoHeight: height } = video;
+                if (width > maxDimension || height > maxDimension) {
+                    if (width > height) {
+                        height = Math.round((height * maxDimension) / width);
+                        width = maxDimension;
+                    } else {
+                        width = Math.round((width * maxDimension) / height);
+                        height = maxDimension;
+                    }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, width, height);
+                const dataUrl = canvas.toDataURL('image/webp', 0.8);
+                URL.revokeObjectURL(fileUrl);
+                resolve(dataUrl);
+            } catch (err) {
+                URL.revokeObjectURL(fileUrl);
+                reject(err);
+            }
+        };
+        
+        video.onerror = () => {
+            clearTimeout(timeout);
+            URL.revokeObjectURL(fileUrl);
+            reject(new Error('Failed to load video for thumbnail'));
+        };
+    });
 };
 
 // ─── Image Resizer (Browser-side) ─────────────────────────────
