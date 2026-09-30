@@ -918,6 +918,7 @@ export const uploadFileToR2 = async (file, collectionId, onProgress) => {
         filename: file.name,
         size_bytes: file.size,
         mime_type: file.type || 'application/octet-stream',
+        upload_source: 'lunacoreos'
     });
 
     // 6. Update collection stats

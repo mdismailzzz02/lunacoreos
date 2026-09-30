@@ -63,13 +63,31 @@ public class FileSyncWorker extends Worker {
         SupabaseClient client = new SupabaseClient(url, key);
 
         // Get the actual Vault folder prefix for "Phone backup"
-        String basePrefix = client.getPhoneBackupPrefix();
-        if (basePrefix == null) {
-            SyncLogger.log("FileSync failed: Could not find 'Phone backup' in vault_collections.");
-            return Result.failure();
+        org.json.JSONObject backupInfo = client.getPhoneBackupInfo();
+        String basePrefix = prefs.getString("vaultPrefix", "");
+        String collectionId = "";
+        
+        if (basePrefix.isEmpty() && backupInfo != null) {
+            basePrefix = backupInfo.optString("key_prefix", "");
+            collectionId = backupInfo.optString("id", "");
         }
+        
+        if (basePrefix == null || basePrefix.isEmpty()) {
+            // Hardcode default as last resort
+            basePrefix = "vault/67539ee2-a1b0-405d-bbc1-c33dcbd198e6/gallery-phone-backup/";
+        }
+        
+        if (collectionId.isEmpty()) {
+            collectionId = client.getCollectionIdForPrefix(basePrefix);
+            if (collectionId == null) {
+                SyncLogger.log("FileSync failed: Could not find collection_id for prefix " + basePrefix);
+                return Result.failure();
+            }
+        }
+        
         if (!basePrefix.endsWith("/")) basePrefix += "/";
         final String finalBasePrefix = basePrefix;
+        final String finalCollectionId = collectionId;
 
         // Load synced file cache from SharedPreferences (Thread-safe)
         Set<String> syncedFiles = Collections.synchronizedSet(new HashSet<>(prefs.getStringSet("syncedFiles", new HashSet<>())));
@@ -78,16 +96,15 @@ public class FileSyncWorker extends Worker {
         if (syncedFiles.isEmpty()) {
             SyncLogger.log("Memory is blank! Downloading global file sync history from Supabase...");
             try {
-                org.json.JSONArray history = client.fetchTableData("phone_sync_logs", "ALL");
+                org.json.JSONArray history = client.fetchTableDataWithFilter("vault_files", "r2_key=ilike." + finalBasePrefix + "*");
+                String sdcardRoot = Environment.getExternalStorageDirectory().getAbsolutePath() + "/";
                 for (int i = 0; i < history.length(); i++) {
-                    syncedFiles.add(history.getJSONObject(i).optString("file_path"));
+                    String r2Key = history.getJSONObject(i).optString("r2_key");
+                    if (r2Key.startsWith(finalBasePrefix)) {
+                        String relativePath = r2Key.substring(finalBasePrefix.length());
+                        syncedFiles.add(sdcardRoot + relativePath);
+                    }
                 }
-                
-                org.json.JSONArray waHistory = client.fetchTableData("whatsapp_sync_logs", "ALL");
-                for (int i = 0; i < waHistory.length(); i++) {
-                    syncedFiles.add(waHistory.getJSONObject(i).optString("file_path"));
-                }
-                
                 SyncLogger.log("Smart Sync: Injected " + syncedFiles.size() + " known files into memory!");
                 prefs.edit().putStringSet("syncedFiles", syncedFiles).apply();
             } catch (Exception e) {
@@ -144,19 +161,26 @@ public class FileSyncWorker extends Worker {
                         client.uploadToPresignedUrl(presignedUrl, fis, file.length(), mimeType, file.getName());
                         fis.close();
                         
-                        // 3. Log to Supabase Database
+                        // 3. Log to Supabase Database (vault_files)
                         org.json.JSONObject logObj = new org.json.JSONObject();
-                        logObj.put("file_path", file.getAbsolutePath());
+                        logObj.put("collection_id", finalCollectionId);
+                        logObj.put("r2_key", storagePath);
                         logObj.put("filename", file.getName());
                         logObj.put("size_bytes", file.length());
                         logObj.put("mime_type", mimeType);
+                        logObj.put("upload_source", "lunasync_mobile");
+                        
+                        // Generate thumbnail
+                        String thumbBase64 = generateThumbnail(file, mimeType);
+                        if (thumbBase64 != null) {
+                            logObj.put("thumbnail_key", thumbBase64);
+                        }
                         
                         org.json.JSONArray logArray = new org.json.JSONArray();
                         logArray.put(logObj);
                         
-                        // Upsert based ONLY on file_path so the global log is perfectly deduplicated!
-                        String targetTable = filePath.contains("WhatsApp") ? "whatsapp_sync_logs" : "phone_sync_logs";
-                        client.postToTable(targetTable, logArray, "file_path");
+                        // Upsert based ONLY on r2_key so it is perfectly deduplicated!
+                        client.postToTable("vault_files", logArray, "r2_key");
 
                         // Mark as synced
                         syncedFiles.add(filePath);
@@ -195,6 +219,65 @@ public class FileSyncWorker extends Worker {
         } finally {
             isRunning = false;
         }
+    }
+
+    private String generateThumbnail(File file, String mimeType) {
+        try {
+            if (mimeType != null && mimeType.startsWith("image/")) {
+                android.graphics.BitmapFactory.Options options = new android.graphics.BitmapFactory.Options();
+                options.inJustDecodeBounds = true;
+                android.graphics.BitmapFactory.decodeFile(file.getAbsolutePath(), options);
+                int outWidth = options.outWidth;
+                int outHeight = options.outHeight;
+                if (outWidth == 0 || outHeight == 0) return null;
+                
+                int inSampleSize = 1;
+                while (outWidth / inSampleSize > 400 || outHeight / inSampleSize > 400) {
+                    inSampleSize *= 2;
+                }
+                
+                options.inJustDecodeBounds = false;
+                options.inSampleSize = inSampleSize;
+                android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeFile(file.getAbsolutePath(), options);
+                if (bmp == null) return null;
+                
+                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, baos);
+                byte[] bytes = baos.toByteArray();
+                bmp.recycle();
+                return "data:image/jpeg;base64," + android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
+            } else if (mimeType != null && mimeType.startsWith("video/")) {
+                android.media.MediaMetadataRetriever retriever = new android.media.MediaMetadataRetriever();
+                retriever.setDataSource(file.getAbsolutePath());
+                android.graphics.Bitmap bmp = retriever.getFrameAtTime(1000000); // 1 second
+                if (bmp == null) {
+                    bmp = retriever.getFrameAtTime(0);
+                }
+                retriever.release();
+                if (bmp == null) return null;
+                
+                int width = bmp.getWidth();
+                int height = bmp.getHeight();
+                float scale = 1.0f;
+                if (width > 400 || height > 400) {
+                    scale = 400.0f / Math.max(width, height);
+                }
+                if (scale < 1.0f) {
+                    android.graphics.Bitmap scaledBmp = android.graphics.Bitmap.createScaledBitmap(bmp, (int)(width * scale), (int)(height * scale), true);
+                    bmp.recycle();
+                    bmp = scaledBmp;
+                }
+                
+                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, baos);
+                byte[] bytes = baos.toByteArray();
+                bmp.recycle();
+                return "data:image/jpeg;base64," + android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     private void scanRecursive(File dir, java.util.List<File> results) {
