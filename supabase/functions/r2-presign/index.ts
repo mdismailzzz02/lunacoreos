@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
       // Copy the object
       const copyCommand = new CopyObjectCommand({
         Bucket: bucket,
-        CopySource: `/${bucket}/${sourceKey}`,
+        CopySource: `/${bucket}/${encodeURIComponent(sourceKey).replace(/%2F/g, '/')}`,
         Key: destKey,
       });
       await client.send(copyCommand);

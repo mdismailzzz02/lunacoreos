@@ -181,8 +181,7 @@ public class RestoreFragment extends Fragment {
 
     private void restoreMediaFolder(String folderName, SupabaseClient client) {
         log("Fetching " + folderName + " file list from Supabase...");
-        String tableName = folderName.equals("WhatsApp") ? "whatsapp_sync_logs" : "phone_sync_logs";
-        org.json.JSONArray files = client.fetchTableDataWithFilter(tableName, "file_path=ilike.*" + folderName + "*/*");
+        org.json.JSONArray files = client.fetchTableDataWithFilter("vault_files", "r2_key=ilike.*" + folderName + "*/*");
         int totalFiles = files.length();
         
         if (totalFiles > 0) {
@@ -212,27 +211,34 @@ public class RestoreFragment extends Fragment {
                     
                     futures.add(executor.submit(() -> {
                         try {
-                            String filePath = fileLog.getString("file_path");
+                            String r2Key = fileLog.getString("r2_key");
                             String mimeType = fileLog.optString("mime_type", "");
                             
-                            String relativePath = filePath.replace(externalRoot, "");
-                            String storagePath = finalBasePrefix + relativePath;
+                            String relativePath = r2Key.replace(finalBasePrefix, "");
+                            String filePath = externalRoot + relativePath;
+                            String storagePath = r2Key;
                             String encodedPath = Uri.encode(storagePath, "/");
                             
                             String presignedGetUrl = client.getR2PresignedUrl("get", encodedPath, mimeType);
                             File destFile = new File(filePath);
                             
                             // Skip if the file already exists and the size matches
-                            if (destFile.exists() && destFile.length() == fileLog.optLong("size_bytes", -1)) {
+                            long expectedSize = fileLog.optLong("size_bytes", -1);
+                            if (destFile.exists() && destFile.length() == expectedSize) {
                                 downloaded.incrementAndGet();
                             } else {
-                                client.downloadFromPresignedUrl(presignedGetUrl, destFile);
-                                int current = downloaded.incrementAndGet();
-                                if (current % 100 == 0) {
-                                    log(folderName + " Sync: " + current + " / " + totalFiles + " downloaded...");
+                                if (destFile.getParentFile() != null) {
+                                    destFile.getParentFile().mkdirs();
                                 }
+                                log("Downloading: " + destFile.getName() + " (" + (expectedSize > 0 ? (expectedSize/1024/1024) + " MB" : "Unknown Size") + ")");
+                                client.downloadFromPresignedUrl(presignedGetUrl, destFile);
+                                downloaded.incrementAndGet();
                             }
                         } catch (Exception e) {
+                            String errorMsg = e.getMessage() != null ? e.getMessage() : e.toString();
+                            String failedFile = fileLog != null ? fileLog.optString("filename", fileLog.optString("r2_key", "Unknown File")) : "Unknown File";
+                            log("❌ Restore Failed for: " + failedFile);
+                            log("Reason: " + errorMsg);
                             failed.incrementAndGet();
                         }
                     }));

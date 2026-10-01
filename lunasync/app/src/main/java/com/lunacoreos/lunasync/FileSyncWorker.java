@@ -30,6 +30,7 @@ public class FileSyncWorker extends Worker {
     private static final String[] BASE_WATCH_FOLDERS = {"DCIM", "Pictures", "Documents", "Download"};
     private static final String BUCKET_NAME = "phone-backup";
     private static boolean isRunning = false;
+    private static java.util.Map<String, String> subcollectionCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     public FileSyncWorker(@NonNull Context context, @NonNull WorkerParameters workerParams) {
         super(context, workerParams);
@@ -91,7 +92,7 @@ public class FileSyncWorker extends Worker {
             
             if (collectionId == null || collectionId.isEmpty()) {
                 SyncLogger.log("Collection not found. Auto-creating 'Phone Backup' folder...");
-                collectionId = client.createVaultCollection("Phone Backup", basePrefix);
+                collectionId = client.createVaultCollection("Phone Backup", basePrefix, null);
                 
                 if (collectionId == null) {
                     SyncLogger.log("FileSync failed: Could not create collection_id for prefix " + basePrefix);
@@ -175,9 +176,44 @@ public class FileSyncWorker extends Worker {
                         client.uploadToPresignedUrl(presignedUrl, fis, file.length(), mimeType, file.getName());
                         fis.close();
                         
+                        // Dynamic True Hierarchy mapping
+                        String assignedCollectionId = finalCollectionId;
+                        String relativePathDir = relativePath;
+                        
+                        String[] pathParts = relativePathDir.split("/");
+                        if (pathParts.length > 1) {
+                            String currentParentId = finalCollectionId;
+                            String currentPrefix = finalBasePrefix;
+                            
+                            for (int i = 0; i < pathParts.length - 1; i++) {
+                                String partName = pathParts[i];
+                                currentPrefix = currentPrefix + partName + "/";
+                                String cacheKey = currentParentId + "_" + partName;
+                                
+                                synchronized(client) {
+                                    if (subcollectionCache.containsKey(cacheKey)) {
+                                        currentParentId = subcollectionCache.get(cacheKey);
+                                    } else {
+                                        String fetchedId = client.getSubcollectionId(partName, currentParentId);
+                                        if (fetchedId != null) {
+                                            subcollectionCache.put(cacheKey, fetchedId);
+                                            currentParentId = fetchedId;
+                                        } else {
+                                            String newId = client.createVaultCollection(partName, currentPrefix, currentParentId);
+                                            if (newId != null) {
+                                                subcollectionCache.put(cacheKey, newId);
+                                                currentParentId = newId;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            assignedCollectionId = currentParentId;
+                        }
+                        
                         // 3. Log to Supabase Database (vault_files)
                         org.json.JSONObject logObj = new org.json.JSONObject();
-                        logObj.put("collection_id", finalCollectionId);
+                        logObj.put("collection_id", assignedCollectionId);
                         logObj.put("r2_key", storagePath);
                         logObj.put("filename", file.getName());
                         logObj.put("size_bytes", file.length());
