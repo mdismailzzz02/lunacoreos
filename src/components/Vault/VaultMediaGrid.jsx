@@ -108,7 +108,10 @@ function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
         if (cached) { setMediaUrl(cached); return; }
         getR2PresignedGet(item.r2_key)
             .then(({ url }) => { setCachedUrl(item.r2_key, url); setMediaUrl(url); })
-            .catch(console.error);
+            .catch((e) => {
+                console.error(e);
+                setMediaUrl('error');
+            });
     }, [current, items]);
 
     useEffect(() => {
@@ -198,7 +201,7 @@ function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
                         style={{ transform: `scale(${scale}) translate(${translate.x / scale}px, ${translate.y / scale}px)`, transition: dragging ? 'none' : 'transform 0.15s ease' }} />
                 )}
 
-                {mediaUrl && itemType === 'video' && (
+                {mediaUrl && mediaUrl !== 'error' && itemType === 'video' && (
                     <video controls autoPlay muted src={mediaUrl} ref={el => { if(el) el.volume = 0.1; }} style={{ maxWidth: '95vw', maxHeight: '85vh', borderRadius: '16px', boxShadow: '0 40px 100px rgba(0,0,0,0.8)' }} />
                 )}
 
@@ -222,14 +225,14 @@ function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
                     />
                 )}
 
-                {mediaUrl && itemType === 'html' && !textContent && (
+                {mediaUrl && mediaUrl !== 'error' && itemType === 'html' && !textContent && (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', opacity: 0.6 }}>
                         <div style={{ width: '40px', height: '40px', border: '3px solid rgba(167,139,250,0.1)', borderTop: '3px solid #a78bfa', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                         <p>LOADING_HTML...</p>
                     </div>
                 )}
 
-                {mediaUrl && itemType === 'text' && (
+                {mediaUrl && mediaUrl !== 'error' && itemType === 'text' && (
                     <div style={{ width: 'min(95vw, 1000px)', height: '80vh', background: '#0d0d15', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 40px 100px rgba(0,0,0,0.8)' }}>
                         <div style={{ padding: '1.2rem 2rem', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.1em' }}>SOURCE_CODE_VIEWER</span>

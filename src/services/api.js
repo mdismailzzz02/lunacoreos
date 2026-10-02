@@ -589,11 +589,25 @@ export const emptyTrash = async () => {
 
 const R2_EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/r2-presign`;
 
+const safeEncode = (str) => {
+    try {
+        return encodeURIComponent(str);
+    } catch (e) {
+        let clean = '';
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charAt(i);
+            try { encodeURIComponent(char); clean += char; }
+            catch(err) { clean += '_'; }
+        }
+        return encodeURIComponent(clean);
+    }
+};
+
 const buildPublicR2Url = (key) => {
     const publicBase = import.meta.env.VITE_R2_PUBLIC_URL;
     if (!publicBase) return null;
     const normalizedBase = publicBase.replace(/\/$/, '');
-    const encodedKey = key.split('/').map(encodeURIComponent).join('/');
+    const encodedKey = key.split('/').map(safeEncode).join('/');
     return `${normalizedBase}/${encodedKey}`;
 };
 
