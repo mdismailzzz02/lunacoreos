@@ -641,13 +641,14 @@ export const getR2PresignedPut = async (key, mimeType = 'application/octet-strea
     return r2EdgeFetch({ op: 'put', key, content_type: mimeType });
 };
 
-/** Direct public GET URL for viewing/downloading a file from a public bucket. */
+/** Direct GET URL for viewing/downloading a file. Falls back to edge function if public URL is not configured. */
 export const getR2PresignedGet = async (key) => {
     const publicUrl = buildPublicR2Url(key);
     if (publicUrl) {
         return { url: publicUrl };
     }
-    throw new Error('VITE_R2_PUBLIC_URL is not configured. Set it to your public R2 bucket URL.');
+    // Fallback to Edge function if public bucket URL is not configured
+    return r2EdgeFetch({ op: 'get', key });
 };
 
 /** Batch direct public GET URLs for a public bucket. Returns { urls: { [key]: url } } */
