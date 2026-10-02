@@ -65,27 +65,30 @@ export default function LinkboxPage() {
             notes: formData.note,
             description: formData.note,
             created_at: editingId ? (linkbox.find(b => b.id === editingId)?.created_at || new Date().toISOString()) : new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            updated_at: new Date().toISOString()
         };
 
         delete linkboxData.note;
 
         setSaving(true);
         setError('');
+        
         try {
-            await api.saveLinkboxEntry(linkboxData);
-        } catch (err) {
-            console.warn('Primary save failed, trying fallback:', err);
-            if (err.message?.includes("column 'notes' does not exist") || err.message?.includes("schema cache")) {
-                const fallback = { ...linkboxData };
-                delete fallback.notes;
-                await api.saveLinkboxEntry(fallback);
-            } else {
-                throw err;
+            try {
+                await api.saveLinkboxEntry(linkboxData);
+            } catch (err) {
+                console.warn('Primary save failed, trying fallback:', err);
+                if (err.message?.includes("column 'notes' does not exist") || err.message?.includes("schema cache")) {
+                    const fallback = { ...linkboxData };
+                    delete fallback.notes;
+                    delete fallback.updated_at; // fallback for older schemas
+                    delete fallback.updatedAt;
+                    await api.saveLinkboxEntry(fallback);
+                } else {
+                    throw err;
+                }
             }
-        }
 
-        try {
             if (editingId) {
                 setLinkbox(linkbox.map(b => b.id === editingId ? linkboxData : b));
             } else {
