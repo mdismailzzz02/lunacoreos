@@ -94,6 +94,7 @@ export default function SettingsPage() {
                     theme: res.config.theme || 'dark',
                     tmdb_api_key: res.config.tmdb_api_key || '',
                     gemini_api_key: res.config.gemini_api_key || '',
+                    trash_path: res.config.trash_path || 'vault/67539ee2-a1b0-405d-bbc1-c33dcbd198e6/documents-trash/',
                     primary_accent: res.config.primary_accent || '#a29bfe'
                 }));
             }
@@ -605,6 +606,23 @@ export default function SettingsPage() {
                                 value={config.gemini_api_key} 
                                 onChange={e => setConfig({ ...config, gemini_api_key: e.target.value })} 
                                 placeholder="Required for AI"
+                            />
+                        </div>
+                    </div>
+                    <div className="apple-list-row">
+                        <div className="apple-row-left">
+                            <div className="apple-icon-wrapper" style={{ background: '#ff3b30' }}>
+                                <Settings size={18} strokeWidth={2.5} />
+                            </div>
+                            <span className="apple-row-label">Trash Path</span>
+                        </div>
+                        <div className="apple-row-right">
+                            <input 
+                                className="apple-input" 
+                                type="text"
+                                value={config.trash_path || ''} 
+                                onChange={e => setConfig({ ...config, trash_path: e.target.value })} 
+                                placeholder="R2 Prefix for Trash"
                             />
                         </div>
                     </div>

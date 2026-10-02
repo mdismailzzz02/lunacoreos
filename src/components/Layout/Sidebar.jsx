@@ -5,7 +5,7 @@ import {
     Home, Dna, Sparkles, Mail, BookOpen, FileText, PenTool,
     Heart, Users, Music, Play, Pause, SkipForward, Tv,
     Gamepad2, Diamond, Image, Library, Package, Star,
-    KeyRound, Settings, Disc, Film
+    KeyRound, Settings, Disc, Film, Link2, Clipboard
 } from 'lucide-react';
 
 const TABS = [
@@ -18,6 +18,8 @@ const TABS = [
     { id: 'studynotes', Icon: FileText, label: 'Study Notes' },
     { id: 'writing', Icon: PenTool, label: 'Writing' },
     { id: 'bookmarks', Icon: Heart, label: 'Bookmarks' },
+    { id: 'linkbox', Icon: Link2, label: 'Linkbox' },
+    { id: 'clipboard', Icon: Clipboard, label: 'Clipboard' },
     { id: 'delegation', Icon: Users, label: 'Delegation' },
     { id: 'musicplayer', Icon: Music, label: 'Music Player' },
     { id: 'videos', Icon: Tv, label: 'YouTube' },

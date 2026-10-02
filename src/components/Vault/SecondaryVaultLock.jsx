@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { getAppPasswordV2, setAppPasswordV2 } from '../../services/api';
+import { getAppPasswordV2, setAppPasswordV2, resetAppPasswordV2 } from '../../services/api';
 import UnlockSequence from '../Auth/UnlockSequence';
 
 async function sha256(message) {
@@ -66,6 +66,7 @@ export default function SecondaryVaultLock({ lockId, title, icon, onSuccess, onC
     const [submitting, setSubmitting] = useState(false);
     const [unlockState, setUnlockState] = useState(null);
     const [tick, setTick] = useState(0);
+    const [confirmReset, setConfirmReset] = useState(false);
 
     useEffect(() => {
         const id = setInterval(() => setTick(t => t + 1), 1000);
@@ -108,7 +109,12 @@ export default function SecondaryVaultLock({ lockId, title, icon, onSuccess, onC
                     }});
                 }
             }
-        } finally { setSubmitting(false); }
+        } catch (err) {
+            console.error('Vault lock error:', err);
+            setError(err.message || 'An error occurred while setting the key.');
+        } finally { 
+            setSubmitting(false); 
+        }
     };
 
     if (status === 'loading') return null;
@@ -290,9 +296,40 @@ export default function SecondaryVaultLock({ lockId, title, icon, onSuccess, onC
                                     </div>
                                 )}
 
-                                <button type="submit" disabled={submitting} className="svl-submit-btn">
-                                    {submitting ? '[ verifying... ]' : isSetMode ? '[ set key & unlock ]' : '[ unlock ]'}
-                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '32px' }}>
+                                    <button type="submit" disabled={submitting} className="svl-submit-btn" style={{ marginTop: 0 }}>
+                                        {submitting ? '[ verifying... ]' : isSetMode ? '[ set key & unlock ]' : '[ unlock ]'}
+                                    </button>
+                                    
+                                    {!isSetMode && (
+                                        <button 
+                                            type="button" 
+                                            disabled={submitting}
+                                            className="svl-submit-btn" 
+                                            style={{ marginTop: 0, color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.05)' }}
+                                            onClick={async () => {
+                                                if (!confirmReset) {
+                                                    setConfirmReset(true);
+                                                    setTimeout(() => setConfirmReset(false), 3000);
+                                                    return;
+                                                }
+                                                try {
+                                                    setSubmitting(true);
+                                                    await resetAppPasswordV2(lockId);
+                                                    setStatus('set');
+                                                    setPwd('');
+                                                    setConfirmReset(false);
+                                                } catch (err) {
+                                                    setError('Failed to reset PIN.');
+                                                } finally {
+                                                    setSubmitting(false);
+                                                }
+                                            }}
+                                        >
+                                            {confirmReset ? '[ SURE? CLICK AGAIN ]' : '[ FORCE RESET ]'}
+                                        </button>
+                                    )}
+                                </div>
 
                                 <div style={{ marginTop: '20px', fontSize: '0.72rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Menlo, monospace' }}>
                                     Press ↵ to submit · Red dot to close

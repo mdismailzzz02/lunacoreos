@@ -13,6 +13,8 @@ import ReadingListPage from './components/ReadingList/ReadingListPage';
 import WatchlistPage from './components/Watchlist/WatchlistPage';
 import FinancePage from './components/Finance/FinancePage';
 import BookmarksPage from './components/Bookmarks/BookmarksPage';
+import LinkboxPage from './components/Linkbox/LinkboxPage';
+import ClipboardPage from './components/Clipboard/ClipboardPage';
 import WritingPage from './components/Writing/WritingPage';
 import YearlyReviewPage from './components/YearlyReview/YearlyReviewPage';
 import Videos from './components/Videos/Videos';
@@ -579,6 +581,8 @@ export default function App() {
             case 'watchlist': return <WatchlistPage />;
             case 'finance': return <FinancePage />;
             case 'bookmarks': return <BookmarksPage />;
+            case 'linkbox': return <LinkboxPage />;
+            case 'clipboard': return <ClipboardPage />;
             case 'writing': return <WritingPage />;
             case 'studynotes': return <StudyNotesPage />;
             case 'yearlyreview': return <YearlyReviewPage />;

@@ -5,7 +5,7 @@ import {
     Tv, Gamepad2, Plus, X,
     FileText, PenTool, Heart, Users, Image, Library,
     Package, Star, KeyRound, Settings,
-    Disc, Play, Pause, SkipForward
+    Disc, Play, Pause, SkipForward, Link2, Clipboard
 } from 'lucide-react';
 import './CommandDisk.css';
 
@@ -27,6 +27,8 @@ const OUTER_ITEMS = [
     { id: 'studynotes',   Icon: FileText, label: 'Study Notes' },
     { id: 'writing',      Icon: PenTool, label: 'Writing' },
     { id: 'bookmarks',    Icon: Heart, label: 'Bookmarks' },
+    { id: 'linkbox',      Icon: Link2, label: 'Linkbox' },
+    { id: 'clipboard',    Icon: Clipboard, label: 'Clipboard' },
     { id: 'delegation',   Icon: Users, label: 'Delegation' },
     { id: 'media',        Icon: Image, label: 'Media' },
     { id: 'readinglist',  Icon: Library, label: 'Reading' },

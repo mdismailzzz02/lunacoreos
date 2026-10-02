@@ -15,6 +15,7 @@ import {
     updateVaultCollection,
     createVaultCollection,
     deleteVaultCollection,
+    trashVaultCollection,
     moveFileToTrash,
     restoreFileFromTrash,
     permanentlyDeleteFile,
@@ -265,7 +266,14 @@ function VaultLightbox({ items, index, onClose, likedIds, onLike }) {
 
 // ─── Lazy Image Card ──────────────────────────────────────────
 const VaultCard = React.memo(function VaultCard({ file, isLiked, onLike, onOpen, onDownload, onDelete }) {
-    const [thumbUrl, setThumbUrl] = useState(() => getCachedUrl(file.r2_key));
+    const hasBase64Thumb = file.thumbnail_key && file.thumbnail_key.startsWith('data:image/');
+    const thumbR2Key = (file.thumbnail_key && !hasBase64Thumb) ? file.thumbnail_key : file.r2_key;
+
+    const [thumbUrl, setThumbUrl] = useState(() => {
+        if (hasBase64Thumb) return file.thumbnail_key;
+        return getCachedUrl(thumbR2Key);
+    });
+    
     const [imgLoaded, setImgLoaded] = useState(false);
     const cardRef = useRef(null);
     const nameLabelRef = useRef(null);
@@ -273,20 +281,22 @@ const VaultCard = React.memo(function VaultCard({ file, isLiked, onLike, onOpen,
     const [scrollDist, setScrollDist] = useState(0);
 
     useEffect(() => {
+        if (hasBase64Thumb) return;
+
         // Already in cache — done
-        const cached = getCachedUrl(file.r2_key);
+        const cached = getCachedUrl(thumbR2Key);
         if (cached) { setThumbUrl(cached); return; }
 
         // Event-driven: listen for cache population instead of polling
         const handleSingleCached = (e) => {
-            if (e.detail.r2Key === file.r2_key) {
-                const url = getCachedUrl(file.r2_key);
+            if (e.detail.r2Key === thumbR2Key) {
+                const url = getCachedUrl(thumbR2Key);
                 if (url) setThumbUrl(url);
             }
         };
         const handleBatchCached = (e) => {
-            if (e.detail.keys?.includes(file.r2_key)) {
-                const url = getCachedUrl(file.r2_key);
+            if (e.detail.keys?.includes(thumbR2Key)) {
+                const url = getCachedUrl(thumbR2Key);
                 if (url) setThumbUrl(url);
             }
         };
@@ -295,10 +305,10 @@ const VaultCard = React.memo(function VaultCard({ file, isLiked, onLike, onOpen,
 
         // Fallback: if after 4s the batch still hasn't covered this key, fetch individually
         const fallbackTimer = setTimeout(() => {
-            const url = getCachedUrl(file.r2_key);
+            const url = getCachedUrl(thumbR2Key);
             if (url) { setThumbUrl(url); return; }
-            getR2PresignedGet(file.r2_key)
-                .then(({ url: u }) => { setCachedUrl(file.r2_key, u); setThumbUrl(u); })
+            getR2PresignedGet(thumbR2Key)
+                .then(({ url: u }) => { setCachedUrl(thumbR2Key, u); setThumbUrl(u); })
                 .catch(console.error);
         }, 4000);
 
@@ -307,7 +317,7 @@ const VaultCard = React.memo(function VaultCard({ file, isLiked, onLike, onOpen,
             window.removeEventListener('vault-urls-batch-cached', handleBatchCached);
             clearTimeout(fallbackTimer);
         };
-    }, [file.r2_key]);
+    }, [thumbR2Key, hasBase64Thumb]);
 
     // Measure text overflow to power the scroll animation without layout thrashing
     useEffect(() => {
@@ -357,7 +367,7 @@ const VaultCard = React.memo(function VaultCard({ file, isLiked, onLike, onOpen,
                         )}
                     </div>
                 )}
-                {thumbUrl && fileType === 'image' && (
+                {thumbUrl && (fileType === 'image' || file.thumbnail_key) && (
                     <img
                         className={`vault-thumb ${imgLoaded ? 'vault-thumb--loaded' : ''}`}
                         src={thumbUrl}
@@ -366,7 +376,7 @@ const VaultCard = React.memo(function VaultCard({ file, isLiked, onLike, onOpen,
                         onLoad={() => setImgLoaded(true)}
                     />
                 )}
-                {thumbUrl && fileType === 'video' && (
+                {thumbUrl && fileType === 'video' && !file.thumbnail_key && (
                     <video
                         className={`vault-thumb ${imgLoaded ? 'vault-thumb--loaded' : ''}`}
                         src={`${thumbUrl}#t=8`}
@@ -707,7 +717,10 @@ export default function VaultMediaGrid({ activeTab, collections, onTabChange, on
             const newFiles = res.files || [];
 
             // Batch-prefetch thumbnail presigned URLs (20 at a time)
-            const keys = newFiles.map(f => f.r2_key).filter(k => !getCachedUrl(k));
+            const keys = newFiles
+                .filter(f => !f.thumbnail_key || !f.thumbnail_key.startsWith('data:image/'))
+                .map(f => (f.thumbnail_key && !f.thumbnail_key.startsWith('data:image/')) ? f.thumbnail_key : f.r2_key)
+                .filter(k => !getCachedUrl(k));
             for (let i = 0; i < keys.length; i += 20) {
                 const batch = keys.slice(i, i + 20);
                 getR2PresignedBatch(batch)
@@ -928,7 +941,7 @@ export default function VaultMediaGrid({ activeTab, collections, onTabChange, on
     };
 
     const handleDeleteSubfolder = async (id, name) => {
-        if (!window.confirm(`Remove subfolder "${name}" from your Vault?\n\nFiles in R2 are NOT deleted — only the index is removed.`)) return;
+        if (!window.confirm(`Are you sure you want to delete "${name}"? All files inside will be moved to Trash.`)) return;
         setPendingDeleteSub(id);
     };
 
@@ -936,7 +949,7 @@ export default function VaultMediaGrid({ activeTab, collections, onTabChange, on
         const id = pendingDeleteSub;
         setPendingDeleteSub(null);
         try {
-            await deleteVaultCollection(id);
+            await trashVaultCollection(id);
             if (onCollectionsChanged) onCollectionsChanged();
         } catch (err) {
             console.error('Failed to delete subfolder', err);

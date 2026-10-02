@@ -5,7 +5,7 @@ import {
     Home, Dna, Sparkles, Mail, BookOpen, FileText, PenTool,
     Heart, Users, Music, Tv, Gamepad2, Diamond, Image,
     Library, Package, Star, KeyRound, Settings, Wallet, Brain,
-    Flame, User, Bell, Info, X, Film, Radio, MonitorPlay
+    Flame, User, Bell, Info, X, Film, Radio, MonitorPlay, Link2, Clipboard
 } from 'lucide-react';
 import LofiRadio from '../Arcade/LofiRadio';
 import './SmartActions.css';
@@ -19,6 +19,8 @@ const ALL_ITEMS = [
     { id: 'studynotes',     Icon: FileText, label: 'Study Notes',    keywords: 'notes study learning education' },
     { id: 'writing',        Icon: PenTool, label: 'Writing',        keywords: 'write draft blog essay creative' },
     { id: 'bookmarks',      Icon: Heart, label: 'Bookmarks',      keywords: 'favorites saved links' },
+    { id: 'linkbox',        Icon: Link2, label: 'Linkbox',        keywords: 'links linkbox urls web' },
+    { id: 'clipboard',      Icon: Clipboard, label: 'Clipboard',    keywords: 'clipboard copy paste text snippets secret' },
     { id: 'delegation',     Icon: Users, label: 'Delegation',     keywords: 'delegate tasks assign' },
     { id: 'musicplayer',    Icon: Music, label: 'Music Player',   keywords: 'music songs audio player playlist' },
     { id: 'videos',         Icon: Tv, label: 'YouTube',        keywords: 'youtube videos watch' },

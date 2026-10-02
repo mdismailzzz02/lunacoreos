@@ -8,6 +8,7 @@ import {
     getVaultCollections,
     createVaultCollection,
     deleteVaultCollection,
+    trashVaultCollection,
 } from '../../services/api';
 import { 
     Image, FileText, Code, Plus, Lock, Ghost, EyeOff, 
@@ -259,14 +260,14 @@ function VaultPage() {
 
     const handleRemoveCollection = async (colId) => {
         const col = collections.find(c => c.id === colId);
-        if (!window.confirm(`Remove "${col?.name || 'this collection'}" from your Vault?\n\nFiles in R2 are NOT deleted — only the index is removed.`)) return;
+        if (!window.confirm(`Are you sure you want to delete "${col?.name || 'this collection'}"? All files inside will be moved to Trash.`)) return;
         setPendingDelete(colId);
     };
 
     const confirmDelete = async () => {
         const colId = pendingDelete;
         setPendingDelete(null);
-        try { await deleteVaultCollection(colId); } catch (_) {}
+        try { await trashVaultCollection(colId); } catch (_) {}
         setCollections(prev => prev.filter(c => c.id !== colId));
         if (activeTab === colId) {
             setActiveTab(window.innerWidth < 768 ? 'folders_menu' : (collections[0]?.id || 'people'));

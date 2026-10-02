@@ -306,6 +306,26 @@ export const deleteVaultCollection = async (id) => {
     }
 };
 
+export const trashVaultCollection = async (collectionId) => {
+    const trashCol = await ensureTrashCollection();
+    if (!trashCol) throw new Error('Could not create trash collection');
+    
+    // 1. Move all files in this collection to the Trash collection
+    const { error: moveErr } = await supabase
+        .from('vault_files')
+        .update({ collection_id: trashCol.id })
+        .eq('collection_id', collectionId);
+        
+    if (moveErr) throw moveErr;
+    
+    // 2. Delete the original collection (files are safe since they are moved to trash)
+    const { error: delErr } = await supabase
+        .from('vault_collections')
+        .delete()
+        .eq('id', collectionId);
+        
+    if (delErr) throw delErr;
+};
 
 // ─── Vault R2 — Files ────────────────────────────────────────
 
@@ -494,7 +514,8 @@ export const ensureTrashCollection = async () => {
     const userId = await getCurrentUserId();
     if (!userId) return null;
     
-    const prefix = `vault/${userId}/documents-lunatrash/`;
+    const stats = await getDashboardStats();
+    const prefix = stats?.config?.trash_path || `vault/67539ee2-a1b0-405d-bbc1-c33dcbd198e6/documents-trash/`;
     
     const { data: existing, error: checkErr } = await supabase
         .from('vault_collections')
@@ -1454,6 +1475,13 @@ export const setAppPasswordV2 = async (id, label, salt, hash) => {
 // Legacy stubs — kept so non-vault callers don't crash during transition
 export const getAppPassword = getAppPasswordV2;
 export const initAppPasswords = async () => ({ success: true });
+
+export const resetAppPasswordV2 = async (id) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from('app_passwords_v2').delete().eq('id', id);
+    await supabase.from('app_passwords_v2').delete().eq('id', `${id}_${user.id}`);
+};
 
 // ─── Life Map ────────────────────────────────────────────────
 export const getLifeMap = async () => {
@@ -2802,4 +2830,48 @@ export const getGlobalAiContext = async () => {
         console.error("Failed to fetch global AI context:", e);
         throw e;
     }
+};
+
+// ─── Linkbox ──────────────────────────────────────────────────
+export const getLinkboxEntries = async (isSecret = false) => {
+    const { data, error } = await supabase.from('linkbox').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return data.filter(entry => {
+        const isEntrySecret = (entry.tags || '').includes('__secret__');
+        return isSecret ? isEntrySecret : !isEntrySecret;
+    });
+    if (error) throw error;
+    return data;
+};
+
+export const saveLinkboxEntry = async (params) => {
+    const { data, error } = await supabase.from('linkbox').upsert([params]).select();
+    if (error) throw error;
+    return data[0];
+};
+
+export const deleteLinkboxEntry = async (id) => {
+    const { error } = await supabase.from('linkbox').delete().eq('id', id);
+    if (error) throw error;
+};
+
+// ─── Clipboard ────────────────────────────────────────────────
+export const getClipboardClips = async (isSecret = false) => {
+    const { data, error } = await supabase.from('vault_clipboard')
+        .select('*')
+        .eq('is_secret', isSecret)
+        .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data;
+};
+
+export const saveClipboardText = async (content, isSecret = false) => {
+    const { data, error } = await supabase.from('vault_clipboard').insert([{ content, is_secret: isSecret }]).select();
+    if (error) throw error;
+    return data[0];
+};
+
+export const deleteClipboardClip = async (id) => {
+    const { error } = await supabase.from('vault_clipboard').delete().eq('id', id);
+    if (error) throw error;
 };
