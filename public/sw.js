@@ -6,7 +6,6 @@ const PRECACHE_ASSETS = [
     '/',
     '/index.html',
     '/favicon.svg',
-    '/moon-icon.webp',
     '/manifest.json'
 ];
 
@@ -25,8 +24,15 @@ const MEDIA_PATTERNS = [
 self.addEventListener('install', (event) => {
     console.log('[SW] Install');
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(PRECACHE_ASSETS);
+        caches.open(CACHE_NAME).then(async (cache) => {
+            // Use Promise.allSettled or try/catch for each so one failure doesn't block the whole cache
+            for (const asset of PRECACHE_ASSETS) {
+                try {
+                    await cache.add(asset);
+                } catch (e) {
+                    console.warn('[SW] Failed to cache asset:', asset, e);
+                }
+            }
         })
     );
     self.skipWaiting();
